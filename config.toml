@@ -1,0 +1,19 @@
+[market]
+# Allowed symbols (long only).
+symbols = ["SPY", "QQQ", "AAPL", "MSFT", "GLD"]
+# Alpaca market data feed (iex is free; sip needs a paid plan).
+feed = "iex"
+# Calendar days of hourly history requested from Alpaca.
+history_days = 90
+# Maximum age in hours of the last bar before data is rejected as stale.
+max_bar_age_hours = 2.5
+# Maximum share of missing hourly slots tolerated in the context window.
+max_gap_ratio = 0.2
+
+[forecast]
+# Timestral model on the Hugging Face Hub.
+model = "mistralai/Timestral-28M"
+# Number of most recent hourly bars given as context.
+context_length = 400
+# Forecast horizon in hourly steps.
+horizon = 6

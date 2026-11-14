@@ -1,0 +1,45 @@
+[project]
+name = "trading-agent"
+version = "0.1.0"
+description = "Autonomous paper-trading agent: Timestral forecasts, Mistral LLM decisions, Alpaca paper execution."
+requires-python = ">=3.12"
+dependencies = [
+    "alpaca-py",
+    "httpx",
+    "mistralai",
+    "numpy",
+    "pydantic>=2",
+    "pydantic-settings>=2.16.3",
+    "python-dotenv",
+    "timestral",
+    "torch",
+]
+
+[dependency-groups]
+dev = ["mypy", "pytest", "ruff"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+timestral = { git = "https://github.com/mistralai/timestral.git" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[[tool.mypy.overrides]]
+module = "timestral.*"
+ignore_missing_imports = true
