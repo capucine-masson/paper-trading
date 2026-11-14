@@ -6,10 +6,15 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
 
-from agent.broker import Bar
 from agent.config import MarketConfig
 
 BAR_PERIOD = timedelta(hours=1)
+
+
+class Bar(BaseModel):
+    symbol: str
+    timestamp: datetime
+    close: float
 
 
 class DataError(Exception):

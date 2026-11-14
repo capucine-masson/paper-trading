@@ -2,9 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from agent.broker import Bar
 from agent.config import load_config
-from agent.data import DataError, build_series, check_freshness
+from agent.data import Bar, DataError, build_series, check_freshness
 
 MARKET = load_config().market
 START = datetime(2026, 11, 10, 14, tzinfo=UTC)

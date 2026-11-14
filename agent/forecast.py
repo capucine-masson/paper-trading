@@ -1,5 +1,7 @@
 """Timestral forecasting with strict validation of the output."""
 
+from datetime import datetime
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -20,6 +22,7 @@ class ForecastError(Exception):
 class PriceForecast(BaseModel):
     symbol: str
     model: str
+    last_bar_start: datetime
     last_price: float
     median: list[float]
     lower: list[float]
@@ -62,6 +65,7 @@ def validate_forecast(
     return PriceForecast(
         symbol=symbol,
         model=config.model,
+        last_bar_start=series.last_bar_start,
         last_price=series.last_price,
         median=median.tolist(),
         lower=lower.tolist(),

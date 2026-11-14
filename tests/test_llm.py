@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -14,6 +15,7 @@ CONFIG = LlmConfig(
 FORECAST = PriceForecast(
     symbol="SPY",
     model="m",
+    last_bar_start=datetime(2026, 11, 10, tzinfo=UTC),
     last_price=100.0,
     median=[101.0],
     lower=[99.0],

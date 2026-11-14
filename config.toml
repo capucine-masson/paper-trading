@@ -29,3 +29,29 @@ timeout_s = 30
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).
 retry_delay_s = 2.0
+
+[risk]
+# Emergency stop: false blocks every order.
+enabled = true
+# Capital in USD allocated to the agent; all limits are computed on it.
+allocated_capital = 10000.0
+# Agent equity in USD below which the agent halts (sticky, manual resume).
+capital_floor = 8000.0
+# Maximum daily loss as a percentage of allocated capital; beyond it, no more buys that day.
+max_daily_loss_pct = 5.0
+# Maximum size of one position as a percentage of allocated capital.
+max_position_pct = 20.0
+# Maximum total exposure as a percentage of allocated capital.
+max_total_exposure_pct = 80.0
+# Maximum number of orders per cycle.
+max_orders_per_cycle = 5
+# Minimum LLM confidence to act.
+min_confidence = 0.6
+# Maximum forecast uncertainty (interval width over median) to buy.
+max_uncertainty = 0.06
+
+[broker]
+# Attempts on transient Alpaca errors (network, 429, 5xx).
+max_attempts = 3
+# Delay in seconds before the first retry (doubles each time).
+retry_delay_s = 2.0

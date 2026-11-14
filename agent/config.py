@@ -4,12 +4,13 @@ import tomllib
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.toml"
 ENV_PATH = ROOT / ".env"
+JOURNAL_PATH = ROOT / "journal.db"
 
 Symbol = Annotated[str, StringConstraints(pattern=r"^[A-Z]{1,5}$")]
 
@@ -42,12 +43,43 @@ class LlmConfig(BaseModel):
     retry_delay_s: float = Field(gt=0, le=60)
 
 
+class RiskConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    allocated_capital: float = Field(gt=0)
+    capital_floor: float = Field(ge=0)
+    max_daily_loss_pct: float = Field(gt=0, le=100)
+    max_position_pct: float = Field(gt=0, le=100)
+    max_total_exposure_pct: float = Field(gt=0, le=100)
+    max_orders_per_cycle: int = Field(ge=1, le=50)
+    min_confidence: float = Field(ge=0, le=1)
+    max_uncertainty: float = Field(gt=0, le=1)
+
+    @model_validator(mode="after")
+    def check_consistency(self) -> "RiskConfig":
+        if self.capital_floor >= self.allocated_capital:
+            raise ValueError("capital_floor must be below allocated_capital")
+        if self.max_position_pct > self.max_total_exposure_pct:
+            raise ValueError("max_position_pct must not exceed max_total_exposure_pct")
+        return self
+
+
+class BrokerConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_attempts: int = Field(ge=1, le=10)
+    retry_delay_s: float = Field(gt=0, le=60)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     market: MarketConfig
     forecast: ForecastConfig
     llm: LlmConfig
+    risk: RiskConfig
+    broker: BrokerConfig
 
 
 class Secrets(BaseSettings):

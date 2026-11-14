@@ -1,45 +1,101 @@
 """The only module talking to Alpaca (paper account only)."""
 
 import logging
+import time
+from collections.abc import Callable
 from datetime import datetime
 
+from alpaca.common.exceptions import APIError
 from alpaca.data.enums import DataFeed
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
+from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.models import Position as AlpacaPosition
+from alpaca.trading.requests import MarketOrderRequest
 from pydantic import BaseModel
 
-from agent.config import Secrets
+from agent.config import BrokerConfig, Secrets
+from agent.data import Bar
+from agent.risk import OrderSpec, Position
 
 logger = logging.getLogger(__name__)
 
 PAPER_URL = "https://paper-api.alpaca.markets"
 PAPER_ACCOUNT_PREFIX = "PA"
+HTTP_NOT_FOUND = 404
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_SERVER_ERROR = 500
 
 
-class Bar(BaseModel):
+class BrokerError(Exception):
+    """Raised when Alpaca cannot be reached or refuses a request."""
+
+
+class OrderRecord(BaseModel):
+    order_id: str
+    client_order_id: str
     symbol: str
-    timestamp: datetime
-    close: float
+    side: str
+    status: str
+    notional: float | None = None
+    qty: float | None = None
+
+
+def _is_transient(error: Exception) -> bool:
+    if isinstance(error, APIError):
+        status: int = error.status_code
+        return status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR
+    return True
 
 
 class Broker:
-    def __init__(self, secrets: Secrets, feed: str) -> None:
+    def __init__(self, secrets: Secrets, feed: str, config: BrokerConfig) -> None:
         key = secrets.alpaca_api_key.get_secret_value()
         secret = secrets.alpaca_secret_key.get_secret_value()
+        self._config = config
         self._trading = TradingClient(key, secret, paper=True, url_override=PAPER_URL)
         self._data = StockHistoricalDataClient(key, secret)
         self._feed = DataFeed(feed)
         self._check_paper_account()
 
+    def _retry[T](self, action: Callable[[], T]) -> T:
+        """Retry only transient errors (network, 429, 5xx), with an increasing delay."""
+        delay = self._config.retry_delay_s
+        attempt = 1
+        while True:
+            try:
+                return action()
+            except (APIError, OSError) as error:
+                if not _is_transient(error) or attempt >= self._config.max_attempts:
+                    raise BrokerError(f"Alpaca request failed: {error}") from error
+                logger.warning("transient Alpaca error, retrying in %.1fs: %s", delay, error)
+                time.sleep(delay)
+                delay *= 2
+                attempt += 1
+
     def _check_paper_account(self) -> None:
-        number = str(self._trading.get_account().account_number)  # type: ignore[union-attr]
-        if not number.startswith(PAPER_ACCOUNT_PREFIX):
+        account = self._retry(self._trading.get_account)
+        if not str(account.account_number).startswith(PAPER_ACCOUNT_PREFIX):  # type: ignore[union-attr]
             raise RuntimeError("Refusing to start: the Alpaca account is not a paper account.")
 
     def is_market_open(self) -> bool:
-        return bool(self._trading.get_clock().is_open)  # type: ignore[union-attr]
+        return bool(self._retry(self._trading.get_clock).is_open)  # type: ignore[union-attr]
+
+    def get_equity(self) -> float:
+        equity = self._retry(self._trading.get_account).equity  # type: ignore[union-attr]
+        if equity is None:
+            raise BrokerError("Alpaca returned no account equity")
+        return float(equity)
+
+    def get_positions(self) -> dict[str, Position]:
+        positions = self._retry(self._trading.get_all_positions)
+        return {
+            p.symbol: Position(qty=float(p.qty), market_value=float(p.market_value or 0.0))
+            for p in positions
+            if isinstance(p, AlpacaPosition)
+        }
 
     def fetch_hourly_bars(self, symbols: list[str], start: datetime, end: datetime) -> list[Bar]:
         request = StockBarsRequest(
@@ -49,9 +105,49 @@ class Broker:
             end=end,
             feed=self._feed,
         )
-        bar_set = self._data.get_stock_bars(request)
+        bar_set = self._retry(lambda: self._data.get_stock_bars(request))
         return [
             Bar(symbol=symbol, timestamp=bar.timestamp, close=bar.close)
             for symbol, bars in bar_set.data.items()  # type: ignore[union-attr]
             for bar in bars
         ]
+
+    def find_order(self, client_order_id: str) -> OrderRecord | None:
+        try:
+            order = self._trading.get_order_by_client_id(client_order_id)
+        except APIError as error:
+            if error.status_code == HTTP_NOT_FOUND:
+                return None
+            raise
+        return _to_record(order)
+
+    def submit_order(self, spec: OrderSpec, client_order_id: str) -> OrderRecord:
+        """Look the order up by client_order_id before each attempt: never a duplicate."""
+        request = MarketOrderRequest(
+            symbol=spec.symbol,
+            side=OrderSide(spec.side),
+            time_in_force=TimeInForce.DAY,
+            notional=spec.notional,
+            qty=spec.qty,
+            client_order_id=client_order_id,
+        )
+
+        def attempt() -> OrderRecord:
+            existing = self.find_order(client_order_id)
+            if existing is not None:
+                return existing
+            return _to_record(self._trading.submit_order(request))
+
+        return self._retry(attempt)
+
+
+def _to_record(order: object) -> OrderRecord:
+    return OrderRecord(
+        order_id=str(order.id),  # type: ignore[attr-defined]
+        client_order_id=str(order.client_order_id),  # type: ignore[attr-defined]
+        symbol=str(order.symbol),  # type: ignore[attr-defined]
+        side=str(order.side.value),  # type: ignore[attr-defined]
+        status=str(order.status.value),  # type: ignore[attr-defined]
+        notional=None if order.notional is None else float(order.notional),  # type: ignore[attr-defined]
+        qty=None if order.qty is None else float(order.qty),  # type: ignore[attr-defined]
+    )
