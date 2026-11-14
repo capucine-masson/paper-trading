@@ -28,8 +28,13 @@ Decide one action: "buy", "sell" or "hold".
 - "sell": the forecast supports a price decrease clearly larger than its uncertainty.
 - "hold": the expected move is small compared to the forecast interval, or you are unsure.
 Wide forecast intervals mean low conviction: lower your confidence accordingly.
-Never give a quantity or a price. Give a confidence between 0 and 1 and a short rationale
-(one or two sentences) citing the numbers that drove the decision."""
+Never give a quantity or a price, and never discuss position size or order amount: sizing is
+decided by the code. Give a confidence between 0 and 1 and a short rationale: one or two
+complete sentences, in plain language for a client who is not a trader, that state the
+expected move, the uncertainty around it, and why this leads to the chosen action.
+Phrase it as a recommendation ("the model recommends buying"), never as an executed order:
+risk rules may still block or reduce it afterwards.
+Avoid jargon such as "median" or "quantile"."""
 
 
 class Decision(BaseModel):

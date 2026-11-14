@@ -28,7 +28,6 @@ export interface Status {
   symbols: string[];
   capital_floor: number;
   account_size: number | null;
-  errors: number;
   metrics: Metrics;
 }
 

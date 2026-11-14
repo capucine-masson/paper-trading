@@ -134,7 +134,7 @@ acts on the agent.
 Three tabs, light or dark theme (moon/sun button, follows the device, remembered in `localStorage`):
 
 - **Overview**, one screen without scrolling: PnL, return (with the buy and hold's), max drawdown and orders
-  sent; positions with their weight, exposure and cash; last run and number of errors; the three CSV downloads;
+  sent; positions with their weight, exposure and cash; last run; the three CSV downloads;
   and a line saying how much of the Alpaca paper account the agent manages (the account size is the equity read
   from Alpaca at the last cycle that ran). The chart has one point per cycle (no gap for nights and weekends).
   With all symbols it shows the agent's portfolio value, a dashed line at the starting value, a marker where

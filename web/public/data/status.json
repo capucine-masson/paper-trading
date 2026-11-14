@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-14T03:30:42.179228Z",
+  "generated_at": "2026-11-14T21:21:36.989891Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
@@ -10,13 +10,20 @@
     "finished_at": "2026-11-14T01:51:28.388332Z"
   },
   "allocated_capital": 10000.0,
-  "errors": 0,
+  "symbols": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT",
+    "GLD"
+  ],
+  "capital_floor": 8000.0,
+  "account_size": null,
   "metrics": {
     "equity": null,
     "pnl": null,
     "total_return": null,
-    "benchmark_return": null,
-    "sharpe": null,
+    "buy_and_hold_return": null,
     "max_drawdown": null,
     "exposure": null,
     "cash": null

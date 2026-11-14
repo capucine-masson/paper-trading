@@ -108,7 +108,6 @@ class Status(BaseModel):
     symbols: list[str]
     capital_floor: float
     account_size: float | None
-    errors: int
     metrics: Metrics
 
 
@@ -148,7 +147,6 @@ def build_export(store: Store, config: Config, now: datetime) -> Export:
         symbols=config.market.symbols,
         capital_floor=config.risk.capital_floor,
         account_size=None if account is None else float(account),
-        errors=len(store.list_steps("error")),
         metrics=_metrics(points, latest, allocated),
     )
     portfolio = PortfolioExport(points=points, positions=_positions(latest))

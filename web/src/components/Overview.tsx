@@ -10,7 +10,6 @@ import {
 } from "../format";
 import { ALL_SYMBOLS, type DecisionView, type Metrics, type Period, type PortfolioData, type PositionView, type Status } from "../types";
 import { EquityChart, type OrderMark } from "./EquityChart";
-import { Empty } from "./Feedback";
 
 const PERIOD_LABELS: { value: Period; label: string }[] = [
   { value: "1d", label: "1D" },
@@ -40,11 +39,11 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
     <div className="overview">
       <aside className="side">
         <Performance metrics={status.metrics} ordersSent={ordersSent} />
+        <RunInfo status={status} />
       </aside>
       <aside className="side">
-        <Positions positions={portfolio.positions} />
+        <Positions positions={portfolio.positions} symbols={status.symbols} />
         <Allocation metrics={status.metrics} />
-        <RunInfo status={status} />
       </aside>
       <section className="card chart-card">
         <div className="card-head">
@@ -175,30 +174,30 @@ function Kpi({ label, value, sub, tone: valueTone }: KpiProps) {
   );
 }
 
-function Positions({ positions }: { positions: PositionView[] }) {
+function Positions({ positions, symbols }: { positions: PositionView[]; symbols: string[] }) {
+  const rows = symbols.map(
+    (symbol) =>
+      positions.find((p) => p.symbol === symbol) ?? { symbol, qty: 0, market_value: 0, weight: 0 },
+  );
   return (
     <section className="card positions-card">
       <div className="card-head">
         <h2>Positions</h2>
       </div>
-      {positions.length === 0 ? (
-        <Empty message="No open position." />
-      ) : (
-        <ul className="positions">
-          {positions.map((p) => (
-            <li key={p.symbol}>
-              <div className="position-row">
-                <strong>{p.symbol}</strong>
-                <span className="num">{formatUsd(p.market_value)}</span>
-                <span className="num muted">{formatPercent(p.weight)}</span>
-              </div>
-              <span className="meter">
-                <span className="meter-fill" style={{ width: `${Math.min(p.weight, 1) * 100}%` }} />
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="positions">
+        {rows.map((p) => (
+          <li key={p.symbol}>
+            <div className={p.qty === 0 ? "position-row position-flat" : "position-row"}>
+              <strong>{p.symbol}</strong>
+              <span className="num">{formatUsd(p.market_value)}</span>
+              <span className="num muted">{formatPercent(p.weight)}</span>
+            </div>
+            <span className="meter">
+              <span className="meter-fill" style={{ width: `${Math.min(p.weight, 1) * 100}%` }} />
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -221,10 +220,6 @@ function RunInfo({ status }: { status: Status }) {
           <span className={cycle.status === "error" ? "down" : "muted"}>{cycle.status ?? "running"}</span>
         </span>
       )}
-      <span>
-        <span className="kpi-label">Errors</span>{" "}
-        <strong className={status.errors > 0 ? "down" : undefined}>{status.errors}</strong>
-      </span>
     </div>
   );
 }

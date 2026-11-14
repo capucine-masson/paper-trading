@@ -21,7 +21,8 @@ interface Props {
 
 export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   const shown = forSymbol(decisions, symbol);
-  const latest = [...shown].reverse().slice(0, MAX_CARDS);
+  const cycles = groupByCycle([...shown].reverse());
+  const latest = cycles.slice(0, MAX_CARDS);
   return (
     <div className="page-section">
       <div className="section-head">
@@ -52,18 +53,57 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
               <span>Guardrails</span>
               <span>Order</span>
             </div>
-            {latest.map((d) => (
-              <DecisionRow key={`${d.cycle_id}-${d.symbol}`} decision={d} />
+            {latest.map((cycle, index) => (
+              <CycleGroup key={cycle[0].cycle_id} decisions={cycle} defaultOpen={index === 0} />
             ))}
           </div>
-          {shown.length > MAX_CARDS && (
+          {cycles.length > MAX_CARDS && (
             <p className="muted">
-              Showing the latest {MAX_CARDS} of {shown.length} decisions. The decisions CSV holds all of them.
+              Showing the latest {MAX_CARDS} of {cycles.length} cycles. The decisions CSV holds all of them.
             </p>
           )}
         </>
       )}
     </div>
+  );
+}
+
+function groupByCycle(decisions: DecisionView[]): DecisionView[][] {
+  const cycles = new Map<string, DecisionView[]>();
+  for (const d of decisions) {
+    const group = cycles.get(d.cycle_id);
+    if (group === undefined) cycles.set(d.cycle_id, [d]);
+    else group.push(d);
+  }
+  return [...cycles.values()];
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function CycleGroup({ decisions, defaultOpen }: { decisions: DecisionView[]; defaultOpen: boolean }) {
+  const orders = decisions.filter((d) => d.order !== null).length;
+  const blocked = decisions.filter((d) => d.verdict === "blocked").length;
+  return (
+    <details className="cycle-group" open={defaultOpen}>
+      <summary className="cycle-summary">
+        <time dateTime={decisions[0].t}>{formatDateTime(decisions[0].t)}</time>
+        <span className="muted">
+          {plural(decisions.length, "decision")} · {plural(orders, "order")} · {blocked} blocked
+        </span>
+        <span className="cycle-pills">
+          {decisions.map((d) => (
+            <span key={d.symbol} className={`pill pill-${d.action}`}>
+              {d.symbol} {d.action}
+            </span>
+          ))}
+        </span>
+      </summary>
+      {decisions.map((d) => (
+        <DecisionRow key={d.symbol} decision={d} />
+      ))}
+    </details>
   );
 }
 
@@ -77,7 +117,7 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
           <span className={`pill pill-${d.action}`}>{d.action}</span>
         </span>
         <span>{formatPercent(d.confidence)}</span>
-        <span className="num">{d.price === null ? "n/a" : formatUsd(d.price)}</span>
+        <span>{d.price === null ? "n/a" : formatUsd(d.price)}</span>
         <span>
           <span className={`verdict verdict-${d.verdict}`}>{VERDICT_LABEL[d.verdict]}</span>
         </span>

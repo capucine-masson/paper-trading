@@ -85,7 +85,6 @@ def seeded_store(tmp_path: Path) -> Store:
             }
         ),
     )
-    store.save_step("c2", "QQQ", "error", json.dumps({"message": "stale data"}))
     return store
 
 
@@ -98,7 +97,6 @@ def test_metrics_and_curve(tmp_path: Path) -> None:
     assert metrics.buy_and_hold_return is None  # the test config holds more than SPY
     assert export.status.capital_floor == CONFIG.risk.capital_floor
     assert export.status.account_size is None  # no cycle recorded it
-    assert export.status.errors == 1
     first, second = export.portfolio.points
     assert first.prices == {"SPY": 500.0} and first.buy_and_hold is None
     assert export.status.symbols == CONFIG.market.symbols

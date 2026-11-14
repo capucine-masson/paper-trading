@@ -127,8 +127,8 @@ h3 {
 }
 
 .brand {
-  font-weight: 700;
-  white-space: nowrap;
+  width: 32px;
+  height: 32px;
 }
 
 .tabs {
@@ -304,8 +304,7 @@ select:hover {
   flex: 1 1 auto;
 }
 
-.side > .kpis,
-.run-info {
+.side > .kpis {
   justify-content: space-around;
 }
 
@@ -338,7 +337,8 @@ select:hover {
   font-size: 0.7rem;
 }
 
-.run-info {
+.side > .run-info {
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -559,6 +559,10 @@ select:hover {
   gap: var(--space-2);
 }
 
+.position-flat {
+  color: var(--muted);
+}
+
 .position-row {
   display: grid;
   grid-template-columns: 1fr auto 48px;
@@ -640,7 +644,7 @@ select:hover {
 .decision-columns,
 .decision-summary {
   display: grid;
-  grid-template-columns: 150px 64px 72px 92px 96px 100px minmax(0, 1fr) 20px;
+  grid-template-columns: 150px 64px 72px 92px 120px 100px minmax(0, 1fr) 20px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
@@ -654,12 +658,58 @@ select:hover {
   border-bottom: 1px solid var(--border);
 }
 
-.decision-row {
+.cycle-group {
   border-bottom: 1px solid var(--border);
 }
 
-.decision-row:last-child {
+.cycle-group:last-child {
   border-bottom: 0;
+}
+
+.cycle-summary {
+  display: grid;
+  grid-template-columns: 150px 64px 72px 92px 120px 100px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+  background: var(--bg);
+}
+
+.cycle-summary::-webkit-details-marker {
+  display: none;
+}
+
+.cycle-summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+
+.cycle-group[open] > .cycle-summary::after {
+  transform: rotate(-135deg);
+}
+
+.cycle-summary .muted {
+  grid-column: 2 / 6;
+  font-weight: 400;
+}
+
+.cycle-pills {
+  grid-column: 6 / 8;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.decision-row {
+  border-top: 1px solid var(--border);
 }
 
 .decision-summary {
@@ -904,6 +954,19 @@ select:hover {
 
   .decision-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr)) 20px;
+  }
+
+  .cycle-summary {
+    grid-template-columns: minmax(0, 1fr) 20px;
+  }
+
+  .cycle-summary > * {
+    grid-column: 1;
+  }
+
+  .cycle-summary::after {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .decision-body {
