@@ -28,7 +28,7 @@ export function App() {
     () => (data === null ? [] : [...new Set(data.decisions.map((d) => d.symbol))].sort()),
     [data],
   );
-  const fitScreen = view.tab === "overview" && data !== null;
+  const fitScreen = (view.tab === "overview" || view.tab === "quality") && data !== null;
 
   return (
     <>
@@ -40,7 +40,7 @@ export function App() {
         onToggleTheme={toggleTheme}
       />
       <main className={fitScreen ? "content content-fit" : "content"}>
-        {isDemo() && <p className="notice">Demo data for layout preview only (development).</p>}
+        {import.meta.env.DEV && isDemo() && <p className="notice">Demo data for layout preview only (development).</p>}
         {load.kind === "loading" && <Loading />}
         {load.kind === "error" && <ErrorState message={load.message} />}
         {data !== null && view.tab === "overview" && (
@@ -62,7 +62,13 @@ export function App() {
             onSymbol={(symbol) => updateView({ symbol })}
           />
         )}
-        {data !== null && view.tab === "quality" && <Quality backtest={data.backtest} />}
+        {data !== null && view.tab === "quality" && (
+          <Quality
+            backtest={data.backtest}
+            symbol={view.symbol}
+            onSymbol={(symbol) => updateView({ symbol })}
+          />
+        )}
       </main>
     </>
   );

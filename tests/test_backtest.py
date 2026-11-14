@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from agent.backtest import (
     build_points,
     buy_and_hold_strategy,
     cash_strategy,
+    evaluate_model,
+    forecast_points,
     simulate,
     timestral_rule_strategy,
 )
@@ -84,6 +87,31 @@ def make_record(
         uncertainty=uncertainty,
     )
     return ForecastRecord(EvalPoint(moment, series, actual=price, fill_price=fill), forecast, 0.0)
+
+
+def test_forecast_points_keep_the_band_the_median_and_the_actual_price_in_time_order() -> None:
+    records = [make_record(2, 102.0, 102.0), make_record(1, 100.0, 100.0, median=101.0)]
+    points = forecast_points(records)
+    assert [p.t for p in points] == [START + timedelta(hours=1), START + timedelta(hours=2)]
+    first = points[0]
+    assert (first.symbol, first.lower, first.median, first.upper, first.actual) == (
+        "SPY",
+        99.0,
+        101.0,
+        101.0,
+        100.0,
+    )
+
+
+def test_exported_points_give_the_same_hit_rate_as_the_table() -> None:
+    records = [
+        replace(r, point=replace(r.point, actual=102.0 if i % 4 == 0 else 100.0))
+        for i, r in enumerate(make_record(i, 100.0, 100.0) for i in range(10))
+    ]
+    points = forecast_points(records)
+    outside = sum(p.actual < p.lower or p.actual > p.upper for p in points)
+    assert outside == 3
+    assert evaluate_model("m", "m", records).overall.coverage == 1 - outside / len(points)
 
 
 def test_cash_never_trades(config: Config) -> None:

@@ -4,6 +4,7 @@ import type {
   DecisionView,
   EquityPoint,
   ForecastMetrics,
+  ForecastPoint,
   VerdictStatus,
 } from "./types";
 
@@ -36,7 +37,49 @@ function demoRationale(
 
 const stats = (mae_ratio: number, coverage: number): ForecastMetrics => ({ n: 221, mae_ratio, coverage });
 
+const DEMO_FORECASTS = 130;
+const DEMO_STEP = 0.004;
+const DEMO_BAND_Z = 1.2816;
+const DEMO_SEED = 13;
+const STEPS_AHEAD = 2;
+const FORECAST_SPACING_HOURS = 3;
+
+/** Small deterministic generator so the preview never changes between reloads. */
+function seededNormal(seed: number): () => number {
+  let state = seed;
+  const uniform = (): number => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return () => Math.sqrt(-2 * Math.log(1 - uniform())) * Math.cos(2 * Math.PI * uniform());
+}
+
+/** Random-walk price; the band is the 80% range of the move to the target, so about 20% fall outside. */
+function demoForecasts(): ForecastPoint[] {
+  const normal = seededNormal(DEMO_SEED);
+  const prices = [BASE_PRICES.SPY ?? 0];
+  for (let i = 1; i < DEMO_FORECASTS + STEPS_AHEAD; i += 1) {
+    prices.push((prices[i - 1] ?? 0) * (1 + normal() * DEMO_STEP));
+  }
+  const halfWidth = DEMO_BAND_Z * DEMO_STEP * Math.sqrt(STEPS_AHEAD);
+  return Array.from({ length: DEMO_FORECASTS }, (_, i) => {
+    const median = prices[i] ?? 0;
+    return {
+      t: new Date(Date.UTC(2026, 10, 1) + i * FORECAST_SPACING_HOURS * HOUR_MS).toISOString(),
+      symbol: "SPY",
+      lower: median * (1 - halfWidth),
+      median,
+      upper: median * (1 + halfWidth),
+      actual: prices[i + STEPS_AHEAD] ?? 0,
+    };
+  });
+}
+
 const BACKTEST: BacktestReport = {
+  symbols: SYMBOLS,
+  forecasts: demoForecasts(),
   horizon_bars: HORIZON,
   history_start: "2026-05-18T12:00:00Z",
   history_end: "2026-11-13T21:00:00Z",

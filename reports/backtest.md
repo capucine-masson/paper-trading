@@ -1,12 +1,12 @@
-Symbols: SPY, QQQ, AAPL, MSFT, GLD. Horizon: 6 hourly bars. History 2026-05-18 to 2026-11-13, one evaluation point every 3 bars.
+Symbols: SPY, QQQ, AAPL, MSFT, GLD. Horizon: 6 hourly bars. History 2026-05-19 to 2026-11-13, one evaluation point every 3 bars.
 
 ### Forecast quality
 
 | Model | Points | MAE ratio vs naive | Direction hit rate | 10%-90% coverage | Mean width | Seconds per forecast |
 | --- | --- | --- | --- | --- | --- | --- |
-| Main model, all points | 1108 | 1.001 | 50.0% (n=1107) | 78.8% | 2.83% | 0.07 |
-| Main model, comparison subset | 200 | 0.992 | 49.0% (n=200) | 81.0% | 2.79% | 0.07 |
-| Larger model, comparison subset | 200 | 1.004 | 45.5% (n=200) | 78.0% | 2.73% | 0.22 |
+| Main model, all points | 1093 | 1.000 | 50.1% (n=1092) | 78.7% | 2.82% | 0.04 |
+| Main model, comparison subset | 200 | 1.003 | 54.0% (n=200) | 81.0% | 2.77% | 0.04 |
+| Larger model, comparison subset | 200 | 1.002 | 51.0% (n=200) | 78.5% | 2.72% | 0.14 |
 
 ### Decisions against baselines
 

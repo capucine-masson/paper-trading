@@ -20,6 +20,9 @@ const date = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+
+export const formatDay = (iso: string): string => day.format(new Date(iso));
 export const formatUsd = (value: number): string => usd.format(value);
 export const formatSignedUsd = (value: number): string =>
   `${value > 0 ? "+" : ""}${usd.format(value)}`;

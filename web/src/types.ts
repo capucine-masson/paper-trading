@@ -98,11 +98,22 @@ export interface ModelResult {
   per_symbol: Record<string, ForecastMetrics>;
 }
 
+export interface ForecastPoint {
+  t: string;
+  symbol: string;
+  lower: number;
+  median: number;
+  upper: number;
+  actual: number;
+}
+
 export interface BacktestReport {
+  symbols: string[];
   horizon_bars: number;
   history_start: string;
   history_end: string;
   models: ModelResult[];
+  forecasts: ForecastPoint[];
 }
 
 export interface DashboardData {

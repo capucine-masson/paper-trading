@@ -67,6 +67,17 @@ class ModelResult(BaseModel):
     per_symbol: dict[str, ForecastMetrics]
 
 
+class ForecastPoint(BaseModel):
+    """One forecast at the horizon next to the price that really happened, for the fan chart."""
+
+    t: datetime
+    symbol: str
+    lower: float
+    median: float
+    upper: float
+    actual: float
+
+
 class StrategyResult(BaseModel):
     name: str
     final_equity: float
@@ -84,6 +95,7 @@ class BacktestReport(BaseModel):
     history_start: datetime
     history_end: datetime
     models: list[ModelResult]
+    forecasts: list[ForecastPoint]
     decision_start: datetime | None
     decision_times: int
     llm_failures: int
@@ -169,6 +181,22 @@ def evaluate_model(label: str, model: str, records: list[ForecastRecord]) -> Mod
         overall=forecast_metrics([r.sample for r in records]),
         per_symbol={s: forecast_metrics(samples) for s, samples in sorted(by_symbol.items())},
     )
+
+
+def forecast_points(records: list[ForecastRecord]) -> list[ForecastPoint]:
+    """Each point keeps its decision time; the actual price is observed one horizon later."""
+    points = [
+        ForecastPoint(
+            t=r.point.time,
+            symbol=r.forecast.symbol,
+            lower=r.sample.lower,
+            median=r.sample.median,
+            upper=r.sample.upper,
+            actual=r.sample.actual,
+        )
+        for r in records
+    ]
+    return sorted(points, key=lambda p: (p.symbol, p.t))
 
 
 # --- decisions and baselines ---------------------------------------------------------------
@@ -398,6 +426,7 @@ def run_backtest(
         history_start=start,
         history_end=end,
         models=models,
+        forecasts=forecast_points(records),
         decision_start=window_start if strategies else None,
         decision_times=len({r.point.time for r in window}),
         llm_failures=llm_failures,
