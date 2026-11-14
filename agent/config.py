@@ -32,11 +32,22 @@ class ForecastConfig(BaseModel):
     horizon: int = Field(ge=1, le=96)
 
 
+class LlmConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    model: str = Field(min_length=3, max_length=100)
+    temperature: float = Field(ge=0, le=1)
+    timeout_s: int = Field(ge=1, le=300)
+    max_attempts: int = Field(ge=1, le=10)
+    retry_delay_s: float = Field(gt=0, le=60)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     market: MarketConfig
     forecast: ForecastConfig
+    llm: LlmConfig
 
 
 class Secrets(BaseSettings):
@@ -44,6 +55,7 @@ class Secrets(BaseSettings):
 
     alpaca_api_key: SecretStr = Field(min_length=1)
     alpaca_secret_key: SecretStr = Field(min_length=1)
+    mistral_api_key: SecretStr = Field(min_length=1)
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:

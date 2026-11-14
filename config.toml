@@ -17,3 +17,15 @@ model = "mistralai/Timestral-28M"
 context_length = 400
 # Forecast horizon in hourly steps.
 horizon = 6
+
+[llm]
+# Mistral model ID used for decisions.
+model = "mistral-small-2603"
+# Sampling temperature (low for stable decisions).
+temperature = 0.2
+# Timeout in seconds of one LLM call.
+timeout_s = 30
+# Attempts on transient errors (network, 429, 5xx).
+max_attempts = 3
+# Delay in seconds before the first retry (doubles each time).
+retry_delay_s = 2.0
