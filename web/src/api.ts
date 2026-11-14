@@ -10,8 +10,11 @@ const DATA_DIR = "data/";
 
 async function load<T>(file: string): Promise<T> {
   const response = await fetch(`${DATA_DIR}${file}`, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Could not load ${file} (HTTP ${response.status})`);
+  const isJson = response.headers.get("content-type")?.includes("json") ?? false;
+  if (!response.ok || !isJson) {
+    throw new Error(
+      `No data yet: ${file} was not found. It is created by the first cycle, or locally by "uv run python -m agent.export".`,
+    );
   }
   return (await response.json()) as T;
 }
