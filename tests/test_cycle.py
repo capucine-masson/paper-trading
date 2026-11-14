@@ -29,6 +29,11 @@ class FakeBroker:
     def get_positions(self) -> dict[str, Position]:
         return {}
 
+    def refresh_order(self, record: OrderRecord) -> OrderRecord:
+        return record.model_copy(
+            update={"status": "filled", "filled_qty": 1.0, "filled_avg_price": 100.5}
+        )
+
     def submit_order(self, spec: OrderSpec, client_order_id: str) -> OrderRecord:
         self.submitted.append(client_order_id)
         return OrderRecord(
@@ -90,6 +95,11 @@ def test_rerun_never_duplicates_order_nor_llm_call(
     assert report.outcomes["SPY"].order is not None
 
 
+def test_account_equity_is_journaled(config: Config, tmp_path: Path, llm_calls: list[str]) -> None:
+    make_cycle(config, tmp_path, FakeBroker(), False).run()
+    assert Store(tmp_path / "j.db").get_state(cycle_module.ACCOUNT_EQUITY_KEY) == str(START_EQUITY)
+
+
 def test_simulation_sends_no_order(config: Config, tmp_path: Path, llm_calls: list[str]) -> None:
     broker = FakeBroker()
     report = make_cycle(config, tmp_path, broker, False).run()
@@ -113,3 +123,13 @@ def test_below_capital_floor_halts_and_stays_halted(
     Store(tmp_path / "j.db").delete_state(cycle_module.HALTED_KEY)
     report = make_cycle(config, tmp_path, broker, True, "c4").run()
     assert report.halted_reason is None and broker.submitted == ["c4-SPY-buy"]
+
+
+def test_fill_is_recorded_after_the_order_and_only_when_executing(
+    config: Config, tmp_path: Path, llm_calls: list[str]
+) -> None:
+    make_cycle(config, tmp_path, FakeBroker(), True).run()
+    stored = Store(tmp_path / "j.db").list_steps("order")
+    assert len(stored) == 1
+    record = OrderRecord.model_validate_json(stored[0].result)
+    assert record.status == "filled" and record.filled_avg_price == 100.5

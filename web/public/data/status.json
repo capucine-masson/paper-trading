@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-11-14T03:30:42.179228Z",
+  "state": "active",
+  "halted_reason": null,
+  "last_cycle": {
+    "cycle_id": "20261114T01",
+    "status": "skipped",
+    "detail": "market closed",
+    "started_at": "2026-11-14T01:51:28.250346Z",
+    "finished_at": "2026-11-14T01:51:28.388332Z"
+  },
+  "allocated_capital": 10000.0,
+  "errors": 0,
+  "metrics": {
+    "equity": null,
+    "pnl": null,
+    "total_return": null,
+    "benchmark_return": null,
+    "sharpe": null,
+    "max_drawdown": null,
+    "exposure": null,
+    "cash": null
+  }
+}

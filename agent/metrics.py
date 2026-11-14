@@ -55,3 +55,22 @@ def max_drawdown(equity: list[float]) -> float:
     values = np.array(equity)
     peaks = np.maximum.accumulate(values)
     return float(np.max((peaks - values) / peaks)) if values.size else 0.0
+
+
+def buy_and_hold_curve(
+    prices: list[dict[str, float]], symbols: list[str], capital: float
+) -> list[float | None]:
+    """Equal-weight reference: bought once at the first cycle where every symbol has a price.
+
+    Fractional quantities, no rebalancing, no costs. A cycle missing a price stays empty.
+    """
+    units: dict[str, float] | None = None
+    curve: list[float | None] = []
+    for cycle_prices in prices:
+        if any(symbol not in cycle_prices for symbol in symbols):
+            curve.append(None)
+            continue
+        if units is None:
+            units = {s: capital / len(symbols) / cycle_prices[s] for s in symbols}
+        curve.append(sum(units[s] * cycle_prices[s] for s in symbols))
+    return curve

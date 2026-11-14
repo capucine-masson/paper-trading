@@ -144,3 +144,9 @@ def test_capital_floor_halts() -> None:
 def test_inconsistent_risk_config_rejected() -> None:
     with pytest.raises(ValueError):
         RiskConfig.model_validate({**RISK.model_dump(), "capital_floor": 10_000.0})
+
+
+def test_buy_cut_by_room_is_flagged_reduced() -> None:
+    held = portfolio(positions={"SPY": Position(qty=15, market_value=1_500.0)})
+    assert run(pf=held).reduced
+    assert not run().reduced

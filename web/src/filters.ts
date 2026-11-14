@@ -17,9 +17,3 @@ export function inPeriod<T extends { t: string }>(
 export function forSymbol<T extends { symbol: string }>(items: T[], symbol: string): T[] {
   return symbol === ALL_SYMBOLS ? items : items.filter((item) => item.symbol === symbol);
 }
-
-export function latestPerSymbol<T extends { symbol: string }>(items: T[]): T[] {
-  const latest = new Map<string, T>();
-  for (const item of items) latest.set(item.symbol, item);
-  return [...latest.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
-}

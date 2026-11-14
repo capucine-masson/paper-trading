@@ -71,6 +71,14 @@ class Store:
                 (cycle_id, symbol, name, result, _now()),
             )
 
+    def update_step(self, cycle_id: str, symbol: str, name: str, result: str) -> None:
+        """Replace the stored result of a step, keeping its original timestamp."""
+        with self._db:
+            self._db.execute(
+                "UPDATE steps SET result = ? WHERE cycle_id = ? AND symbol = ? AND name = ?",
+                (result, cycle_id, symbol, name),
+            )
+
     def list_steps(self, name: str) -> list[StepRow]:
         rows = self._db.execute(
             "SELECT cycle_id, symbol, result, created_at FROM steps WHERE name = ?"

@@ -41,6 +41,9 @@ class OrderRecord(BaseModel):
     status: str
     notional: float | None = None
     qty: float | None = None
+    filled_qty: float | None = None
+    filled_avg_price: float | None = None
+    filled_at: datetime | None = None
 
 
 def _is_transient(error: Exception) -> bool:
@@ -121,6 +124,11 @@ class Broker:
             raise
         return _to_record(order)
 
+    def refresh_order(self, record: OrderRecord) -> OrderRecord:
+        """Read the order again (status and fill) without ever submitting anything."""
+        latest = self._retry(lambda: self.find_order(record.client_order_id))
+        return record if latest is None else latest
+
     def submit_order(self, spec: OrderSpec, client_order_id: str) -> OrderRecord:
         """Look the order up by client_order_id before each attempt: never a duplicate."""
         request = MarketOrderRequest(
@@ -150,4 +158,9 @@ def _to_record(order: object) -> OrderRecord:
         status=str(order.status.value),  # type: ignore[attr-defined]
         notional=None if order.notional is None else float(order.notional),  # type: ignore[attr-defined]
         qty=None if order.qty is None else float(order.qty),  # type: ignore[attr-defined]
+        filled_qty=None if order.filled_qty is None else float(order.filled_qty),  # type: ignore[attr-defined]
+        filled_avg_price=(
+            None if order.filled_avg_price is None else float(order.filled_avg_price)  # type: ignore[attr-defined]
+        ),
+        filled_at=order.filled_at,  # type: ignore[attr-defined]
     )

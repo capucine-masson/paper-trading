@@ -25,3 +25,12 @@ def test_hostile_text_is_stored_verbatim(tmp_path: Path) -> None:
     store = Store(tmp_path / "j.db")
     store.save_step("c", HOSTILE, "x", "ok")
     assert store.get_step("c", HOSTILE, "x") == "ok"
+
+
+def test_update_step_keeps_the_timestamp(tmp_path: Path) -> None:
+    store = Store(tmp_path / "j.db")
+    store.save_step("c", "SPY", "order", "old")
+    created = store.list_steps("order")[0].created_at
+    store.update_step("c", "SPY", "order", "new")
+    row = store.list_steps("order")[0]
+    assert row.result == "new" and row.created_at == created

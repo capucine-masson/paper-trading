@@ -1,15 +1,5 @@
 export type AgentState = "active" | "halted" | "stopped";
-export type RuleUnit = "usd" | "count" | "ratio";
-
-export interface RuleUsage {
-  id: string;
-  label: string;
-  kind: "max" | "min";
-  unit: RuleUnit;
-  limit: number;
-  used: number | null;
-  breached: boolean;
-}
+export type VerdictStatus = "accepted" | "reduced" | "blocked" | "no_order";
 
 export interface CycleView {
   cycle_id: string;
@@ -19,34 +9,65 @@ export interface CycleView {
   finished_at: string | null;
 }
 
+export interface Metrics {
+  equity: number | null;
+  pnl: number | null;
+  total_return: number | null;
+  buy_and_hold_return: number | null;
+  max_drawdown: number | null;
+  exposure: number | null;
+  cash: number | null;
+}
+
 export interface Status {
   generated_at: string;
   state: AgentState;
   halted_reason: string | null;
   last_cycle: CycleView | null;
   allocated_capital: number;
-  equity: number | null;
-  pnl: number | null;
-  rules: RuleUsage[];
+  symbols: string[];
+  capital_floor: number;
+  account_size: number | null;
+  errors: number;
+  metrics: Metrics;
 }
 
 export interface EquityPoint {
   t: string;
+  cycle_id: string;
   equity: number;
-  pnl: number;
+  buy_and_hold: number | null;
   exposure: number;
   positions: Record<string, number>;
+  prices: Record<string, number>;
 }
 
 export interface PositionView {
   symbol: string;
   qty: number;
   market_value: number;
+  weight: number;
 }
 
 export interface PortfolioData {
   points: EquityPoint[];
   positions: PositionView[];
+}
+
+export interface TradeView {
+  t: string;
+  cycle_id: string;
+  symbol: string;
+  side: string;
+  qty: number | null;
+  fill_price: number | null;
+  status: string;
+}
+
+export interface ForecastPath {
+  median: number[];
+  lower: number[];
+  upper: number[];
 }
 
 export interface DecisionView {
@@ -56,33 +77,43 @@ export interface DecisionView {
   action: "buy" | "sell" | "hold";
   confidence: number;
   rationale: string;
-  approved: boolean | null;
+  price: number | null;
+  position_qty: number;
+  position_value: number;
+  forecast: ForecastPath | null;
+  verdict: VerdictStatus;
   risk_reason: string | null;
-  order_status: string | null;
-  client_order_id: string | null;
+  order: TradeView | null;
 }
 
-export interface ForecastView {
-  t: string;
-  cycle_id: string;
-  symbol: string;
+export interface ForecastMetrics {
+  n: number;
+  mae_ratio: number | null;
+  coverage: number;
+}
+
+export interface ModelResult {
+  label: string;
   model: string;
-  last_bar_start: string;
-  horizon_steps: number;
-  last_price: number;
-  median: number;
-  lower: number;
-  upper: number;
-  uncertainty: number;
+  overall: ForecastMetrics;
+  per_symbol: Record<string, ForecastMetrics>;
+}
+
+export interface BacktestReport {
+  horizon_bars: number;
+  history_start: string;
+  history_end: string;
+  models: ModelResult[];
 }
 
 export interface DashboardData {
   status: Status;
   portfolio: PortfolioData;
   decisions: DecisionView[];
-  forecasts: ForecastView[];
+  backtest: BacktestReport | null;
 }
 
 export type Period = "1d" | "3d" | "all";
 export type Theme = "light" | "dark";
+export type Tab = "overview" | "decisions" | "quality";
 export const ALL_SYMBOLS = "all";

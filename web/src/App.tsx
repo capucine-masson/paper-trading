@@ -1,15 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { isDemo, loadDashboard } from "./api";
-import { Controls } from "./components/Controls";
 import { Decisions } from "./components/Decisions";
-import { Exports } from "./components/Exports";
 import { ErrorState, Loading } from "./components/Feedback";
-import { Forecasts } from "./components/Forecasts";
 import { Header } from "./components/Header";
-import { Portfolio } from "./components/Portfolio";
-import { Rules } from "./components/Rules";
-import { StatusPanel } from "./components/StatusPanel";
-import { forSymbol, inPeriod, latestPerSymbol } from "./filters";
+import { Overview } from "./components/Overview";
+import { Quality } from "./components/Quality";
 import { useTheme, useViewState } from "./hooks";
 import type { DashboardData } from "./types";
 
@@ -30,49 +25,45 @@ export function App() {
 
   const data = load.kind === "ready" ? load.data : null;
   const symbols = useMemo(
-    () => (data === null ? [] : [...new Set(data.forecasts.map((f) => f.symbol))].sort()),
+    () => (data === null ? [] : [...new Set(data.decisions.map((d) => d.symbol))].sort()),
     [data],
   );
+  const fitScreen = view.tab === "overview" && data !== null;
 
-  return (
-    <main className="page">
-      <Header state={data?.status.state ?? null} theme={theme} onToggleTheme={toggleTheme} />
-      {isDemo() && <p className="notice notice-halted">Demo data for layout preview only (development).</p>}
-      {load.kind === "loading" && <Loading />}
-      {load.kind === "error" && <ErrorState message={load.message} />}
-      {data !== null && (
-        <Dashboard data={data} symbols={symbols} view={view} onChange={updateView} />
-      )}
-    </main>
-  );
-}
-
-interface DashboardProps {
-  data: DashboardData;
-  symbols: string[];
-  view: ReturnType<typeof useViewState>[0];
-  onChange: ReturnType<typeof useViewState>[1];
-}
-
-function Dashboard({ data, symbols, view, onChange }: DashboardProps) {
-  const reference = data.status.generated_at;
-  const points = inPeriod(data.portfolio.points, view.period, reference);
-  const decisions = forSymbol(inPeriod(data.decisions, view.period, reference), view.symbol);
-  const forecasts = latestPerSymbol(
-    forSymbol(inPeriod(data.forecasts, view.period, reference), view.symbol),
-  );
-  const positions = forSymbol(data.portfolio.positions, view.symbol);
   return (
     <>
-      <Controls period={view.period} symbol={view.symbol} symbols={symbols} onChange={onChange} />
-      <div className="grid">
-        <StatusPanel status={data.status} />
-        <Rules rules={data.status.rules} />
-      </div>
-      <Portfolio points={points} positions={positions} symbol={view.symbol} />
-      <Decisions decisions={decisions} />
-      <Forecasts forecasts={forecasts} />
-      <Exports />
+      <Header
+        tab={view.tab}
+        state={data?.status.state ?? null}
+        theme={theme}
+        onTab={(tab) => updateView({ tab })}
+        onToggleTheme={toggleTheme}
+      />
+      <main className={fitScreen ? "content content-fit" : "content"}>
+        {isDemo() && <p className="notice">Demo data for layout preview only (development).</p>}
+        {load.kind === "loading" && <Loading />}
+        {load.kind === "error" && <ErrorState message={load.message} />}
+        {data !== null && view.tab === "overview" && (
+          <Overview
+            status={data.status}
+            portfolio={data.portfolio}
+            decisions={data.decisions}
+            symbol={view.symbol}
+            period={view.period}
+            onSymbol={(symbol) => updateView({ symbol })}
+            onPeriod={(period) => updateView({ period })}
+          />
+        )}
+        {data !== null && view.tab === "decisions" && (
+          <Decisions
+            decisions={data.decisions}
+            symbols={symbols}
+            symbol={view.symbol}
+            onSymbol={(symbol) => updateView({ symbol })}
+          />
+        )}
+        {data !== null && view.tab === "quality" && <Quality backtest={data.backtest} />}
+      </main>
     </>
   );
 }

@@ -33,7 +33,9 @@ STATUS_ERROR = "error"
 STATUS_SKIPPED = "skipped"
 BASELINE_KEY = "baseline_equity"
 HALTED_KEY = "halted_reason"
+ACCOUNT_EQUITY_KEY = "account_equity"
 DAY_START_KEY = "day_start_equity:"
+FINAL_ORDER_STATUSES = {"filled", "canceled", "expired", "rejected"}
 
 
 class SymbolOutcome(BaseModel):
@@ -89,8 +91,23 @@ class Cycle:
     def _finish(
         self, status: str, detail: str, halted: str | None, outcomes: dict[str, SymbolOutcome]
     ) -> CycleReport:
+        if self.execute:
+            self._refresh_fills()
         self.store.finish_cycle(self.cycle_id, status, detail)
         return CycleReport(status=status, detail=detail, halted_reason=halted, outcomes=outcomes)
+
+    def _refresh_fills(self) -> None:
+        """Record the fill of orders that were not final when they were journaled."""
+        for row in self.store.list_steps("order"):
+            record = OrderRecord.model_validate_json(row.result)
+            if record.status in FINAL_ORDER_STATUSES:
+                continue
+            try:
+                latest = self.broker.refresh_order(record)
+            except BrokerError as error:
+                logger.warning("cycle %s: %s: %s", self.cycle_id, row.symbol, error)
+                continue
+            self.store.update_step(row.cycle_id, row.symbol, "order", latest.model_dump_json())
 
     def _step[T: BaseModel](
         self, symbol: str, name: str, model: type[T], action: Callable[[], T]
@@ -111,6 +128,7 @@ class Cycle:
     def _load_portfolio(self) -> tuple[Portfolio, str | None]:
         risk = self.config.risk
         account_equity = self.broker.get_equity()
+        self.store.set_state(ACCOUNT_EQUITY_KEY, str(account_equity))
         baseline = float(self.store.get_or_set_state(BASELINE_KEY, str(account_equity)))
         equity = risk.allocated_capital + account_equity - baseline
         today = datetime.now(UTC).date().isoformat()

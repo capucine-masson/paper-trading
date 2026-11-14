@@ -19,6 +19,9 @@ def fake_order(client_order_id: str) -> SimpleNamespace:
         status=SimpleNamespace(value="accepted"),
         notional="100",
         qty=None,
+        filled_qty=None,
+        filled_avg_price=None,
+        filled_at=None,
     )
 
 

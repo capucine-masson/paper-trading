@@ -1,6 +1,11 @@
 import pytest
 
-from agent.metrics import ForecastSample, forecast_metrics, max_drawdown
+from agent.metrics import (
+    ForecastSample,
+    buy_and_hold_curve,
+    forecast_metrics,
+    max_drawdown,
+)
 
 
 def sample(last: float, median: float, lower: float, upper: float, actual: float) -> ForecastSample:
@@ -40,3 +45,18 @@ def test_no_sample_is_an_error() -> None:
 def test_max_drawdown() -> None:
     assert max_drawdown([100, 120, 90, 110]) == pytest.approx(0.25)
     assert max_drawdown([100, 101, 102]) == 0.0
+
+
+def test_buy_and_hold_is_bought_once_and_never_rebalanced() -> None:
+    prices = [{"A": 100.0, "B": 50.0}, {"A": 110.0, "B": 50.0}, {"A": 110.0, "B": 60.0}]
+    curve = buy_and_hold_curve(prices, ["A", "B"], 1_000.0)
+    # 5 units of A and 10 units of B, bought at the first cycle
+    assert curve == pytest.approx([1_000.0, 1_050.0, 1_150.0])
+
+
+def test_buy_and_hold_waits_for_every_symbol_and_never_fills_a_gap() -> None:
+    prices = [{"A": 100.0}, {"A": 100.0, "B": 50.0}, {"A": 100.0}, {"A": 120.0, "B": 50.0}]
+    curve = buy_and_hold_curve(prices, ["A", "B"], 1_000.0)
+    assert curve[0] is None and curve[2] is None
+    assert curve[1] == pytest.approx(1_000.0)  # starts at the first cycle with every price
+    assert curve[3] == pytest.approx(1_100.0)

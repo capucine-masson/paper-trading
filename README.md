@@ -123,15 +123,40 @@ would diverge.
 
 ## Dashboard and export
 
-`uv run python -m agent.export` turns `journal.db` into JSON and CSV files in `web/public/data/` (status,
-portfolio curve, positions, decisions, forecasts, rules usage). The dashboard (`web/`, React + Vite +
-TypeScript) is static and read-only: it only reads these files, and no button acts on the agent.
+`uv run python -m agent.export` turns `journal.db` into files in `web/public/data/`: JSON for the dashboard
+(status and metrics, equity curve and positions, decisions with their forecast path) plus three CSV files meant
+for Excel (UTF-8 with BOM, UTC timestamps): `trades.csv` (timestamp, symbol, side, quantity, fill price, status),
+`decisions.csv` (timestamp, symbol, action, risk verdict, risk reason, LLM reasoning) and `equity.csv`
+(timestamp, equity, buy_and_hold). It also copies `reports/backtest.json` there when the report exists. The
+dashboard (`web/`, React + Vite + TypeScript) is static and read-only: it only reads these files, and no button
+acts on the agent.
 
-It shows the agent state (active, halted, emergency stop) with the reason, the last cycle status, portfolio value,
-positions, latest decisions with the LLM rationale and the risk verdict, forecasts per symbol, rules with their
-usage (e.g. exposure $1,000.00 of $8,000.00) and downloads of the exports. Period (1 day, 3 days, all), symbol and
-theme are display controls only: period and symbol live in the URL (`?period=3d&symbol=SPY`) so a view can be
-shared, and the theme follows the device and is remembered in `localStorage`.
+Three tabs, light or dark theme (moon/sun button, follows the device, remembered in `localStorage`):
+
+- **Overview**, one screen without scrolling: PnL, return (with the buy and hold's), max drawdown and orders
+  sent; positions with their weight, exposure and cash; last run and number of errors; the three CSV downloads;
+  and a line saying how much of the Alpaca paper account the agent manages (the account size is the equity read
+  from Alpaca at the last cycle that ran). The chart has one point per cycle (no gap for nights and weekends).
+  With all symbols it shows the agent's portfolio value, a dashed line at the starting value, a marker where
+  orders were placed (symbol, action, price) and a grey buy and hold reference line; the capital floor appears
+  only when the value gets close to it. With one symbol it shows that symbol's price and only its order markers
+  (action, quantity, price), with no buy and hold line since the price line already is its buy and hold.
+  The symbol and period (1D, 3D, All) apply to the chart only and live in the URL.
+
+  **The buy and hold is a reference, not a rival strategy.** It starts at the agent's first cycle with the
+  allocated capital split equally across the configured symbols (fractional quantities), is bought once at that
+  cycle's prices, never rebalanced, with no costs, and is valued at each cycle with the same hourly closes the
+  agent uses. It is always fully invested, while the agent may hold cash. If a symbol has no price at a cycle,
+  that point stays empty (nothing is filled in).
+- **Decisions**: one card per decision with the price, the position before, the Timestral fan chart (median and
+  10%-90% band), the LLM rationale, the guardrail verdict (accepted, reduced, blocked or no order, with the
+  reason) and the Alpaca order with its fill price. A buy is "reduced" when the position or exposure limits cut it
+  below the size the forecast uncertainty allows. Fills are read back from Alpaca at the end of each cycle.
+- **Forecast quality**: from the backtest, interval calibration (does the announced 80% interval contain 80% of
+  real prices?) and error against the naive forecast, overall and per symbol. It says so when Timestral does not
+  beat the baseline.
+
+The tab, period and symbol live in the URL (`?tab=decisions&symbol=SPY`) so a view can be shared.
 
 Run locally (port 3030): `cd web`, `pnpm install`, `pnpm dev`. With `pnpm dev`, `/?demo=1` shows sample data to
 preview the layout (development only, not part of the published site).
