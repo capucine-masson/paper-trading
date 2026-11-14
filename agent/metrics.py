@@ -3,8 +3,6 @@
 import numpy as np
 from pydantic import BaseModel
 
-INTERVAL_COVERAGE_TARGET = 0.8
-
 
 class ForecastSample(BaseModel):
     """One forecast at the horizon and what really happened."""
