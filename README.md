@@ -60,3 +60,15 @@ account must be used by the agent only.
 Every step (forecast, LLM output, risk verdict, order, error) is stored in `journal.db` (SQLite) per
 `(cycle, symbol, step)`. A step already stored is read back, never redone. Orders use a deterministic
 `client_order_id` (`<cycle>-<symbol>-<side>`) and are looked up on Alpaca before any submission.
+
+## Automation (GitHub Actions)
+
+`.github/workflows/cycle.yml` runs `agent.run --once --execute` at minute 7 of every hour from 14:00 to
+20:00 UTC, Monday to Friday. Whether the market is open comes from the Alpaca clock, not from the cron.
+It can also be started by hand (Actions > cycle > Run workflow), with a `resume` option that clears the
+halted state.
+
+Setup: add the repository secrets `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` and `MISTRAL_API_KEY`
+(`HF_TOKEN` is optional). The workflow commits `journal.db` after every run, even a failed one, so the
+history and the halted state survive between runs. Do not run `--execute` from your own machine while
+the workflow is active: two journals would diverge. The run turns red when a symbol fails.

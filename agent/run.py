@@ -69,7 +69,7 @@ def main() -> int:
     finally:
         store.close()
     _print_report(cycle_id, report, args.execute)
-    return 0
+    return 1 if report.status == STATUS_ERROR else 0
 
 
 def _print_report(cycle_id: str, report: CycleReport, execute: bool) -> None:
