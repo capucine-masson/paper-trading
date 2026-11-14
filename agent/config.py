@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.toml"
 ENV_PATH = ROOT / ".env"
 JOURNAL_PATH = ROOT / "journal.db"
+EXPORT_DIR = ROOT / "web" / "public" / "data"
 
 Symbol = Annotated[str, StringConstraints(pattern=r"^[A-Z]{1,5}$")]
 

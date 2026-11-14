@@ -27,6 +27,26 @@ class Portfolio(BaseModel):
         return sum(position.market_value for position in self.positions.values())
 
 
+class PortfolioSnapshot(BaseModel):
+    """Portfolio at the start of a cycle, journaled to draw the performance curve."""
+
+    equity: float
+    day_start_equity: float
+    exposure: float
+    positions: dict[str, Position]
+    halted_reason: str | None
+
+
+def snapshot(portfolio: Portfolio, halted_reason: str | None) -> PortfolioSnapshot:
+    return PortfolioSnapshot(
+        equity=portfolio.equity,
+        day_start_equity=portfolio.day_start_equity,
+        exposure=portfolio.exposure,
+        positions=dict(portfolio.positions),
+        halted_reason=halted_reason,
+    )
+
+
 class OrderSpec(BaseModel):
     symbol: str
     side: Literal["buy", "sell"]

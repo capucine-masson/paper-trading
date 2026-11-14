@@ -15,8 +15,16 @@ from agent.config import Config
 from agent.data import Bar, DataError, build_series, check_freshness
 from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_model
 from agent.llm import Decision, LlmError, decide
-from agent.risk import Portfolio, Position, Verdict, evaluate, halt_reason
-from agent.store import Store
+from agent.risk import (
+    Portfolio,
+    PortfolioSnapshot,
+    Position,
+    Verdict,
+    evaluate,
+    halt_reason,
+    snapshot,
+)
+from agent.store import CYCLE_SCOPE, Store
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +74,12 @@ class Cycle:
             logger.info("cycle %s: market closed, no decision", self.cycle_id)
             return self._finish(STATUS_SKIPPED, "market closed", None, {})
         portfolio, halted = self._load_portfolio()
+        self._step(
+            CYCLE_SCOPE,
+            "portfolio",
+            PortfolioSnapshot,
+            lambda: snapshot(portfolio, halted),
+        )
         outcomes = {symbol: self._analyze(symbol) for symbol in self.config.market.symbols}
         self._apply_risk(outcomes, portfolio, halted)
         errors = [f"{s}: {o.error}" for s, o in outcomes.items() if o.error is not None]

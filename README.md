@@ -3,7 +3,7 @@
 Autonomous paper-trading agent: **Timestral** forecasts hourly prices, a **Mistral LLM** will decide
 positions (step 2), and orders go to an **Alpaca paper** account (step 3). Paper only.
 
-Current state: step 3 (client rules and paper execution).
+Current state: step 5 (read-only dashboard and export).
 
 ## Run
 
@@ -72,3 +72,21 @@ Setup: add the repository secrets `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` and `MIS
 (`HF_TOKEN` is optional). The workflow commits `journal.db` after every run, even a failed one, so the
 history and the halted state survive between runs. Do not run `--execute` from your own machine while
 the workflow is active: two journals would diverge. The run turns red when a symbol fails.
+
+## Dashboard and export
+
+`uv run python -m agent.export` turns `journal.db` into JSON and CSV files in `web/public/data/`
+(status, portfolio curve, positions, decisions, forecasts, rules usage). The workflow runs it after
+every cycle and commits the files with the journal.
+
+The dashboard (`web/`, React + Vite + TypeScript) is static and read-only: it only reads these files.
+It shows the agent state (active, halted, emergency stop) with the reason, the last cycle status,
+portfolio value, positions, latest decisions with the LLM rationale and the risk verdict, forecasts per
+symbol, rules with their usage (e.g. exposure $1,000.00 of $8,000.00) and downloads of the exports.
+Period (1 day, 3 days, all), symbol and theme are display controls only: period and symbol live in the
+URL (`?period=3d&symbol=SPY`), the theme follows the device and is remembered in `localStorage`.
+
+Run locally (port 3030): `cd web`, `pnpm install`, `pnpm dev`. Check: `pnpm build`.
+
+Publication: the workflow builds `web/` and deploys it to GitHub Pages after every cycle. One-time
+setup: Settings > Pages > Source: **GitHub Actions**.

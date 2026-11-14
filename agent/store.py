@@ -3,6 +3,7 @@
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 CYCLE_SCOPE = "*"
 
@@ -27,6 +28,21 @@ CREATE TABLE IF NOT EXISTS state (
     value TEXT NOT NULL
 );
 """
+
+
+class StepRow(NamedTuple):
+    cycle_id: str
+    symbol: str
+    result: str
+    created_at: datetime
+
+
+class CycleRow(NamedTuple):
+    cycle_id: str
+    started_at: datetime
+    finished_at: datetime | None
+    status: str | None
+    detail: str | None
 
 
 def _now() -> str:
@@ -54,6 +70,30 @@ class Store:
                 "INSERT OR REPLACE INTO steps VALUES (?, ?, ?, ?, ?)",
                 (cycle_id, symbol, name, result, _now()),
             )
+
+    def list_steps(self, name: str) -> list[StepRow]:
+        rows = self._db.execute(
+            "SELECT cycle_id, symbol, result, created_at FROM steps WHERE name = ?"
+            " ORDER BY created_at, cycle_id, symbol",
+            (name,),
+        ).fetchall()
+        return [StepRow(r[0], r[1], r[2], datetime.fromisoformat(r[3])) for r in rows]
+
+    def list_cycles(self) -> list[CycleRow]:
+        rows = self._db.execute(
+            "SELECT cycle_id, started_at, finished_at, status, detail FROM cycles"
+            " ORDER BY started_at"
+        ).fetchall()
+        return [
+            CycleRow(
+                r[0],
+                datetime.fromisoformat(r[1]),
+                None if r[2] is None else datetime.fromisoformat(r[2]),
+                r[3],
+                r[4],
+            )
+            for r in rows
+        ]
 
     def start_cycle(self, cycle_id: str) -> None:
         with self._db:
