@@ -55,3 +55,19 @@ max_uncertainty = 0.06
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).
 retry_delay_s = 2.0
+
+[backtest]
+# Calendar days of hourly history replayed by the backtest.
+history_days = 180
+# Number of hourly bars between two evaluation points.
+stride_bars = 3
+# Calendar days (most recent) replayed with the LLM and the baselines.
+decision_window_days = 28
+# Larger Timestral model compared with the main one.
+compare_model = "mistralai/Timestral-209M"
+# Evaluation points per symbol used for the model comparison (it is slow on CPU).
+compare_points_per_symbol = 40
+# Timestral-only rule: act when the expected return exceeds this share of the interval width.
+rule_signal_threshold = 0.05
+# Number of past bars used by the momentum baseline.
+momentum_bars = 6

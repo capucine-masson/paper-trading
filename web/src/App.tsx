@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { loadDashboard } from "./api";
+import { isDemo, loadDashboard } from "./api";
 import { Controls } from "./components/Controls";
 import { Decisions } from "./components/Decisions";
 import { Exports } from "./components/Exports";
@@ -37,6 +37,7 @@ export function App() {
   return (
     <main className="page">
       <Header state={data?.status.state ?? null} theme={theme} onToggleTheme={toggleTheme} />
+      {isDemo() && <p className="notice notice-halted">Demo data for layout preview only (development).</p>}
       {load.kind === "loading" && <Loading />}
       {load.kind === "error" && <ErrorState message={load.message} />}
       {data !== null && (

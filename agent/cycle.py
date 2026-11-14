@@ -18,8 +18,8 @@ from agent.llm import Decision, LlmError, decide
 from agent.risk import (
     Portfolio,
     PortfolioSnapshot,
-    Position,
     Verdict,
+    apply_to_portfolio,
     evaluate,
     halt_reason,
     snapshot,
@@ -171,7 +171,7 @@ class Cycle:
             outcome.verdict = verdict
             if verdict.approved:
                 approved_count += 1
-                _apply_to_portfolio(portfolio, verdict)
+                apply_to_portfolio(portfolio, verdict)
                 if self.execute:
                     self._send_order(symbol, outcome, verdict)
 
@@ -213,16 +213,3 @@ class Cycle:
             )
         except BrokerError as error:
             outcome.error = self._fail(symbol, str(error))
-
-
-def _apply_to_portfolio(portfolio: Portfolio, verdict: Verdict) -> None:
-    """Keep exposure consistent between orders of the same cycle."""
-    order = verdict.order
-    assert order is not None
-    if order.side == "sell":
-        portfolio.positions.pop(order.symbol, None)
-        return
-    held = portfolio.positions.get(order.symbol, Position(qty=0.0, market_value=0.0))
-    portfolio.positions[order.symbol] = Position(
-        qty=held.qty, market_value=held.market_value + (order.notional or 0.0)
-    )

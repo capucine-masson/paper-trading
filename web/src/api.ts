@@ -7,19 +7,25 @@ import type {
 } from "./types";
 
 const DATA_DIR = "data/";
+const NO_DATA_MESSAGE = "No data available yet. Please check back after the next agent cycle.";
 
 async function load<T>(file: string): Promise<T> {
   const response = await fetch(`${DATA_DIR}${file}`, { cache: "no-store" });
   const isJson = response.headers.get("content-type")?.includes("json") ?? false;
   if (!response.ok || !isJson) {
-    throw new Error(
-      `No data yet: ${file} was not found. It is created by the first cycle, or locally by "uv run python -m agent.export".`,
-    );
+    console.error(`Could not load ${file} (HTTP ${response.status}, json: ${isJson})`);
+    throw new Error(NO_DATA_MESSAGE);
   }
   return (await response.json()) as T;
 }
 
+export const isDemo = (): boolean =>
+  import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo");
+
 export async function loadDashboard(): Promise<DashboardData> {
+  if (import.meta.env.DEV && isDemo()) {
+    return (await import("./demo")).buildDemoData();
+  }
   const [status, portfolio, decisions, forecasts] = await Promise.all([
     load<Status>("status.json"),
     load<PortfolioData>("portfolio.json"),

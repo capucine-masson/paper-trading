@@ -128,3 +128,16 @@ def size_buy(uncertainty: float, symbol: str, portfolio: Portfolio, risk: RiskCo
     target = position_cap * (1 - uncertainty / risk.max_uncertainty)
     room = min(target, position_cap - held_value, exposure_cap - portfolio.exposure)
     return round(max(room, 0.0), 2)
+
+
+def apply_to_portfolio(portfolio: Portfolio, verdict: Verdict) -> None:
+    """Keep exposure consistent between orders of the same cycle."""
+    order = verdict.order
+    assert order is not None
+    if order.side == "sell":
+        portfolio.positions.pop(order.symbol, None)
+        return
+    held = portfolio.positions.get(order.symbol, Position(qty=0.0, market_value=0.0))
+    portfolio.positions[order.symbol] = Position(
+        qty=held.qty, market_value=held.market_value + (order.notional or 0.0)
+    )

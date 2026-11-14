@@ -12,6 +12,7 @@ CONFIG_PATH = ROOT / "config.toml"
 ENV_PATH = ROOT / ".env"
 JOURNAL_PATH = ROOT / "journal.db"
 EXPORT_DIR = ROOT / "web" / "public" / "data"
+REPORTS_DIR = ROOT / "reports"
 
 Symbol = Annotated[str, StringConstraints(pattern=r"^[A-Z]{1,5}$")]
 
@@ -73,6 +74,18 @@ class BrokerConfig(BaseModel):
     retry_delay_s: float = Field(gt=0, le=60)
 
 
+class BacktestConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    history_days: int = Field(ge=30, le=730)
+    stride_bars: int = Field(ge=1, le=100)
+    decision_window_days: int = Field(ge=1, le=365)
+    compare_model: str = Field(min_length=3, max_length=100)
+    compare_points_per_symbol: int = Field(ge=1, le=1000)
+    rule_signal_threshold: float = Field(gt=0, le=1)
+    momentum_bars: int = Field(ge=1, le=100)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -81,6 +94,7 @@ class Config(BaseModel):
     llm: LlmConfig
     risk: RiskConfig
     broker: BrokerConfig
+    backtest: BacktestConfig
 
 
 class Secrets(BaseSettings):

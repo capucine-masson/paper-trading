@@ -1,0 +1,262 @@
+{
+  "generated_at": "2026-11-14T02:41:15.950044Z",
+  "symbols": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT",
+    "GLD"
+  ],
+  "horizon_bars": 6,
+  "stride_bars": 3,
+  "history_start": "2026-05-18T12:00:00Z",
+  "history_end": "2026-11-13T21:00:00Z",
+  "models": [
+    {
+      "label": "Main model, all points",
+      "model": "mistralai/Timestral-28M",
+      "seconds_per_forecast": 0.06742806498222954,
+      "overall": {
+        "n": 1108,
+        "mae_model": 4.6351902633281385,
+        "mae_naive": 4.632459386281588,
+        "mae_ratio": 1.0005895091179078,
+        "direction_n": 1107,
+        "direction_hit_rate": 0.5004516711833785,
+        "coverage": 0.7879061371841155,
+        "mean_width": 0.02829625342235525
+      },
+      "per_symbol": {
+        "AAPL": {
+          "n": 221,
+          "mae_model": 3.4372588476120636,
+          "mae_naive": 3.4259049773755677,
+          "mae_ratio": 1.0033141229285332,
+          "direction_n": 220,
+          "direction_hit_rate": 0.509090909090909,
+          "coverage": 0.8009049773755657,
+          "mean_width": 0.03460411122309395
+        },
+        "GLD": {
+          "n": 206,
+          "mae_model": 3.9379288164157304,
+          "mae_naive": 3.9005825242718446,
+          "mae_ratio": 1.0095745422411895,
+          "direction_n": 206,
+          "direction_hit_rate": 0.4368932038834951,
+          "coverage": 0.7864077669902912,
+          "mean_width": 0.03010433283506013
+        },
+        "MSFT": {
+          "n": 219,
+          "mae_model": 6.309976617125069,
+          "mae_naive": 6.28075342465753,
+          "mae_ratio": 1.0046528163886854,
+          "direction_n": 219,
+          "direction_hit_rate": 0.4748858447488584,
+          "coverage": 0.8036529680365296,
+          "mean_width": 0.03893566522812617
+        },
+        "QQQ": {
+          "n": 230,
+          "mae_model": 5.653630986752719,
+          "mae_naive": 5.654108695652176,
+          "mae_ratio": 0.9999155111928032,
+          "direction_n": 230,
+          "direction_hit_rate": 0.5043478260869565,
+          "coverage": 0.782608695652174,
+          "mean_width": 0.02464578259449823
+        },
+        "SPY": {
+          "n": 232,
+          "mae_model": 3.804841655862741,
+          "mae_naive": 3.86288793103448,
+          "mae_ratio": 0.9849733473483933,
+          "direction_n": 232,
+          "direction_hit_rate": 0.5689655172413793,
+          "coverage": 0.7672413793103449,
+          "mean_width": 0.014257788646332939
+        }
+      }
+    },
+    {
+      "label": "Main model, comparison subset",
+      "model": "mistralai/Timestral-28M",
+      "seconds_per_forecast": 0.06928180500035523,
+      "overall": {
+        "n": 200,
+        "mae_model": 4.421307769775391,
+        "mae_naive": 4.456825,
+        "mae_ratio": 0.9920308223399821,
+        "direction_n": 200,
+        "direction_hit_rate": 0.49,
+        "coverage": 0.81,
+        "mean_width": 0.02785379910928936
+      },
+      "per_symbol": {
+        "AAPL": {
+          "n": 40,
+          "mae_model": 3.011632080078127,
+          "mae_naive": 2.9995000000000034,
+          "mae_ratio": 1.0040447008095095,
+          "direction_n": 40,
+          "direction_hit_rate": 0.475,
+          "coverage": 0.9,
+          "mean_width": 0.03480321642259082
+        },
+        "GLD": {
+          "n": 40,
+          "mae_model": 4.533857818603517,
+          "mae_naive": 4.4780000000000015,
+          "mae_ratio": 1.012473831756033,
+          "direction_n": 40,
+          "direction_hit_rate": 0.475,
+          "coverage": 0.75,
+          "mean_width": 0.030145289954515535
+        },
+        "MSFT": {
+          "n": 40,
+          "mae_model": 6.324736022949215,
+          "mae_naive": 6.294249999999994,
+          "mae_ratio": 1.0048434718908879,
+          "direction_n": 40,
+          "direction_hit_rate": 0.45,
+          "coverage": 0.775,
+          "mean_width": 0.03756317758583589
+        },
+        "QQQ": {
+          "n": 40,
+          "mae_model": 4.733289733886727,
+          "mae_naive": 4.875000000000009,
+          "mae_ratio": 0.9709312274639421,
+          "direction_n": 40,
+          "direction_hit_rate": 0.45,
+          "coverage": 0.825,
+          "mean_width": 0.023363559687889453
+        },
+        "SPY": {
+          "n": 40,
+          "mae_model": 3.503023193359371,
+          "mae_naive": 3.6373749999999943,
+          "mae_ratio": 0.9630635261306234,
+          "direction_n": 40,
+          "direction_hit_rate": 0.6,
+          "coverage": 0.8,
+          "mean_width": 0.013393751895615109
+        }
+      }
+    },
+    {
+      "label": "Larger model, comparison subset",
+      "model": "mistralai/Timestral-209M",
+      "seconds_per_forecast": 0.22222653449964128,
+      "overall": {
+        "n": 200,
+        "mae_model": 4.475609130859375,
+        "mae_naive": 4.456825,
+        "mae_ratio": 1.0042146889005907,
+        "direction_n": 200,
+        "direction_hit_rate": 0.455,
+        "coverage": 0.78,
+        "mean_width": 0.0273103066707181
+      },
+      "per_symbol": {
+        "AAPL": {
+          "n": 40,
+          "mae_model": 3.0047503662109394,
+          "mae_naive": 2.9995000000000034,
+          "mae_ratio": 1.0017504138059463,
+          "direction_n": 40,
+          "direction_hit_rate": 0.5,
+          "coverage": 0.875,
+          "mean_width": 0.03246045648635485
+        },
+        "GLD": {
+          "n": 40,
+          "mae_model": 4.635433532714845,
+          "mae_naive": 4.4780000000000015,
+          "mae_ratio": 1.0351571086902285,
+          "direction_n": 40,
+          "direction_hit_rate": 0.375,
+          "coverage": 0.75,
+          "mean_width": 0.031573069904748216
+        },
+        "MSFT": {
+          "n": 40,
+          "mae_model": 6.390133361816403,
+          "mae_naive": 6.294249999999994,
+          "mae_ratio": 1.0152334848181133,
+          "direction_n": 40,
+          "direction_hit_rate": 0.375,
+          "coverage": 0.725,
+          "mean_width": 0.03628355994097186
+        },
+        "QQQ": {
+          "n": 40,
+          "mae_model": 4.80924493408204,
+          "mae_naive": 4.875000000000009,
+          "mae_ratio": 0.9865117813501603,
+          "direction_n": 40,
+          "direction_hit_rate": 0.425,
+          "coverage": 0.825,
+          "mean_width": 0.023266482350289885
+        },
+        "SPY": {
+          "n": 40,
+          "mae_model": 3.53848345947265,
+          "mae_naive": 3.6373749999999943,
+          "mae_ratio": 0.9728123879095929,
+          "direction_n": 40,
+          "direction_hit_rate": 0.6,
+          "coverage": 0.725,
+          "mean_width": 0.01296796467122569
+        }
+      }
+    }
+  ],
+  "decision_start": "2026-10-16T14:00:00Z",
+  "decision_times": 59,
+  "llm_failures": 0,
+  "strategies": [
+    {
+      "name": "Cash (never trade)",
+      "final_equity": 10000.0,
+      "return_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "trades": 0,
+      "average_exposure_pct": 0.0
+    },
+    {
+      "name": "Buy and hold",
+      "final_equity": 9898.567123402403,
+      "return_pct": -1.0143287659759692,
+      "max_drawdown_pct": 3.2822788286001368,
+      "trades": 26,
+      "average_exposure_pct": 80.37977921799283
+    },
+    {
+      "name": "Momentum rule",
+      "final_equity": 9842.49682124107,
+      "return_pct": -1.5750317875893094,
+      "max_drawdown_pct": 2.400550575803867,
+      "trades": 138,
+      "average_exposure_pct": 35.913166637799584
+    },
+    {
+      "name": "Timestral-only rule",
+      "final_equity": 10013.410955620417,
+      "return_pct": 0.13410955620416498,
+      "max_drawdown_pct": 2.1382137383423196,
+      "trades": 17,
+      "average_exposure_pct": 33.21557272258183
+    },
+    {
+      "name": "Timestral + LLM (the agent)",
+      "final_equity": 10000.0,
+      "return_pct": 0.0,
+      "max_drawdown_pct": 0.0,
+      "trades": 0,
+      "average_exposure_pct": 0.0
+    }
+  ]
+}
