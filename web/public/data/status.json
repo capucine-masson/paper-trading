@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-14T22:28:47.598186Z",
+  "generated_at": "2026-11-15T01:56:44.919573Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
@@ -18,7 +18,7 @@
     "GLD"
   ],
   "capital_floor": 8000.0,
-  "account_size": null,
+  "account_size": 100000.0,
   "metrics": {
     "equity": null,
     "pnl": null,
