@@ -43,6 +43,8 @@ Principles, enforced in code and covered by tests:
 | `agent/run.py` | Command line entry point |
 | `agent/export.py` | Journal to JSON/CSV for the dashboard |
 | `agent/backtest.py`, `agent/metrics.py` | Walk-forward backtest and evaluation metrics |
+| `agent/news.py`, `agent/news_score.py`, `agent/news_backtest.py` | Bonus: news article cache, LLM scoring, covariates, A/B backtest (not used by the live cycle) |
+| `agent/news_analysis.py` | Bonus, experimental: one-off hypothesis analysis of the news signal |
 | `web/` | Static React dashboard (reads the exported files) |
 | `.github/workflows/cycle.yml` | Hourly cycle, journal commit, dashboard deployment |
 | `reports/` | Backtest results (`backtest.md`, `backtest.json`, cached LLM outputs) |
@@ -61,7 +63,13 @@ Options:
 - `--resume`: clear the halted state (manual resume only).
 - `--cycle-id ID`: resume a given cycle. The default id is the UTC hour (e.g. `20261116T14`), so re-running
   a cycle within the same hour never duplicates an order or an LLM call.
-- `--ignore-market-clock`: simulate while the market is closed (skips the clock and freshness checks).
+- `--ignore-market-clock`: simulate while the market is closed (skips the clock and freshness checks). It cannot
+  be combined with `--execute`.
+
+**Simulated cycles** (no `--execute`) are stored in the journal like any other, with the same steps (portfolio,
+forecast, LLM output, verdict) but never an order, under an id prefixed with `sim-` (e.g. `sim-20261116T14`).
+They are excluded from the export, so a test run never shows up on the dashboard (decisions, equity curve,
+last run) and cannot be mistaken for a real decision. They only appear in the console and in `journal.db`.
 
 The first run downloads the Timestral weights (about 111 MB). When the market is closed the cycle is
 skipped and says so. Amounts are in USD and times in UTC.
@@ -89,7 +97,8 @@ closes the whole position of that symbol. Agent equity is `allocated_capital` pl
 since the first run, so the paper account must be used by the agent only.
 
 Other sections: `[market]` (symbols, data feed, history, freshness, gaps), `[forecast]` (model, context, horizon),
-`[llm]` (model, temperature, timeout, retries), `[broker]` (retries), `[backtest]` (evaluation settings).
+`[llm]` (model, temperature, timeout, retries), `[broker]` (retries), `[backtest]` (evaluation settings),
+`[news]` (bonus, `enabled = false`).
 
 ## Emergency stop
 
@@ -106,14 +115,25 @@ open order by hand in the Alpaca paper dashboard if needed.
 
 ## Automation (GitHub Actions)
 
-`.github/workflows/cycle.yml` runs `agent.run --once --execute` at minute 7 of every hour from 14:00 to 20:00 UTC,
-Monday to Friday. Whether the market is open comes from the Alpaca clock, not from the cron. It can also be
-started by hand (Actions > cycle > Run workflow).
+`.github/workflows/cycle.yml` runs `agent.run --once --execute` at minute 7 of every hour from 15:00 to 20:00 UTC,
+Monday to Friday. The cron is in UTC and fixed: the US market opens at 14:30 UTC in winter (EST) and 13:30 UTC in
+summer (EDT), so 15:07 is the first slot with a completed hourly bar in winter. **When daylight saving time
+starts (March), change the cron to `7 14-19 * * 1-5`.** Whether the market is open always comes from the Alpaca
+clock, not from the cron. The workflow can also be started by hand (Actions > cycle > Run workflow) with two
+options: `resume` (clear the halted state) and `simulate`.
 
-Setup, once:
+**Dry run** (`simulate` ticked): one full cycle with `--ignore-market-clock` and no `--execute`, so no order can
+be sent, even when the market is closed. It installs the dependencies, loads the Timestral weights (and caches
+them), calls Alpaca and Mistral with the real keys, then commits `journal.db` and deploys the dashboard. The
+cycle is stored as `sim-...` and is not shown on the dashboard. It costs a few Mistral calls (one per symbol).
 
-1. Add the repository secrets `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` and `MISTRAL_API_KEY` (`HF_TOKEN` is optional).
-2. Settings > Pages > Source: **GitHub Actions**.
+Setup, once, in the GitHub repository:
+
+1. Settings > Secrets and variables > Actions > repository secrets: `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` (paper
+   keys) and `MISTRAL_API_KEY`. `HF_TOKEN` is optional (faster Hugging Face downloads).
+2. Settings > Pages > Build and deployment > Source: **GitHub Actions**.
+3. Settings > Actions > General: Actions enabled, and workflow permissions "Read and write" (the workflow already
+   asks for `contents: write`, but an organization policy can override it).
 
 After every run, even a failed one, the workflow exports the dashboard data and commits `journal.db` and
 `web/public/data/`, then builds and deploys the dashboard. The run turns red when a symbol fails. One cycle
@@ -173,7 +193,7 @@ order, the order is looked up by its `client_order_id` before any new submission
 ## How do we know the decisions are sound?
 
 `uv run python -m agent.backtest` replays the last 180 days of real hourly bars (Alpaca, 5 symbols,
-2026-05-18 to 2026-11-13) walk-forward: at each evaluation point (every 3 bars, 1,108 points) the
+2026-05-19 to 2026-11-13) walk-forward: at each evaluation point (every 3 bars, 1,093 points) the
 forecast and the decision only see bars up to that moment. Decisions go through the same `risk.py` rules
 and sizing as live, and orders are filled at the next bar close (a test checks that changing the future
 never changes a decision input). Full tables: `reports/backtest.md` and `reports/backtest.json`. The LLM
@@ -182,17 +202,21 @@ to skip parts.
 
 **Forecast quality** (horizon: 6 hourly bars; the naive forecast is "the price stays where it is")
 
-| Model | Points | Error vs naive (MAE ratio) | Right direction | 10%-90% coverage | Seconds per forecast |
-| --- | --- | --- | --- | --- | --- |
-| Timestral-28M, all points | 1,108 | 1.001 | 50.0% | 78.8% (target 80%) | 0.07 |
-| Timestral-28M, comparison subset | 200 | 0.992 | 49.0% | 81.0% | 0.07 |
-| Timestral-209M, comparison subset | 200 | 1.004 | 45.5% | 78.0% | 0.22 |
+| Model | Points | Error vs naive (MAE ratio) | Right direction | 10%-90% coverage | Mean width | Seconds per forecast |
+| --- | --- | --- | --- | --- | --- | --- |
+| Timestral-28M, all points | 1,093 | 1.000 | 50.1% | 78.7% (target 80%) | 2.82% | 0.04 |
+| Timestral-28M, comparison subset | 200 | 1.003 | 54.0% | 81.0% | 2.77% | 0.04 |
+| Timestral-209M, comparison subset | 200 | 1.002 | 51.0% | 78.5% | 2.72% | 0.14 |
 
-- **The intervals are trustworthy**: the 10%-90% interval contains the real price 78.8% of the time. That is
-  the quantity the agent uses to size positions and to refuse uncertain buys (`max_uncertainty`).
+- **The intervals are well calibrated on average, not at every date**: the 10%-90% interval contains the real
+  price 78.7% of the time over the whole period, close to the 80% target. That average hides a drift (too wide
+  from May to August, slightly too narrow since September, see "Known limits"). The agent uses the interval to
+  size positions and to refuse uncertain buys (`max_uncertainty`), so treat it as approximately, not exactly,
+  reliable.
 - **The median has no edge over the naive forecast** on liquid ETFs and large caps at a 6-hour horizon
   (error ratio 1.00, direction 50%). This is expected for such markets and is why the agent should trade rarely.
-- **209M is not better than 28M** on the same points and is about 3x slower on CPU, so the agent keeps 28M.
+- **209M is not better than 28M** on the same points (the 28M subset is even slightly ahead on direction) and is
+  about 3.5x slower on CPU, so the agent keeps 28M.
 
 **Decisions against baselines** (last 28 days, 59 decision times, same rules and sizing, $10,000 allocated)
 
@@ -224,8 +248,70 @@ but that is the market falling in this window, not a skill claim.
 - **Scheduling:** GitHub may delay or skip a scheduled run. A missed hour is simply a missed cycle.
 - **Alpaca calls have no explicit timeout** (`alpaca-py` does not expose one simply); retries and the job timeout
   bound the damage.
-- **Not done yet:** news analysis as future covariates for Timestral (planned later).
+- **The 80% range calibration drifts over time.** The 10%-90% interval was too wide from May to August (about
+  13-16% of points outside it, 20% expected) and slightly too narrow since September (about 22-26% outside,
+  whatever the news volume). The 78.8% overall coverage above averages both periods, so the interval used to
+  size positions and refuse uncertain buys is not equally reliable at every date.
+- **News covariates: measured, no improvement** (see "News covariates (bonus)" below).
+- **`agent/news_analysis.py` is experimental:** a one-off exploratory script, not used by the agent, with partial
+  tests (statistics helpers only, not the full run).
 - Baseline parameters (`rule_signal_threshold`, `momentum_bars`) are fixed in `config.toml`, not tuned.
+
+## News covariates (bonus)
+
+Goal: give Timestral a news signal as a past-only covariate (`past_covariates`) and measure honestly whether
+it helps. **Result: neither version improves the forecast. `news.enabled = false`, and the news is not used by
+the live cycle or the dashboard.**
+
+- **First attempt, GDELT (abandoned).** Its DOC API kept answering HTTP 429 from this machine even at 15 s
+  spacing with backoff, relevance of keyword matches was poor, history is limited to 3 months and `seendate`
+  is when GDELT saw the article. The code was removed.
+- **Source: Alpaca news API** (same keys, free plan, 200 requests per minute, history back to 2015, fetched
+  with `alpaca-py` in `broker.py`). Articles are cached per symbol and day in SQLite (`agent/news.py`); only
+  headline, summary, source, URL and time are kept, never the full text.
+- **Version 1, article count (no LLM).** For each hourly bar of the context, the number of articles tagged with
+  the symbol over the last `news.window_bars` bars, computed in code. No article means 0. An article counts
+  only in bars ending at or after its `created_at` (no look-ahead); articles published between two bars
+  (overnight, weekend) fall in the next bar.
+- **Version 2, LLM sentiment (`mistral-small-2603`, Mistral Small 4).** The LLM scores each headline plus
+  summary with a `sentiment` in [-1, 1] and a `relevance` in [0, 1] (structured output, validated and clamped,
+  one retry, headlines delimited as data). Scoring is batched per symbol and day (40 articles at most per call),
+  cached per article, and capped at 700 calls once (`news.max_scoring_calls`). The covariate is the
+  relevance-weighted mean sentiment over the last `news.window_bars` bars, computed in code, NaN with no news.
+  GLD is not scored (about 9 articles a week). The score of an article only depends on its text, and the
+  articles are later than the model's release, so the score cannot leak the outcome.
+- **A/B backtest** (`uv run python -m agent.news_backtest`, add `--score` for version 2; report in
+  `reports/news_ab.md`): the same walk-forward points with and without each covariate, 6-bar horizon, May to
+  November 2026.
+
+| Variant (same points) | Points | MAE ratio vs naive | Direction hit rate | 10%-90% coverage |
+| --- | --- | --- | --- | --- |
+| Without news | 1,093 | 1.000 | 50.1% | 78.7% |
+| V1 article count | 1,093 | 1.001 | 49.5% | 78.6% |
+| Without news (4 scored symbols) | 890 | 0.998 | 51.6% | 78.7% |
+| V2 LLM sentiment | 890 | 1.000 | 49.7% | 78.1% |
+
+The paired change of the absolute error is +0.12% for version 1 and +0.16% for version 2, both with a 95%
+interval that includes zero (news better on 51% of points): **no measurable improvement**, overall or for any
+symbol. Timestral itself does not beat the naive "price stays" forecast at this horizon, so there was little to
+improve. Version 2 cost 690 calls, 0.64M input and 0.24M output tokens, about $0.24; 13 of 9,421 articles stayed
+unscored (one batch the LLM got wrong twice).
+
+Limits: points overlap in time, so the intervals are optimistic; one market regime and a single Timestral run
+per variant; a 6-hour window and one covariate were tested, not other designs (longer windows, several
+covariates, known-future events); Alpaca `created_at` is trusted as the time the article was available. Live
+integration and dashboard changes were deliberately not built because there is no improvement to show.
+
+Follow-up analysis (no new LLM call, `uv run python -m agent.news_analysis`, protocol written beforehand in
+`reports/news_analysis_plan.md`, results in `reports/news_analysis.md`). Three hypotheses were chosen on May to
+August (348 points) and confirmed once on September to November (735 points), with day-bootstrap intervals:
+(H1) high news volume or absolute sentiment precedes larger moves beyond past volatility: no clear effect, and
+the volatility + news model fits slightly worse out of sample than volatility alone; (H2) the 10%-90% range is
+more often missed when news volume is high: 25.9% against 21.8% of points, interval [-5.5, +14.0] points, no
+clear effect; (H3) finer covariates (12 and 24 bar windows, count surprise, absolute sentiment) help Timestral:
+the variant selected on tuning changes the error by -0.01%, no clear effect. All 6 + 3 + 6 variants tried are
+listed in the report. The range was missed in about 22-26% of points since September against a nominal 20%,
+whatever the news volume. The bonus stops here.
 
 ## Development
 
