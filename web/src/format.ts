@@ -1,5 +1,10 @@
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 });
+const percentOneDecimal = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 const signedPercent = new Intl.NumberFormat("en-US", {
   style: "percent",
   maximumFractionDigits: 2,
@@ -27,6 +32,7 @@ export const formatUsd = (value: number): string => usd.format(value);
 export const formatSignedUsd = (value: number): string =>
   `${value > 0 ? "+" : ""}${usd.format(value)}`;
 export const formatPercent = (value: number): string => percent.format(value);
+export const formatPercentOne = (value: number): string => percentOneDecimal.format(value);
 export const formatSignedPercent = (value: number): string => signedPercent.format(value);
 export const formatDateTime = (iso: string): string => `${dateTime.format(new Date(iso))} UTC`;
 export const formatDate = (iso: string): string => date.format(new Date(iso));

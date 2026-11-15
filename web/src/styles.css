@@ -899,7 +899,7 @@ select:hover {
 
 .quality-table th,
 .quality-table td {
-  padding: var(--space-1) var(--space-3);
+  padding: clamp(2px, 0.9vh, var(--space-2)) var(--space-3);
   border-bottom: 1px solid var(--border);
   text-align: left;
 }
@@ -912,59 +912,34 @@ select:hover {
   cursor: help;
 }
 
-.axis-hint,
-.dotplot {
-  display: grid;
-  grid-template-columns: minmax(48px, 120px) 88px;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.axis-hint > span {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.7rem;
-}
-
 .total-row {
   font-weight: 600;
 }
 
-.dot-track {
-  position: relative;
-  height: 14px;
-  border-bottom: 1px solid var(--border);
+.quality-table thead small {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
 }
 
-.dot-band {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  background: var(--border);
-  border-radius: 3px;
+.quality-table .pill {
+  text-transform: none;
+  font-size: 0.8rem;
 }
 
-.dot {
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+.num-inline {
+  font-variant-numeric: tabular-nums;
 }
 
-.dot-up {
-  background: var(--up);
+.status-ok {
+  color: var(--up);
+  font-weight: 700;
 }
 
-.dot-flat {
-  background: var(--muted);
+.status-warn {
+  color: var(--warn);
+  font-weight: 700;
 }
-
-.dot-down {
-  background: var(--down);
-}
-
 
 .forecast-fan .plot {
   height: 300px;
@@ -1030,7 +1005,7 @@ select:hover {
   }
 
   .quality-details {
-    flex: 1;
+    flex: none;
   }
 
   .quality-chart {
@@ -1048,10 +1023,6 @@ select:hover {
     height: auto;
     flex: 1;
     min-height: 0;
-  }
-
-  .quality-details {
-    overflow: auto;
   }
 }
 

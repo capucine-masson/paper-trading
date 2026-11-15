@@ -1,4 +1,4 @@
-import { formatDay, formatPercent, formatUsd } from "../format";
+import { formatDay, formatUsd } from "../format";
 import type { ForecastPoint } from "../types";
 import { Empty } from "./Feedback";
 
@@ -13,7 +13,6 @@ const TICK_COUNT = 5;
 interface Props {
   symbol: string;
   forecasts: ForecastPoint[];
-  allForecasts: ForecastPoint[];
   horizonBars: number;
 }
 
@@ -23,7 +22,7 @@ const linePath = (xs: number[], ys: number[]): string =>
   xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${(ys[i] ?? 0).toFixed(1)}`).join(" ");
 
 /** Each forecast is drawn where it was meant to land: its decision time plus the horizon. */
-export function ForecastFan({ symbol, forecasts, allForecasts, horizonBars }: Props) {
+export function ForecastFan({ symbol, forecasts, horizonBars }: Props) {
   const fallback = forecasts[0];
   if (fallback === undefined || forecasts.length < MIN_POINTS) {
     return <Empty message={`Not enough past forecasts for ${symbol} to draw the chart.`} />;
@@ -41,7 +40,6 @@ export function ForecastFan({ symbol, forecasts, allForecasts, horizonBars }: Pr
   const targetIso = (point: ForecastPoint): string =>
     new Date(new Date(point.t).getTime() + horizonBars * HOUR_MS).toISOString();
   const ticks = Array.from({ length: TICK_COUNT }, (_, k) => Math.round((k / (TICK_COUNT - 1)) * last));
-  const allMisses = allForecasts.filter(isOutside).length;
   const misses = forecasts.flatMap((f, i) => (isOutside(f) ? [{ f, i }] : []));
   return (
     <figure className="equity-chart forecast-fan">
@@ -94,10 +92,6 @@ export function ForecastFan({ symbol, forecasts, allForecasts, horizonBars }: Pr
           </span>
         </span>
       </figcaption>
-      <p className="muted">
-        All {allForecasts.length} tested forecasts: {allMisses} outside the range, range hit rate{" "}
-        {formatPercent(1 - allMisses / allForecasts.length)}.
-      </p>
     </figure>
   );
 }

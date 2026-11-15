@@ -1,20 +1,18 @@
-import { formatDate, formatPercent } from "../format";
+import { formatDate, formatPercentOne } from "../format";
 import { forSymbol } from "../filters";
-import { ALL_SYMBOLS, type BacktestReport, type ForecastMetrics } from "../types";
-import { DotPlot, type Tone } from "./DotPlot";
+import type { BacktestReport, ForecastMetrics } from "../types";
 import { Empty } from "./Feedback";
 import { ForecastFan } from "./ForecastFan";
 
 const TARGET_COVERAGE = 0.8;
 const COVERAGE_TOLERANCE = 0.05;
 const NAIVE_RATIO = 1;
-const SAME_TOLERANCE = 0.01;
+const SAME_TOLERANCE = 0.02;
 const OVERALL = "All";
 const BAR_UNIT = "hours";
 const FAN_FORECASTS = 120;
 const FAN_DEFAULT_SYMBOL = "SPY";
-const HIT_AXIS = { min: 0.6, max: 1 };
-const ERROR_AXIS = { min: -0.03, max: 0.03 };
+type Tone = "up" | "flat" | "down";
 type Comparison = "better" | "same" | "worse";
 
 interface Row {
@@ -23,6 +21,8 @@ interface Row {
 }
 
 const COMPARISON_TONE: Record<Comparison, Tone> = { better: "up", same: "flat", worse: "down" };
+const PILL_CLASS: Record<Comparison, string> = { better: "pill pill-buy", same: "pill", worse: "pill pill-sell" };
+const PILL_LABEL: Record<Comparison, string> = { better: "Yes", same: "About equal", worse: "No" };
 
 const HIT_RATE_TIP = "Share of forecasts where the real price ended inside the announced 80% range.";
 const ERROR_TIP =
@@ -67,12 +67,11 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
       .map(([label, metrics]) => ({ label, metrics })),
   ];
   const { coverage, mae_ratio: ratio } = model.overall;
-  const fanSymbol =
-    symbol !== ALL_SYMBOLS
-      ? symbol
-      : backtest.symbols.includes(FAN_DEFAULT_SYMBOL)
-        ? FAN_DEFAULT_SYMBOL
-        : (backtest.symbols[0] ?? FAN_DEFAULT_SYMBOL);
+  const fanSymbol = backtest.symbols.includes(symbol)
+    ? symbol
+    : backtest.symbols.includes(FAN_DEFAULT_SYMBOL)
+      ? FAN_DEFAULT_SYMBOL
+      : (backtest.symbols[0] ?? FAN_DEFAULT_SYMBOL);
   const symbolForecasts = forSymbol(backtest.forecasts, fanSymbol).sort((a, b) => a.t.localeCompare(b.t));
   return (
     <div className="page-section quality-page">
@@ -89,7 +88,7 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
         <div className="quality-side">
       <section className="card quality-summary">
         <p className={`summary-line ${hitRateTone(coverage)}`}>
-          The 80% range held the real price {formatPercent(coverage)} of the time
+          The 80% range held the real price {formatPercentOne(coverage)} of the time
           {hitRateTone(coverage) === "up" ? ": reliable." : ": not fully reliable."}
         </p>
         <AccuracySentence ratio={ratio} />
@@ -101,12 +100,11 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
             <tr>
               <th scope="col">Symbol</th>
               <th scope="col" title={HIT_RATE_TIP}>
-                Range hit rate (target {formatPercent(TARGET_COVERAGE)})
-                <AxisHint low="60%" high="100%" />
+                Real price within the range
+                <small>target 80%</small>
               </th>
               <th scope="col" title={ERROR_TIP}>
-                Error vs "nothing changes"
-                <AxisHint low="-3%" high="+3%" />
+                Better than guessing "no change"?
               </th>
             </tr>
           </thead>
@@ -120,12 +118,8 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
         </div>
       <section className="card quality-chart">
         <div className="section-head">
-          <h3>
-            Chart: {fanSymbol}
-            {symbol === ALL_SYMBOLS && " (choose a symbol to change)"}
-          </h3>
-          <select value={symbol} onChange={(e) => onSymbol(e.target.value)} aria-label="Symbol">
-            <option value={ALL_SYMBOLS}>All symbols</option>
+          <h3>Chart: {fanSymbol}</h3>
+          <select value={fanSymbol} onChange={(e) => onSymbol(e.target.value)} aria-label="Symbol">
             {backtest.symbols.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -133,23 +127,14 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
             ))}
           </select>
         </div>
-        <ForecastFan symbol={fanSymbol} forecasts={symbolForecasts.slice(-FAN_FORECASTS)}
-          allForecasts={symbolForecasts}
-          horizonBars={backtest.horizon_bars} />
+        <ForecastFan
+          symbol={fanSymbol}
+          forecasts={symbolForecasts.slice(-FAN_FORECASTS)}
+          horizonBars={backtest.horizon_bars}
+        />
       </section>
       </div>
     </div>
-  );
-}
-
-function AxisHint({ low, high }: { low: string; high: string }) {
-  return (
-    <span className="axis-hint">
-      <span>
-        <span>{low}</span>
-        <span>{high}</span>
-      </span>
-    </span>
   );
 }
 
@@ -163,38 +148,35 @@ function AccuracySentence({ ratio }: { ratio: number | null }) {
   };
   return (
     <p className={`summary-line ${COMPARISON_TONE[comparison]}`}>
-      {wording[comparison]} "nothing changes" ({formatChange(ratio)} error).
+      {wording[comparison]} "nothing changes" (error differs by {formatChange(ratio)}).
     </p>
   );
 }
 
 function QualityRow({ row }: { row: Row }) {
   const { coverage, mae_ratio: ratio } = row.metrics;
+  const inside = hitRateTone(coverage) === "up";
   return (
     <tr className={row.label === OVERALL ? "total-row" : undefined}>
       <th scope="row">{row.label}</th>
       <td>
-        <DotPlot
-          value={coverage}
-          {...HIT_AXIS}
-          bandLow={TARGET_COVERAGE - COVERAGE_TOLERANCE}
-          bandHigh={TARGET_COVERAGE + COVERAGE_TOLERANCE}
-          tone={hitRateTone(coverage)}
-          text={formatPercent(coverage)}
-        />
+        <span className="num-inline">{formatPercentOne(coverage)}</span>{" "}
+        <span
+          className={inside ? "status-ok" : "status-warn"}
+          role="img"
+          aria-label={inside ? "Within the target range" : "Outside the target range"}
+          title={inside ? "Within 75-85%" : "Outside 75-85%"}
+        >
+          {inside ? "✓" : "▲"}
+        </span>
       </td>
       <td>
         {ratio === null ? (
           <span className="muted">n/a</span>
         ) : (
-          <DotPlot
-            value={errorChange(ratio)}
-            {...ERROR_AXIS}
-            bandLow={-SAME_TOLERANCE}
-            bandHigh={SAME_TOLERANCE}
-            tone={COMPARISON_TONE[compare(ratio)]}
-            text={`${formatChange(ratio)} ${compare(ratio)}`}
-          />
+          <span className={PILL_CLASS[compare(ratio)]} title={`Error vs guessing "no change": ${formatChange(ratio)}`}>
+            {PILL_LABEL[compare(ratio)]}
+          </span>
         )}
       </td>
     </tr>
