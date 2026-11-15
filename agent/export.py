@@ -17,7 +17,7 @@ from agent.forecast import PriceForecast
 from agent.llm import Decision
 from agent.metrics import buy_and_hold_curve, max_drawdown
 from agent.risk import PortfolioSnapshot, Verdict
-from agent.store import StepRow, Store
+from agent.store import StepRow, Store, is_simulation
 
 logger = logging.getLogger(__name__)
 
@@ -123,18 +123,23 @@ class Export(BaseModel):
     trades: list[TradeView]
 
 
+def _real_steps(store: Store, name: str) -> list[StepRow]:
+    """Journal steps of real cycles: simulated cycles are never exported."""
+    return [row for row in store.list_steps(name) if not is_simulation(row.cycle_id)]
+
+
 def build_export(store: Store, config: Config, now: datetime) -> Export:
-    snapshot_rows = store.list_steps("portfolio")
+    snapshot_rows = _real_steps(store, "portfolio")
     snapshots = {r.cycle_id: PortfolioSnapshot.model_validate_json(r.result) for r in snapshot_rows}
     forecasts = {
         (r.cycle_id, r.symbol): PriceForecast.model_validate_json(r.result)
-        for r in store.list_steps("forecast")
+        for r in _real_steps(store, "forecast")
     }
-    trades = [_trade(row) for row in store.list_steps("order")]
+    trades = [_trade(row) for row in _real_steps(store, "order")]
     allocated = config.risk.allocated_capital
     points = _equity_points(snapshot_rows, snapshots, forecasts, config)
     latest = snapshots[snapshot_rows[-1].cycle_id] if snapshot_rows else None
-    cycles = store.list_cycles()
+    cycles = [c for c in store.list_cycles() if not is_simulation(c.cycle_id)]
     last = cycles[-1] if cycles else None
     halted = store.get_state(HALTED_KEY)
     account = store.get_state(ACCOUNT_EQUITY_KEY)
@@ -267,11 +272,11 @@ def _decisions(
 ) -> list[DecisionView]:
     verdicts = {
         (r.cycle_id, r.symbol): Verdict.model_validate_json(r.result)
-        for r in store.list_steps("verdict")
+        for r in _real_steps(store, "verdict")
     }
     orders = {(t.cycle_id, t.symbol): t for t in trades}
     views = []
-    for row in store.list_steps("llm"):
+    for row in _real_steps(store, "llm"):
         key = (row.cycle_id, row.symbol)
         decision = Decision.model_validate_json(row.result)
         verdict, forecast, snap = verdicts.get(key), forecasts.get(key), snapshots.get(row.cycle_id)
@@ -361,9 +366,10 @@ def _write_csv(path: Path, header: list[str], rows: Iterable[list[object]]) -> N
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
-    store = Store(JOURNAL_PATH)
+    config = load_config()
+    store = Store(JOURNAL_PATH, news_tables=config.news.enabled)
     try:
-        export = build_export(store, load_config(), datetime.now(UTC))
+        export = build_export(store, config, datetime.now(UTC))
     finally:
         store.close()
     write_export(export, EXPORT_DIR)

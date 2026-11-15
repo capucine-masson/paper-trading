@@ -165,3 +165,13 @@ def test_backtest_report_is_copied_only_when_present(tmp_path: Path) -> None:
     report = tmp_path / "backtest.json"
     report.write_text("{}", encoding="utf-8")
     assert copy_backtest(report, out) and (out / "backtest.json").exists()
+
+
+def test_simulated_cycles_are_never_exported(tmp_path: Path) -> None:
+    store = seeded_store(tmp_path)
+    seed_cycle(store, "sim-c3", 5_000.0, 400.0)
+    export = build_export(store, CONFIG, NOW)
+    assert [d.cycle_id for d in export.decisions] == ["c1", "c2"]
+    assert [p.cycle_id for p in export.portfolio.points] == ["c1", "c2"]
+    assert export.status.last_cycle is not None and export.status.last_cycle.cycle_id == "c2"
+    assert export.status.metrics.equity == 9_900.0

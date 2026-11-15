@@ -12,7 +12,7 @@ from agent.broker import Broker
 from agent.config import JOURNAL_PATH, load_config, load_secrets
 from agent.cycle import STATUS_ERROR, STATUS_SKIPPED, Cycle, CycleReport, SymbolOutcome
 from agent.llm import make_client
-from agent.store import Store
+from agent.store import SIMULATION_PREFIX, Store
 
 CYCLE_ID_FORMAT = "%Y%m%dT%H"
 logger = logging.getLogger(__name__)
@@ -28,14 +28,24 @@ def _parse_args() -> argparse.Namespace:
         "--resume", action="store_true", help="clear the halted state before running"
     )
     parser.add_argument(
-        "--cycle-id", help="resume a given cycle (default: the current UTC hour, e.g. 20261116T14)"
+        "--cycle-id",
+        help="resume a given cycle (default: the current UTC hour, e.g. 20261116T14, "
+        "prefixed with sim- when not executing)",
     )
     parser.add_argument(
         "--ignore-market-clock",
         action="store_true",
         help="simulate while the market is closed (skips the clock and freshness checks)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.execute and args.ignore_market_clock:
+        parser.error("--ignore-market-clock cannot be combined with --execute")
+    return args
+
+
+def default_cycle_id(execute: bool, now: datetime) -> str:
+    """The UTC hour; a simulation gets a prefix so it can never be mistaken for a real cycle."""
+    return ("" if execute else SIMULATION_PREFIX) + now.strftime(CYCLE_ID_FORMAT)
 
 
 def main() -> int:
@@ -51,11 +61,11 @@ def main() -> int:
     except (ValidationError, OSError, RuntimeError) as error:
         print(f"Startup error: {error}", file=sys.stderr)
         return 1
-    store = Store(JOURNAL_PATH)
+    store = Store(JOURNAL_PATH, news_tables=config.news.enabled)
     if args.resume:
         store.delete_state("halted_reason")
         logger.warning("halted state cleared manually")
-    cycle_id = args.cycle_id or datetime.now(UTC).strftime(CYCLE_ID_FORMAT)
+    cycle_id = args.cycle_id or default_cycle_id(args.execute, datetime.now(UTC))
     cycle = Cycle(
         config, broker, llm_client, store, cycle_id, args.execute, args.ignore_market_clock
     )

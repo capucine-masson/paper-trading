@@ -2,12 +2,19 @@ name: cycle
 
 on:
   schedule:
-    # Hourly during the US session (UTC), minute offset from :00. Market open/closed comes from the Alpaca clock.
-    - cron: "7 14-20 * * 1-5"
+    # Hourly during the US session, minute offset from :00. The cron is in UTC and fixed: the US market
+    # opens at 14:30 UTC in winter (EST) and 13:30 UTC in summer (EDT). 15:07 is the first slot with a
+    # completed hourly bar in winter. In summer, change it to "7 14-19 * * 1-5".
+    # Market open/closed always comes from the Alpaca clock, never from the cron.
+    - cron: "7 15-20 * * 1-5"
   workflow_dispatch:
     inputs:
       resume:
         description: "Clear the halted state before running (manual resume)"
+        type: boolean
+        default: false
+      simulate:
+        description: "Dry run: one full cycle without any order, market clock ignored (kept out of the dashboard)"
         type: boolean
         default: false
 
@@ -29,6 +36,7 @@ jobs:
       MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       RESUME: ${{ inputs.resume }}
+      SIMULATE: ${{ inputs.simulate }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,11 +54,15 @@ jobs:
 
       - name: Run one cycle
         run: |
-          if [ "$RESUME" = "true" ]; then
-            uv run python -m agent.run --once --execute --resume
+          if [ "$SIMULATE" = "true" ]; then
+            args="--ignore-market-clock"
           else
-            uv run python -m agent.run --once --execute
+            args="--execute"
           fi
+          if [ "$RESUME" = "true" ]; then
+            args="$args --resume"
+          fi
+          uv run python -m agent.run --once $args
 
       - name: Export dashboard data (even on failure)
         if: always()
