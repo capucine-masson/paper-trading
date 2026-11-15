@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import BaseModel
 from timestral import TimestralForecaster
 
@@ -153,14 +154,19 @@ def subsample(points: list[EvalPoint], per_symbol: int) -> list[EvalPoint]:
 
 
 def run_forecasts(
-    points: list[EvalPoint], forecaster: TimestralForecaster, config: Config, model: str
+    points: list[EvalPoint],
+    forecaster: TimestralForecaster,
+    config: Config,
+    model: str,
+    news: dict[tuple[str, datetime], NDArray[np.float64]] | None = None,
 ) -> list[ForecastRecord]:
     forecast_config = config.forecast.model_copy(update={"model": model})
     records: list[ForecastRecord] = []
     for done, point in enumerate(points, start=1):
         started = time.perf_counter()
         try:
-            forecast = forecast_symbol(forecaster, point.series, forecast_config)
+            news_count = None if news is None else news[(point.series.symbol, point.time)]
+            forecast = forecast_symbol(forecaster, point.series, forecast_config, news_count)
         except ForecastError as error:
             logger.warning("skipped point: %s", error)
             continue

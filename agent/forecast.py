@@ -35,10 +35,23 @@ def load_model(name: str) -> TimestralForecaster:
 
 
 def forecast_symbol(
-    forecaster: TimestralForecaster, series: PriceSeries, config: ForecastConfig
+    forecaster: TimestralForecaster,
+    series: PriceSeries,
+    config: ForecastConfig,
+    news_count: NDArray[np.float64] | None = None,
 ) -> PriceForecast:
+    """With `news_count`, the article counts are given to Timestral as a past-only covariate."""
     with torch.no_grad():
-        result = forecaster.forecast(series.values, prediction_length=config.horizon)
+        if news_count is None:
+            result = forecaster.forecast(series.values, prediction_length=config.horizon)
+        else:
+            if news_count.shape != series.values.shape:
+                raise ForecastError(f"{series.symbol}: news covariate does not match the series")
+            result = forecaster.forecast(
+                series.values[np.newaxis, np.newaxis, :],
+                prediction_length=config.horizon,
+                past_covariates=news_count[np.newaxis, np.newaxis, :],
+            )
     quantiles = result.quantiles.numpy()[0, 0]
     return validate_forecast(series, config, quantiles, result.quantile_levels)
 

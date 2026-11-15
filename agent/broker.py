@@ -3,12 +3,14 @@
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 from alpaca.common.exceptions import APIError
 from alpaca.data.enums import DataFeed
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
+from alpaca.data.historical.news import NewsClient
+from alpaca.data.models.news import News
+from alpaca.data.requests import NewsRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -17,7 +19,7 @@ from alpaca.trading.requests import MarketOrderRequest
 from pydantic import BaseModel
 
 from agent.config import BrokerConfig, Secrets
-from agent.data import Bar
+from agent.data import HEADLINE_MAX, SUMMARY_MAX, Article, Bar
 from agent.risk import OrderSpec, Position
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,7 @@ PAPER_ACCOUNT_PREFIX = "PA"
 HTTP_NOT_FOUND = 404
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
+NEWS_MAX_PER_WINDOW = 1000
 
 
 class BrokerError(Exception):
@@ -46,6 +49,17 @@ class OrderRecord(BaseModel):
     filled_at: datetime | None = None
 
 
+def _to_article(item: News) -> Article:
+    return Article(
+        id=item.id,
+        created_at=item.created_at.astimezone(UTC),
+        headline=item.headline[:HEADLINE_MAX],
+        summary=item.summary[:SUMMARY_MAX],
+        source=item.source,
+        url=item.url,
+    )
+
+
 def _is_transient(error: Exception) -> bool:
     if isinstance(error, APIError):
         status: int = error.status_code
@@ -60,6 +74,7 @@ class Broker:
         self._config = config
         self._trading = TradingClient(key, secret, paper=True, url_override=PAPER_URL)
         self._data = StockHistoricalDataClient(key, secret)
+        self._news = NewsClient(key, secret)
         self._feed = DataFeed(feed)
         self._check_paper_account()
 
@@ -113,6 +128,23 @@ class Broker:
             Bar(symbol=symbol, timestamp=bar.timestamp, close=bar.close)
             for symbol, bars in bar_set.data.items()  # type: ignore[union-attr]
             for bar in bars
+        ]
+
+    def fetch_news(self, symbol: str, start: datetime, end: datetime) -> list[Article]:
+        """Articles tagged with the symbol and created in [start, end], oldest first."""
+        request = NewsRequest(
+            symbols=symbol,
+            start=start,
+            end=end,
+            sort="asc",
+            limit=NEWS_MAX_PER_WINDOW,
+            include_content=False,
+        )
+        news_set = self._retry(lambda: self._news.get_news(request))
+        return [
+            _to_article(item)
+            for item in news_set.data["news"]  # type: ignore[union-attr]
+            if isinstance(item, News)
         ]
 
     def find_order(self, client_order_id: str) -> OrderRecord | None:
