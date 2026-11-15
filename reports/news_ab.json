@@ -1,0 +1,408 @@
+{
+  "generated_at": "2026-11-15T01:12:53.395083Z",
+  "symbols": [
+    "SPY",
+    "QQQ",
+    "AAPL",
+    "MSFT",
+    "GLD"
+  ],
+  "window_bars": 6,
+  "horizon_bars": 6,
+  "stride_bars": 3,
+  "history_start": "2026-05-19T12:00:00Z",
+  "history_end": "2026-11-13T21:00:00Z",
+  "articles_per_week": {
+    "SPY": 175.58668197474168,
+    "QQQ": 40.18369690011481,
+    "AAPL": 76.8955223880597,
+    "MSFT": 98.69115958668198,
+    "GLD": 8.615384615384615
+  },
+  "low_volume_symbols": [
+    "GLD"
+  ],
+  "variants": [
+    {
+      "name": "Article count",
+      "description": "Number of articles over the last 6 bars (past-only covariate).",
+      "symbols": [
+        "AAPL",
+        "GLD",
+        "MSFT",
+        "QQQ",
+        "SPY"
+      ],
+      "baseline": {
+        "label": "Without news",
+        "model": "mistralai/Timestral-28M",
+        "seconds_per_forecast": 0.03297789213173406,
+        "overall": {
+          "n": 1093,
+          "mae_model": 4.639549047918573,
+          "mae_naive": 4.639812442817932,
+          "mae_ratio": 0.9999432315632141,
+          "direction_n": 1092,
+          "direction_hit_rate": 0.5009157509157509,
+          "coverage": 0.7868252516010978,
+          "mean_width": 0.028246821860536384
+        },
+        "per_symbol": {
+          "AAPL": {
+            "n": 218,
+            "mae_model": 3.4560851658812375,
+            "mae_naive": 3.4439678899082593,
+            "mae_ratio": 1.003518405618265,
+            "direction_n": 217,
+            "direction_hit_rate": 0.5069124423963134,
+            "coverage": 0.7981651376146789,
+            "mean_width": 0.03464561708404512
+          },
+          "GLD": {
+            "n": 203,
+            "mae_model": 3.912675203971674,
+            "mae_naive": 3.871330049261083,
+            "mae_ratio": 1.010679832043378,
+            "direction_n": 203,
+            "direction_hit_rate": 0.43349753694581283,
+            "coverage": 0.7881773399014779,
+            "mean_width": 0.030096427395675574
+          },
+          "MSFT": {
+            "n": 216,
+            "mae_model": 6.3072388090910705,
+            "mae_naive": 6.27793981481481,
+            "mae_ratio": 1.0046669759730924,
+            "direction_n": 216,
+            "direction_hit_rate": 0.4722222222222222,
+            "coverage": 0.8055555555555556,
+            "mean_width": 0.03885291189511347
+          },
+          "QQQ": {
+            "n": 227,
+            "mae_model": 5.656094180203746,
+            "mae_naive": 5.670550660792953,
+            "mae_ratio": 0.9974506037501504,
+            "direction_n": 227,
+            "direction_hit_rate": 0.5110132158590308,
+            "coverage": 0.7797356828193832,
+            "mean_width": 0.024522679936335178
+          },
+          "SPY": {
+            "n": 229,
+            "mae_model": 3.8298275770162378,
+            "mae_naive": 3.892576419213971,
+            "mae_ratio": 0.9838798688991688,
+            "direction_n": 229,
+            "direction_hit_rate": 0.5720524017467249,
+            "coverage": 0.7641921397379913,
+            "mean_width": 0.01420340477305543
+          }
+        }
+      },
+      "result": {
+        "label": "Article count",
+        "model": "mistralai/Timestral-28M",
+        "seconds_per_forecast": 0.0656868828910838,
+        "overall": {
+          "n": 1093,
+          "mae_model": 4.645332384170573,
+          "mae_naive": 4.639812442817932,
+          "mae_ratio": 1.001189690622341,
+          "direction_n": 1092,
+          "direction_hit_rate": 0.49542124542124544,
+          "coverage": 0.7859103385178408,
+          "mean_width": 0.02870908696592095
+        },
+        "per_symbol": {
+          "AAPL": {
+            "n": 218,
+            "mae_model": 3.4640203129479663,
+            "mae_naive": 3.4439678899082593,
+            "mae_ratio": 1.0058224767711876,
+            "direction_n": 217,
+            "direction_hit_rate": 0.4838709677419355,
+            "coverage": 0.7981651376146789,
+            "mean_width": 0.0350844332560428
+          },
+          "GLD": {
+            "n": 203,
+            "mae_model": 3.928894157221751,
+            "mae_naive": 3.871330049261083,
+            "mae_ratio": 1.0148693361785712,
+            "direction_n": 203,
+            "direction_hit_rate": 0.4039408866995074,
+            "coverage": 0.7832512315270936,
+            "mean_width": 0.030821952487110595
+          },
+          "MSFT": {
+            "n": 216,
+            "mae_model": 6.310447393346713,
+            "mae_naive": 6.27793981481481,
+            "mae_ratio": 1.0051780646981023,
+            "direction_n": 216,
+            "direction_hit_rate": 0.4861111111111111,
+            "coverage": 0.8055555555555556,
+            "mean_width": 0.03961079503174476
+          },
+          "QQQ": {
+            "n": 227,
+            "mae_model": 5.665860299938051,
+            "mae_naive": 5.670550660792953,
+            "mae_ratio": 0.9991728561941379,
+            "direction_n": 227,
+            "direction_hit_rate": 0.5110132158590308,
+            "coverage": 0.775330396475771,
+            "mean_width": 0.024755879625978385
+          },
+          "SPY": {
+            "n": 229,
+            "mae_model": 3.822792265113263,
+            "mae_naive": 3.892576419213971,
+            "mae_ratio": 0.9820725024802982,
+            "direction_n": 229,
+            "direction_hit_rate": 0.5807860262008734,
+            "coverage": 0.7685589519650655,
+            "mean_width": 0.014402850860684966
+          }
+        }
+      },
+      "paired": {
+        "n": 1093,
+        "mean_error_change": 0.005783336252001285,
+        "relative_change": 0.001246529822676591,
+        "ci_low": -0.0128449927297472,
+        "ci_high": 0.02441166523374977,
+        "share_better": 0.5123513266239708,
+        "verdict": "No measurable difference (interval includes zero)."
+      },
+      "paired_per_symbol": {
+        "AAPL": {
+          "n": 218,
+          "mean_error_change": 0.00793514706672893,
+          "relative_change": 0.002295992918538399,
+          "ci_low": -0.018259406240659172,
+          "ci_high": 0.03412970037411703,
+          "share_better": 0.4908256880733945,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "GLD": {
+          "n": 203,
+          "mean_error_change": 0.016218953250077238,
+          "relative_change": 0.004145233735121617,
+          "ci_low": -0.016877361151548198,
+          "ci_high": 0.049315267651702674,
+          "share_better": 0.5172413793103449,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "MSFT": {
+          "n": 216,
+          "mean_error_change": 0.003208584255642361,
+          "relative_change": 0.000508714566351539,
+          "ci_low": -0.02956359530024811,
+          "ci_high": 0.03598076381153283,
+          "share_better": 0.5462962962962963,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "QQQ": {
+          "n": 227,
+          "mean_error_change": 0.009766119734305126,
+          "relative_change": 0.0017266543701634982,
+          "ci_low": -0.049173476777741455,
+          "ci_high": 0.0687057162463517,
+          "share_better": 0.5110132158590308,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "SPY": {
+          "n": 229,
+          "mean_error_change": -0.007035311902974652,
+          "relative_change": -0.0018369787572671248,
+          "ci_low": -0.05261247402338948,
+          "ci_high": 0.03854185021744018,
+          "share_better": 0.4978165938864629,
+          "verdict": "No measurable difference (interval includes zero)."
+        }
+      }
+    },
+    {
+      "name": "LLM sentiment",
+      "description": "Relevance-weighted mean sentiment over the last 6 bars, NaN with no news (past-only covariate).",
+      "symbols": [
+        "AAPL",
+        "MSFT",
+        "QQQ",
+        "SPY"
+      ],
+      "baseline": {
+        "label": "Without news",
+        "model": "mistralai/Timestral-28M",
+        "seconds_per_forecast": 0.032959380561773326,
+        "overall": {
+          "n": 890,
+          "mae_model": 4.805341621313203,
+          "mae_naive": 4.815095505617977,
+          "mae_ratio": 0.9979743113519983,
+          "direction_n": 889,
+          "direction_hit_rate": 0.5163104611923509,
+          "coverage": 0.7865168539325843,
+          "mean_width": 0.02782494554184733
+        },
+        "per_symbol": {
+          "AAPL": {
+            "n": 218,
+            "mae_model": 3.4560851658812375,
+            "mae_naive": 3.4439678899082593,
+            "mae_ratio": 1.003518405618265,
+            "direction_n": 217,
+            "direction_hit_rate": 0.5069124423963134,
+            "coverage": 0.7981651376146789,
+            "mean_width": 0.03464561708404512
+          },
+          "MSFT": {
+            "n": 216,
+            "mae_model": 6.3072388090910705,
+            "mae_naive": 6.27793981481481,
+            "mae_ratio": 1.0046669759730924,
+            "direction_n": 216,
+            "direction_hit_rate": 0.4722222222222222,
+            "coverage": 0.8055555555555556,
+            "mean_width": 0.03885291189511347
+          },
+          "QQQ": {
+            "n": 227,
+            "mae_model": 5.656094180203746,
+            "mae_naive": 5.670550660792953,
+            "mae_ratio": 0.9974506037501504,
+            "direction_n": 227,
+            "direction_hit_rate": 0.5110132158590308,
+            "coverage": 0.7797356828193832,
+            "mean_width": 0.024522679936335178
+          },
+          "SPY": {
+            "n": 229,
+            "mae_model": 3.8298275770162378,
+            "mae_naive": 3.892576419213971,
+            "mae_ratio": 0.9838798688991688,
+            "direction_n": 229,
+            "direction_hit_rate": 0.5720524017467249,
+            "coverage": 0.7641921397379913,
+            "mean_width": 0.01420340477305543
+          }
+        }
+      },
+      "result": {
+        "label": "LLM sentiment",
+        "model": "mistralai/Timestral-28M",
+        "seconds_per_forecast": 0.06591937573032666,
+        "overall": {
+          "n": 890,
+          "mae_model": 4.813005513737711,
+          "mae_naive": 4.815095505617977,
+          "mae_ratio": 0.9995659500672773,
+          "direction_n": 889,
+          "direction_hit_rate": 0.49718785151856015,
+          "coverage": 0.7808988764044944,
+          "mean_width": 0.027950750350089055
+        },
+        "per_symbol": {
+          "AAPL": {
+            "n": 218,
+            "mae_model": 3.455858288686212,
+            "mae_naive": 3.4439678899082593,
+            "mae_ratio": 1.0034525289311769,
+            "direction_n": 217,
+            "direction_hit_rate": 0.5023041474654378,
+            "coverage": 0.7981651376146789,
+            "mean_width": 0.03486448975911586
+          },
+          "MSFT": {
+            "n": 216,
+            "mae_model": 6.312308010525171,
+            "mae_naive": 6.27793981481481,
+            "mae_ratio": 1.005474438545788,
+            "direction_n": 216,
+            "direction_hit_rate": 0.48148148148148145,
+            "coverage": 0.8009259259259259,
+            "mean_width": 0.039021853590980767
+          },
+          "QQQ": {
+            "n": 227,
+            "mae_model": 5.6831829269341965,
+            "mae_naive": 5.670550660792953,
+            "mae_ratio": 1.0022276965495758,
+            "direction_n": 227,
+            "direction_hit_rate": 0.4669603524229075,
+            "coverage": 0.7665198237885462,
+            "mean_width": 0.024569773884179358
+          },
+          "SPY": {
+            "n": 229,
+            "mae_model": 3.8281953956570667,
+            "mae_naive": 3.892576419213971,
+            "mae_ratio": 0.9834605627164784,
+            "direction_n": 229,
+            "direction_hit_rate": 0.537117903930131,
+            "coverage": 0.759825327510917,
+            "mean_width": 0.014277947583980077
+          }
+        }
+      },
+      "paired": {
+        "n": 890,
+        "mean_error_change": 0.007663892424507983,
+        "relative_change": 0.0015948694241666834,
+        "ci_low": -0.011455280066735421,
+        "ci_high": 0.026783064915751387,
+        "share_better": 0.5078651685393258,
+        "verdict": "No measurable difference (interval includes zero)."
+      },
+      "paired_per_symbol": {
+        "AAPL": {
+          "n": 218,
+          "mean_error_change": -0.00022687719502576103,
+          "relative_change": -0.00006564571882241553,
+          "ci_low": -0.023103244084299784,
+          "ci_high": 0.022649489694248265,
+          "share_better": 0.5596330275229358,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "MSFT": {
+          "n": 216,
+          "mean_error_change": 0.005069201434099884,
+          "relative_change": 0.0008037116696442958,
+          "ci_low": -0.026961535094060796,
+          "ci_high": 0.03709993796226056,
+          "share_better": 0.5555555555555556,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "QQQ": {
+          "n": 227,
+          "mean_error_change": 0.02708874673045094,
+          "relative_change": 0.004789302629588665,
+          "ci_low": -0.027375523568965027,
+          "ci_high": 0.0815530170298669,
+          "share_better": 0.46255506607929514,
+          "verdict": "No measurable difference (interval includes zero)."
+        },
+        "SPY": {
+          "n": 229,
+          "mean_error_change": -0.0016321813591712588,
+          "relative_change": -0.00042617619888853255,
+          "ci_low": -0.03669124042217101,
+          "ci_high": 0.033426877703828496,
+          "share_better": 0.4585152838427948,
+          "verdict": "No measurable difference (interval includes zero)."
+        }
+      }
+    }
+  ],
+  "scoring": {
+    "calls": 690,
+    "prompt_tokens": 644763,
+    "completion_tokens": 240329,
+    "cost_usd": 0.24091184999999998,
+    "scored_articles": 9408,
+    "unscored_articles": 13,
+    "failed_batches": 1
+  }
+}
