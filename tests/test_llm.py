@@ -26,18 +26,24 @@ GOOD = Decision(action="buy", confidence=0.7, rationale="Median is above the las
 
 
 class FakeMessage:
-    def __init__(self, parsed: Decision | None) -> None:
+    def __init__(self, parsed: Any) -> None:
         self.parsed = parsed
 
 
 class FakeChoice:
-    def __init__(self, parsed: Decision | None) -> None:
+    def __init__(self, parsed: Any) -> None:
         self.message = FakeMessage(parsed)
 
 
+class FakeUsage:
+    prompt_tokens = 100
+    completion_tokens = 20
+
+
 class FakeResponse:
-    def __init__(self, parsed: Decision | None) -> None:
+    def __init__(self, parsed: Any) -> None:
         self.choices = [FakeChoice(parsed)]
+        self.usage = FakeUsage()
 
 
 class FakeChat:
