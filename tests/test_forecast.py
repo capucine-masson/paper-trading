@@ -10,7 +10,10 @@ from agent.forecast import ForecastError, validate_forecast
 CONFIG = load_config().forecast
 LEVELS = (0.1, 0.5, 0.9)
 SERIES = PriceSeries(
-    symbol="SPY", last_bar_start=datetime(2026, 11, 10, tzinfo=UTC), values=np.array([100.0])
+    symbol="SPY",
+    last_bar_start=datetime(2026, 11, 10, tzinfo=UTC),
+    slot_starts=[datetime(2026, 11, 10, tzinfo=UTC)],
+    values=np.array([100.0]),
 )
 
 

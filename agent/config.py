@@ -86,6 +86,17 @@ class BacktestConfig(BaseModel):
     momentum_bars: int = Field(ge=1, le=100)
 
 
+class NewsConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    window_bars: int = Field(ge=1, le=72)
+    request_interval_s: float = Field(ge=0, le=10)
+    scored_symbols: list[Symbol]
+    score_batch_size: int = Field(ge=1, le=100)
+    max_scoring_calls: int = Field(ge=1, le=5000)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -95,6 +106,13 @@ class Config(BaseModel):
     risk: RiskConfig
     broker: BrokerConfig
     backtest: BacktestConfig
+    news: NewsConfig
+
+    @model_validator(mode="after")
+    def check_scored_symbols(self) -> "Config":
+        if not set(self.news.scored_symbols) <= set(self.market.symbols):
+            raise ValueError("news.scored_symbols must be market symbols")
+        return self
 
 
 class Secrets(BaseSettings):

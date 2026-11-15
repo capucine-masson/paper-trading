@@ -71,3 +71,17 @@ compare_points_per_symbol = 40
 rule_signal_threshold = 0.05
 # Number of past bars used by the momentum baseline.
 momentum_bars = 6
+
+[news]
+# Bonus: news covariates. false = the agent behaves exactly as without news.
+enabled = false
+# Covariate window: article count over the last N hourly bars of the series.
+window_bars = 6
+# Pause in seconds between two Alpaca news requests (the free plan allows 200 per minute).
+request_interval_s = 0.4
+# Symbols whose headlines are scored by the LLM (version 2); GLD is left out (about 9 articles a week).
+scored_symbols = ["SPY", "QQQ", "AAPL", "MSFT"]
+# Maximum articles scored in one LLM call (one call at most per symbol, day and chunk of this size).
+score_batch_size = 40
+# One-time cap on the LLM calls of the news-scoring backtest (counted in the news cache, retries included).
+max_scoring_calls = 700

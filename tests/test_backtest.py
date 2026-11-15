@@ -74,7 +74,10 @@ def make_record(
 ) -> ForecastRecord:
     moment = START + timedelta(hours=index)
     series = PriceSeries(
-        symbol="SPY", last_bar_start=moment - timedelta(hours=1), values=np.array([price] * 10)
+        symbol="SPY",
+        last_bar_start=moment - timedelta(hours=1),
+        slot_starts=[moment - timedelta(hours=10 - i) for i in range(10)],
+        values=np.array([price] * 10),
     )
     forecast = PriceForecast(
         symbol="SPY",

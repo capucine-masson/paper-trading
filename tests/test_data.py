@@ -22,6 +22,8 @@ def test_intraday_gap_becomes_nan() -> None:
     series = build_series("SPY", make_bars(8, skip={3}), 8, now, MARKET)
     assert len(series.values) == 8
     assert str(series.values[3]) == "nan"
+    assert series.slot_starts[3] == START + timedelta(hours=3)
+    assert len(series.slot_starts) == len(series.values)
 
 
 def test_in_progress_bar_is_dropped() -> None:

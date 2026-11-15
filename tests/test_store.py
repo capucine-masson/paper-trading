@@ -1,6 +1,7 @@
+import sqlite3
 from pathlib import Path
 
-from agent.store import Store
+from agent.store import Store, is_simulation
 
 HOSTILE = "SPY'; DROP TABLE steps;--"
 
@@ -34,3 +35,22 @@ def test_update_step_keeps_the_timestamp(tmp_path: Path) -> None:
     store.update_step("c", "SPY", "order", "new")
     row = store.list_steps("order")[0]
     assert row.result == "new" and row.created_at == created
+
+
+def _tables(path: Path) -> set[str]:
+    with sqlite3.connect(path) as db:
+        return {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+
+
+def test_news_tables_are_only_created_on_request(tmp_path: Path) -> None:
+    Store(tmp_path / "live.db").close()
+    Store(tmp_path / "news.db", news_tables=True).close()
+    assert _tables(tmp_path / "live.db") == {"steps", "cycles", "state"}
+    assert {"news_articles", "news_scores", "llm_calls", "news_days"} <= _tables(
+        tmp_path / "news.db"
+    )
+
+
+def test_simulation_ids_are_recognised() -> None:
+    assert is_simulation("sim-20261116T14")
+    assert not is_simulation("20261116T14")

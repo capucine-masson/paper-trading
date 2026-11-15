@@ -1,20 +1,42 @@
 """Hourly price series: validation, gap marking and freshness checks (no look-ahead)."""
 
 from datetime import datetime, timedelta
+from typing import NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from agent.config import MarketConfig
 
 BAR_PERIOD = timedelta(hours=1)
+HEADLINE_MAX = 500
+SUMMARY_MAX = 1000
 
 
 class Bar(BaseModel):
     symbol: str
     timestamp: datetime
     close: float
+
+
+class Article(BaseModel):
+    """A news article reduced to what the agent uses: never the full text."""
+
+    id: int
+    created_at: datetime
+    headline: str = Field(max_length=HEADLINE_MAX)
+    summary: str = Field(max_length=SUMMARY_MAX)
+    source: str = Field(max_length=100)
+    url: str | None = Field(max_length=2000)
+
+
+class Usage(NamedTuple):
+    """LLM calls made and tokens billed."""
+
+    calls: int
+    prompt_tokens: int
+    completion_tokens: int
 
 
 class DataError(Exception):
@@ -26,6 +48,7 @@ class PriceSeries(BaseModel):
 
     symbol: str
     last_bar_start: datetime
+    slot_starts: list[datetime]
     values: NDArray[np.float64]
 
     @property
@@ -43,17 +66,24 @@ def build_series(
         raise DataError(f"{symbol}: no completed bar available")
     timestamps = sorted(completed)
     values: list[float] = []
+    starts: list[datetime] = []
     previous: datetime | None = None
     for timestamp in timestamps:
         if previous is not None and previous.date() == timestamp.date():
             missing = int((timestamp - previous) / BAR_PERIOD) - 1
             values.extend([float("nan")] * missing)
+            starts.extend(previous + BAR_PERIOD * (i + 1) for i in range(missing))
         values.append(completed[timestamp])
+        starts.append(timestamp)
         previous = timestamp
     window = np.array(values[-context_length:], dtype=np.float64)
     _check_quality(symbol, window, context_length, market)
-    series = PriceSeries(symbol=symbol, last_bar_start=timestamps[-1], values=window)
-    return series
+    return PriceSeries(
+        symbol=symbol,
+        last_bar_start=timestamps[-1],
+        slot_starts=starts[-context_length:],
+        values=window,
+    )
 
 
 def _check_quality(
