@@ -46,6 +46,10 @@ function demoRationale(
 
 const stats = (mae_ratio: number, coverage: number): ForecastMetrics => ({ n: 221, mae_ratio, coverage });
 
+const DEMO_MACRO = { brent: 82.1, us10y: 4.21, us2y: 4.55, dollar: 121.3, vix: 16.4, hy_spread: 3.05 };
+const DEMO_NEXT_EVENT = "2026-12-09T19:00:00Z";
+const DEMO_COST_BPS = 5;
+const BPS_PER_UNIT = 10_000;
 const DEMO_FORECASTS = 130;
 const DEMO_STEP = 0.004;
 const DEMO_BAND_Z = 1.2816;
@@ -168,6 +172,8 @@ export function buildDemoData(): DashboardData {
           lower: steps.map((k) => last + drift * k - spread * Math.sqrt(k)),
           upper: steps.map((k) => last + drift * k + spread * Math.sqrt(k)),
         },
+        macro: DEMO_MACRO,
+        next_event: DEMO_NEXT_EVENT,
         verdict: reduced ? "reduced" : verdict,
         risk_reason:
           verdict === "no_order"
@@ -220,6 +226,7 @@ export function buildDemoData(): DashboardData {
         max_drawdown: 0.0156,
         exposure: last?.exposure ?? 0,
         cash: equity - (last?.exposure ?? 0),
+        estimated_costs: (decisions.filter((d) => d.order !== null).length * ORDER_NOTIONAL * DEMO_COST_BPS) / BPS_PER_UNIT,
       },
     },
     portfolio: {

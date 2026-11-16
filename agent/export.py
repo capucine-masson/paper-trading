@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, TypeAdapter
 
 from agent.broker import OrderRecord
-from agent.config import EXPORT_DIR, JOURNAL_PATH, REPORTS_DIR, Config, load_config
+from agent.config import BPS_PER_UNIT, EXPORT_DIR, JOURNAL_PATH, REPORTS_DIR, Config, load_config
 from agent.forecast import PriceForecast
 from agent.llm import Decisions, SymbolDecision
 from agent.metrics import buy_and_hold_curve, max_drawdown
@@ -87,6 +87,8 @@ class DecisionView(BaseModel):
     position_qty: float
     position_value: float
     forecast: ForecastPath | None
+    macro: dict[str, float]
+    next_event: datetime | None
     verdict: VerdictStatus
     risk_reason: str | None
     order: TradeView | None
@@ -108,6 +110,7 @@ class Metrics(BaseModel):
     max_drawdown: float | None = None
     exposure: float | None = None
     cash: float | None = None
+    estimated_costs: float | None = None
 
 
 class Status(BaseModel):
@@ -163,7 +166,7 @@ def build_export(store: Store, config: Config, now: datetime) -> Export:
         symbols=config.market.symbols,
         capital_floor=config.risk.capital_floor,
         account_size=None if account is None else float(account),
-        metrics=_metrics(points, latest, allocated),
+        metrics=_metrics(points, latest, allocated, _estimated_costs(trades, config)),
     )
     portfolio = PortfolioExport(points=points, positions=_positions(latest))
     decisions = _decisions(store, snapshots, forecasts, trades)
@@ -236,6 +239,7 @@ def _metrics(
     points: list[EquityPoint],
     latest: PortfolioSnapshot | None,
     allocated: float,
+    costs: float,
 ) -> Metrics:
     if latest is None:
         return Metrics()
@@ -249,7 +253,16 @@ def _metrics(
         max_drawdown=max_drawdown([p.equity for p in points]),
         exposure=latest.exposure,
         cash=latest.equity - latest.exposure,
+        estimated_costs=costs,
     )
+
+
+def _estimated_costs(trades: list[TradeView], config: Config) -> float:
+    """Alpaca paper charges nothing: this applies the backtest cost to the filled amounts."""
+    traded = sum(
+        t.qty * t.fill_price for t in trades if t.qty is not None and t.fill_price is not None
+    )
+    return traded * config.backtest.cost_bps / BPS_PER_UNIT
 
 
 def _positions(latest: PortfolioSnapshot | None) -> list[PositionView]:
@@ -326,6 +339,8 @@ def _decision_view(
         position_qty=held.qty if held else 0.0,
         position_value=held.market_value if held else 0.0,
         forecast=path,
+        macro=forecast.macro if forecast else {},
+        next_event=forecast.next_event if forecast else None,
         verdict=_verdict_status(decision.action, verdict),
         risk_reason=verdict.reason if verdict else None,
         order=order,

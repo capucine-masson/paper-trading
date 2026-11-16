@@ -206,14 +206,6 @@ h3 {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
 
-.notice {
-  margin: 0 0 var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--warn-soft);
-  color: var(--warn);
-}
-
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -282,8 +274,12 @@ select:hover {
 .overview {
   display: grid;
   gap: var(--space-3);
-  grid-template-columns: 190px 200px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.side {
+  grid-row: 1 / 3;
 }
 
 .side {
@@ -304,8 +300,45 @@ select:hover {
   flex: 1 1 auto;
 }
 
-.side > .kpis {
-  justify-content: space-around;
+.kpis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--space-3);
+}
+
+.kpis-grid .kpi:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.kpis-grid .kpi {
+  padding: var(--space-1) 0;
+}
+
+.kpis-grid .kpi-value {
+  font-size: 1.1rem;
+}
+
+.side > .kpis,
+.side > .allocation {
+  flex: 0 0 auto;
+}
+
+.allocation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+
+.allocation-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+}
+
+.allocation-legend > span {
+  display: flex;
+  flex-direction: column;
 }
 
 .kpi {
@@ -338,35 +371,42 @@ select:hover {
   font-size: 0.7rem;
 }
 
-.run-info .kpi-label {
-  display: block;
-}
-
-.side > .run-info {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  font-size: 0.8rem;
-}
-
 .chart-card {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
+.chart-card .card-head h2 {
+  min-width: 10rem;
+}
+
+.chart-card .field select {
+  width: 9rem;
+}
+
 .legend {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
   color: var(--muted);
   font-size: 0.8rem;
 }
 
+.chart-card .swatch,
+.chart-card .dot {
+  margin: 0 var(--space-1) 0 var(--space-3);
+}
+
+.chart-card .legend {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .swatch {
   display: inline-block;
+  vertical-align: middle;
   width: 14px;
   height: 3px;
   border-radius: 2px;
@@ -378,7 +418,23 @@ select:hover {
 
 .swatch-reference {
   background: var(--muted);
+}
+
+.dot {
+  display: inline-block;
+  vertical-align: middle;
+  width: 8px;
+  height: 8px;
   margin-left: var(--space-2);
+  border-radius: 50%;
+}
+
+.dot-buy {
+  background: var(--up);
+}
+
+.dot-sell {
+  background: var(--down);
 }
 
 .segmented {
@@ -461,6 +517,7 @@ select:hover {
 
 .axis-right {
   left: auto;
+  width: max-content;
   right: var(--space-1);
   transform: translateY(-100%);
 }
@@ -487,12 +544,54 @@ select:hover {
   background: var(--down);
 }
 
+.overview-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: 0.7rem;
+}
+
+.outlook-card {
+  padding: var(--space-2) var(--space-4);
+  overflow-x: auto;
+}
+
+.outlook-card .card-head {
+  margin-bottom: var(--space-1);
+}
+
+.outlook {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.outlook th,
+.outlook td {
+  padding: 3px var(--space-2);
+  font-weight: 400;
+}
+
+.outlook thead th {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.outlook tbody th {
+  color: var(--muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
 .footnote {
-  grid-column: 1 / 3;
-  align-self: center;
   margin: 0;
   color: var(--muted);
-  font-size: 0.75rem;
 }
 
 .axis {
@@ -550,18 +649,33 @@ select:hover {
 .positions-card {
   display: flex;
   flex-direction: column;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.side > .positions-card {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.positions-card .card-head {
+  margin-bottom: var(--space-1);
 }
 
 .positions {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-around;
-  gap: var(--space-2);
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.positions > li {
+  flex: 0 0 auto;
 }
 
 .position-flat {
@@ -584,24 +698,34 @@ select:hover {
   overflow: hidden;
 }
 
+.meter-large {
+  height: 8px;
+}
+
 .meter-fill {
   display: block;
   height: 100%;
   background: var(--accent);
 }
 
-.links {
-  grid-column: 3;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+.run-info {
+  margin-left: auto;
+  color: var(--muted);
 }
 
-.button-small {
-  padding: 3px var(--space-2);
-  font-size: 0.75rem;
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: nowrap;
+}
+
+.links a {
+  color: var(--muted);
+}
+
+.links a:hover {
+  color: var(--accent);
 }
 
 @media (min-width: 900px) {
@@ -625,12 +749,8 @@ select:hover {
     grid-template-rows: none;
   }
 
-  .links,
-  .footnote {
-    grid-column: 1;
-  }
-
   .side {
+    grid-row: auto;
     overflow: visible;
   }
 
@@ -781,22 +901,6 @@ select:hover {
   color: var(--down);
 }
 
-.facts {
-  display: flex;
-  gap: var(--space-5);
-  margin: 0;
-}
-
-.facts dt {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
-.facts dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
 .fan {
   margin: 0;
 }
@@ -843,16 +947,15 @@ select:hover {
 }
 
 .outcome {
-  display: flex;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
   align-items: baseline;
   gap: var(--space-2);
-  flex-wrap: wrap;
   padding-top: var(--space-2);
   border-top: 1px solid var(--border);
 }
 
 .outcome-label {
-  width: 96px;
   color: var(--muted);
   font-size: 0.75rem;
   text-transform: uppercase;

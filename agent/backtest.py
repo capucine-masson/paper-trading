@@ -18,7 +18,15 @@ from pydantic import BaseModel
 from timestral import TimestralForecaster
 
 from agent.broker import Broker
-from agent.config import PERCENT, REPORTS_DIR, Config, RiskConfig, load_config, load_secrets
+from agent.config import (
+    BPS_PER_UNIT,
+    PERCENT,
+    REPORTS_DIR,
+    Config,
+    RiskConfig,
+    load_config,
+    load_secrets,
+)
 from agent.data import BAR_PERIOD, Bar, DataError, PriceSeries, build_series
 from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_model
 from agent.llm import (
@@ -49,7 +57,6 @@ logger = logging.getLogger(__name__)
 
 LLM_CACHE_PATH = REPORTS_DIR / "llm_cache.db"
 PROGRESS_EVERY = 100
-BPS_PER_UNIT = 10_000.0
 RULE_CONFIDENCE = 1.0
 HASH_LENGTH = 8
 

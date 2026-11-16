@@ -2,6 +2,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from agent.config import load_config
 from agent.export import build_export, copy_backtest, write_export
 from agent.store import CYCLE_SCOPE, Store
@@ -101,6 +103,8 @@ def test_metrics_and_curve(tmp_path: Path) -> None:
     assert metrics.total_return == -0.01 and metrics.cash == 8_900.0
     assert metrics.max_drawdown is not None and abs(metrics.max_drawdown - 0.01) < 1e-9
     assert metrics.buy_and_hold_return is None  # the test config holds more than SPY
+    expected_costs = 1.0 * 510.25 * CONFIG.backtest.cost_bps / 10_000
+    assert metrics.estimated_costs == pytest.approx(expected_costs)
     assert export.status.capital_floor == CONFIG.risk.capital_floor
     assert export.status.account_size is None  # no cycle recorded it
     first, second = export.portfolio.points
@@ -117,6 +121,7 @@ def test_decision_card_content(tmp_path: Path) -> None:
     assert second.position_qty == 2.0 and second.forecast is not None
     assert second.forecast.median == [501.0, 502.0]
     assert second.order is not None and second.order.fill_price == 510.25
+    assert second.macro == {} and second.next_event is None  # forecasts journaled before this field
 
 
 def test_hold_and_blocked_verdicts(tmp_path: Path) -> None:

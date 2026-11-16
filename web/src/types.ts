@@ -17,6 +17,7 @@ export interface Metrics {
   max_drawdown: number | null;
   exposure: number | null;
   cash: number | null;
+  estimated_costs: number | null;
 }
 
 export interface Status {
@@ -81,6 +82,8 @@ export interface DecisionView {
   position_qty: number;
   position_value: number;
   forecast: ForecastPath | null;
+  macro: Record<string, number>;
+  next_event: string | null;
   verdict: VerdictStatus;
   risk_reason: string | null;
   order: TradeView | null;

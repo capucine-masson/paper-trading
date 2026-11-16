@@ -36,6 +36,8 @@ class PriceForecast(BaseModel):
     lower: list[float]
     upper: list[float]
     uncertainty: float
+    macro: dict[str, float] = {}
+    next_event: datetime | None = None
 
     @property
     def expected_return(self) -> float:
@@ -97,7 +99,26 @@ def forecast_symbol(
             known_covariates=events[None, :],
         )
     quantiles = result.quantiles.numpy()[0, 0]
-    return validate_forecast(series, config, quantiles, result.quantile_levels)
+    forecast = validate_forecast(series, config, quantiles, result.quantile_levels)
+    return forecast.model_copy(
+        update={
+            "macro": latest_macro(macro, drivers),
+            "next_event": next_event(series.last_bar_start, config.event_times),
+        }
+    )
+
+
+def latest_macro(macro: MacroData, drivers: NDArray[np.float64]) -> dict[str, float]:
+    """Last driver values visible at the last bar, for display; missing ones are left out."""
+    return {
+        name: float(value)
+        for name, value in zip(macro.series, drivers[:, -1], strict=True)
+        if np.isfinite(value)
+    }
+
+
+def next_event(after: datetime, events: list[datetime]) -> datetime | None:
+    return min((event for event in events if event > after), default=None)
 
 
 def event_indicator(bar_starts: list[datetime], events: list[datetime]) -> NDArray[np.float64]:

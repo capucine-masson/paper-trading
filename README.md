@@ -64,7 +64,7 @@ These differences are noise over 28 days, not skill.
 - **LLM knowledge:** it sees tickers and its training data may overlap the backtest, so the backtest is not proof
   of skill. Live paper decisions are out-of-sample.
 - **Short evidence:** 28 decision days, one market regime.
-- **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross.
+- **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross and "Est. costs" applies the same 5 bps to the filled amounts.
 - **Data:** free IEX feed; the dollar driver is the Fed broad index `DTWEXBGS` (free substitute for DXY).
 - **Scheduling:** GitHub may delay or skip a run; market open/closed comes from the Alpaca clock.
 

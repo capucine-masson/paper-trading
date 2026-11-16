@@ -5,6 +5,8 @@ import { Empty } from "./Feedback";
 
 const VIEW_WIDTH = 1000;
 const VIEW_HEIGHT = 300;
+// Smallest vertical gap (fraction of the plot) between two axis labels before one is hidden.
+const AXIS_LABEL_GAP = 0.08;
 const MIN_POINTS = 2;
 const PADDING_RATIO = 0.08;
 const TOOLTIP_FLIP_AT = 0.6;
@@ -78,6 +80,7 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
   const [bottom, top] = [low - pad, high + pad];
   const yFraction = (v: number) => (top - v) / (top - bottom);
   const y = (v: number) => yFraction(v) * VIEW_HEIGHT;
+  const nearStart = (v: number) => isAll && Math.abs(yFraction(v) - yFraction(startValue)) < AXIS_LABEL_GAP;
   const xs = series.map((_, i) => xFraction(i) * VIEW_WIDTH);
 
   const onMove = (event: MouseEvent<HTMLDivElement>) => {
@@ -119,8 +122,8 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
           )}
           <path d={linePath(xs, series.map((s) => y(s.value)))} className="line-equity" />
         </svg>
-        <span className="axis axis-top">{formatUsd(high)}</span>
-        <span className="axis axis-bottom">{formatUsd(low)}</span>
+        {!nearStart(high) && <span className="axis axis-top">{formatUsd(high)}</span>}
+        {!nearStart(low) && <span className="axis axis-bottom">{formatUsd(low)}</span>}
         {isAll && (
           <span className="axis axis-right" style={{ top: `${yFraction(startValue) * 100}%` }}>
             Start {formatUsd(startValue)}

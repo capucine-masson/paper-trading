@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T04:57:00.348746Z",
+  "generated_at": "2026-11-16T05:26:44.488679Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
@@ -29,6 +29,7 @@
     "buy_and_hold_return": null,
     "max_drawdown": null,
     "exposure": null,
-    "cash": null
+    "cash": null,
+    "estimated_costs": null
   }
 }

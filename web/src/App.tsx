@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { isDemo, loadDashboard } from "./api";
+import { loadDashboard } from "./api";
 import { Decisions } from "./components/Decisions";
 import { ErrorState, Loading } from "./components/Feedback";
 import { Header } from "./components/Header";
@@ -40,7 +40,6 @@ export function App() {
         onToggleTheme={toggleTheme}
       />
       <main className={fitScreen ? "content content-fit" : "content"}>
-        {isDemo() && <p className="notice">Demo data for layout preview only (development).</p>}
         {load.kind === "loading" && <Loading />}
         {load.kind === "error" && <ErrorState message={load.message} />}
         {data !== null && view.tab === "overview" && (

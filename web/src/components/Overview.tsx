@@ -11,6 +11,7 @@ import {
 } from "../format";
 import { ALL_SYMBOLS, type DecisionView, type Metrics, type Period, type PortfolioData, type PositionView, type Status } from "../types";
 import { EquityChart, type OrderMark } from "./EquityChart";
+import { Outlook } from "./Outlook";
 
 const PERIOD_LABELS: { value: Period; label: string }[] = [
   { value: "1d", label: "1D" },
@@ -34,28 +35,26 @@ interface Props {
 export function Overview({ status, portfolio, decisions, symbol, period, onSymbol, onPeriod }: Props) {
   const points = inPeriod(portfolio.points, period, status.generated_at);
   const orders = useMemo(() => ordersByCycle(forSymbol(decisions, symbol)), [decisions, symbol]);
-  const ordersSent = decisions.filter((d) => d.order !== null).length;
   const isAll = symbol === ALL_SYMBOLS;
   return (
     <div className="overview">
       <aside className="side">
-        <Performance metrics={status.metrics} ordersSent={ordersSent} />
-        <RunInfo status={status} />
-      </aside>
-      <aside className="side">
-        <Positions positions={portfolio.positions} symbols={status.symbols} />
+        <Performance metrics={status.metrics} />
         <Allocation metrics={status.metrics} />
+        <Positions positions={portfolio.positions} symbols={status.symbols} />
       </aside>
       <section className="card chart-card">
         <div className="card-head">
           <h2>{isAll ? "Portfolio value" : `${symbol} price`}</h2>
           <span className="legend">
-            <i className="swatch swatch-equity" /> {isAll ? "Agent" : symbol}
             {isAll && (
               <>
-                <i className="swatch swatch-reference" /> Buy &amp; hold ({status.symbols.length} symbols, equal weight)
+                <i className="swatch swatch-equity" /> Agent
+                <i className="swatch swatch-reference" /> Buy &amp; hold (equal weight)
               </>
             )}
+            <i className="dot dot-buy" /> Buy
+            <i className="dot dot-sell" /> Sell
           </span>
           <label className="field">
             Symbol
@@ -89,14 +88,18 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
           orders={orders}
         />
       </section>
-      <p className="footnote">
-        The agent manages {formatUsd(status.allocated_capital)}
-        {status.account_size === null
-          ? " of its Alpaca paper account."
-          : ` of a ${formatUsd(status.account_size)} Alpaca paper account.`}{" "}
-        Paper trading only, not investment advice.
-      </p>
-      <ExportBar />
+      <Outlook decisions={decisions} symbols={status.symbols} />
+      <footer className="overview-footer">
+        <p className="footnote">
+          The agent manages {formatUsd(status.allocated_capital)}
+          {status.account_size === null
+            ? " of its Alpaca paper account."
+            : ` of a ${formatUsd(status.account_size)} Alpaca paper account.`}{" "}
+          Paper trading only, not investment advice.
+        </p>
+        <RunInfo status={status} />
+        <ExportBar />
+      </footer>
     </div>
   );
 }
@@ -121,10 +124,10 @@ function tone(value: number | null): Tone {
   return value > 0 ? "up" : "down";
 }
 
-function Performance({ metrics, ordersSent }: { metrics: Metrics; ordersSent: number }) {
-  const { equity, pnl, total_return: ret, buy_and_hold_return: reference, max_drawdown: dd } = metrics;
+function Performance({ metrics }: { metrics: Metrics }) {
+  const { equity, pnl, total_return: ret, buy_and_hold_return: reference, max_drawdown: dd, estimated_costs: costs } = metrics;
   return (
-    <div className="card kpis">
+    <div className="card kpis kpis-grid">
       <Kpi
         label="PnL"
         value={pnl === null ? NOT_AVAILABLE : formatSignedUsd(pnl)}
@@ -142,19 +145,40 @@ function Performance({ metrics, ordersSent }: { metrics: Metrics; ordersSent: nu
         value={dd === null ? NOT_AVAILABLE : formatDrawdown(dd)}
         tone={tone(dd === null ? null : -dd)}
       />
-      <Kpi label="Orders sent" value={String(ordersSent)} sub="Since the start" />
+      <Kpi
+        label="Est. costs"
+        value={costs === null ? NOT_AVAILABLE : formatUsd(costs)}
+        sub="Simulated fees"
+      />
     </div>
   );
 }
 
 function Allocation({ metrics }: { metrics: Metrics }) {
   const { equity, exposure, cash } = metrics;
-  const share = (value: number | null) =>
-    value === null || equity === null ? undefined : `${formatPercent(value / equity)} of equity`;
+  if (equity === null || exposure === null || cash === null) {
+    return (
+      <div className="card allocation">
+        <span className="kpi-label">Allocation</span>
+        <span className="muted">{NOT_AVAILABLE}</span>
+      </div>
+    );
+  }
+  const invested = exposure / equity;
   return (
-    <div className="card kpis">
-      <Kpi label="Exposure" value={exposure === null ? NOT_AVAILABLE : formatUsd(exposure)} sub={share(exposure)} />
-      <Kpi label="Cash" value={cash === null ? NOT_AVAILABLE : formatUsd(cash)} sub={share(cash)} />
+    <div className="card allocation">
+      <span className="kpi-label">Allocation</span>
+      <span className="meter meter-large" title={`Invested ${formatUsd(exposure)}, cash ${formatUsd(cash)}`}>
+        <span className="meter-fill" style={{ width: `${Math.min(invested, 1) * 100}%` }} />
+      </span>
+      <div className="allocation-legend">
+        <span>
+          {formatPercent(invested)} invested <span className="muted">{formatUsd(exposure)}</span>
+        </span>
+        <span>
+          {formatPercent(cash / equity)} cash <span className="muted">{formatUsd(cash)}</span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -207,21 +231,20 @@ function Positions({ positions, symbols }: { positions: PositionView[]; symbols:
 function RunInfo({ status }: { status: Status }) {
   const cycle = status.last_cycle;
   return (
-    <div className="card run-info">
+    <span className="run-info">
       {status.halted_reason !== null && (
-        <span className="down">Halted: {status.halted_reason}. Orders are blocked until a manual resume.</span>
+        <span className="down">Halted: {status.halted_reason}. Orders are blocked until a manual resume. </span>
       )}
-      {status.state === "stopped" && <span className="down">Emergency stop: every order is blocked.</span>}
+      {status.state === "stopped" && <span className="down">Emergency stop: every order is blocked. </span>}
       {cycle === null ? (
-        <span className="muted">No run yet</span>
+        "No run yet"
       ) : (
-        <span>
-          <span className="kpi-label">Last run</span>
-          {formatDateTime(cycle.started_at)}{" "}
-          <span className={cycle.status === "error" ? "down" : "muted"}>{cycle.status ?? "running"}</span>
-        </span>
+        <>
+          Last run {formatDateTime(cycle.started_at)}{" "}
+          <span className={cycle.status === "error" ? "down" : undefined}>{cycle.status ?? "running"}</span>
+        </>
       )}
-    </div>
+    </span>
   );
 }
 
@@ -230,7 +253,7 @@ function ExportBar() {
     <div className="links">
       <span className="muted">Export</span>
       {EXPORT_LINKS.map((link) => (
-        <a key={link.file} className="button button-small" href={exportUrl(link.file)} download>
+        <a key={link.file} href={exportUrl(link.file)} download>
           {link.label}
         </a>
       ))}

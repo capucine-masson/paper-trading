@@ -12,6 +12,7 @@ from agent.forecast import (
     event_indicator,
     forecast_symbol,
     load_model,
+    next_event,
     validate_forecast,
 )
 from agent.macro import MacroData, Observation
@@ -96,9 +97,17 @@ def test_forecast_gets_macro_as_past_and_events_as_known_covariates() -> None:
         }
     )
     forecaster = RecordingForecaster()
-    forecast_symbol(forecaster, series, CONFIG, macro)
+    forecast = forecast_symbol(forecaster, series, CONFIG, macro)
     assert forecaster.kwargs["past_covariates"].shape == (1, 2, steps)
     assert forecaster.kwargs["known_covariates"].shape == (1, steps + CONFIG.horizon)
+    assert forecast.macro == {"vix": 20.0, "us10y": 4.0}
+    assert forecast.next_event is not None and forecast.next_event > stamps[-1]
+
+
+def test_next_event_is_the_first_release_after_the_last_bar() -> None:
+    early, late = FIRST_BAR + HOUR, FIRST_BAR + 3 * HOUR
+    assert next_event(FIRST_BAR, [late, early, FIRST_BAR - HOUR]) == early
+    assert next_event(late, [early]) is None
 
 
 class FlakyLoader:

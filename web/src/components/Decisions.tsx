@@ -1,10 +1,13 @@
+import type { ReactNode } from "react";
 import { forSymbol } from "../filters";
-import { formatDateTime, formatPercent, formatUsd } from "../format";
+import { MACRO_LABELS, rangeWidth } from "../forecast";
+import { formatDateTime, formatPercent, formatPercentOne, formatUsd } from "../format";
 import { ALL_SYMBOLS, type DecisionView, type TradeView, type VerdictStatus } from "../types";
 import { Empty } from "./Feedback";
 import { FanChart } from "./FanChart";
 
 const MAX_CARDS = 30;
+const MACRO_DECIMALS = 2;
 const VERDICT_LABEL: Record<VerdictStatus, string> = {
   accepted: "Accepted",
   reduced: "Reduced",
@@ -125,37 +128,41 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
       </summary>
       <div className="decision-body">
         <div className="decision-chart">
-          <dl className="facts">
-            <div>
-              <dt>Price</dt>
-              <dd>{d.price === null ? "n/a" : formatUsd(d.price)}</dd>
-            </div>
-            <div>
-              <dt>Size chosen by the LLM</dt>
-              <dd>{d.action === "buy" ? `${formatPercent(d.size_fraction)} of the maximum position` : "n/a"}</dd>
-            </div>
-            <div>
-              <dt>Position before</dt>
-              <dd>{d.position_qty === 0 ? "None" : `${d.position_qty} sh, ${formatUsd(d.position_value)}`}</dd>
-            </div>
-          </dl>
           {d.forecast !== null && d.price !== null && <FanChart forecast={d.forecast} price={d.price} />}
         </div>
         <div className="decision-text">
           <p className="rationale">{d.rationale}</p>
-          <div className="outcome">
-            <span className="outcome-label">Guardrails</span>
-            <span className={`verdict verdict-${d.verdict}`}>{VERDICT_LABEL[d.verdict]}</span>
-            {d.risk_reason !== null && <span className="muted">{d.risk_reason}</span>}
-          </div>
-          <div className="outcome">
-            <span className="outcome-label">Alpaca order</span>
-            <Order order={d.order} />
-          </div>
+          <DetailLine label="Sizing">{sizing(d)}</DetailLine>
+          <DetailLine label="Context">{context(d)}</DetailLine>
+          {d.risk_reason !== null && d.verdict !== "no_order" && <DetailLine label="Risk check">{d.risk_reason}</DetailLine>}
         </div>
       </div>
     </details>
   );
+}
+
+function DetailLine({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="outcome">
+      <span className="outcome-label">{label}</span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function sizing(d: DecisionView): string {
+  if (d.forecast === null) return "No forecast.";
+  const range = `Range width ${formatPercentOne(rangeWidth(d.forecast))}, confidence ${formatPercent(d.confidence)}`;
+  return d.action === "buy" ? `${range}, size ${formatPercent(d.size_fraction)} of the maximum position.` : `${range}.`;
+}
+
+function context(d: DecisionView): string {
+  const drivers = Object.entries(d.macro).map(
+    ([name, value]) => `${MACRO_LABELS[name] ?? name} ${value.toFixed(MACRO_DECIMALS)}`,
+  );
+  const event = d.next_event === null ? [] : [`next scheduled release ${formatDateTime(d.next_event)}`];
+  const parts = [...drivers, ...event];
+  return parts.length === 0 ? "Not recorded for this decision." : parts.join(" · ");
 }
 
 function Order({ order }: { order: TradeView | null }) {

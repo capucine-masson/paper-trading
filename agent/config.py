@@ -23,6 +23,7 @@ EXPORT_DIR = ROOT / "web" / "public" / "data"
 REPORTS_DIR = ROOT / "reports"
 
 PERCENT = 100.0
+BPS_PER_UNIT = 10_000.0
 
 Symbol = Annotated[str, StringConstraints(pattern=r"^[A-Z]{1,5}$")]
 
