@@ -83,6 +83,7 @@ class DecisionView(BaseModel):
     confidence: float
     size_fraction: float
     rationale: str
+    context: str
     price: float | None
     position_qty: float
     position_value: float
@@ -335,6 +336,7 @@ def _decision_view(
         confidence=decision.confidence,
         size_fraction=decision.size_fraction,
         rationale=decision.rationale,
+        context=decision.context,
         price=forecast.last_price if forecast else None,
         position_qty=held.qty if held else 0.0,
         position_value=held.market_value if held else 0.0,

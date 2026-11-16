@@ -48,6 +48,7 @@ const stats = (mae_ratio: number, coverage: number): ForecastMetrics => ({ n: 22
 
 const DEMO_MACRO = { brent: 82.1, us10y: 4.21, us2y: 4.55, dollar: 121.3, vix: 16.4, hy_spread: 3.05 };
 const DEMO_NEXT_EVENT = "2026-12-09T19:00:00Z";
+const DEMO_CONTEXT = "The VIX is low and yields are stable, so no strong macro pressure is visible before the next release.";
 const DEMO_COST_BPS = 5;
 const BPS_PER_UNIT = 10_000;
 const DEMO_FORECASTS = 130;
@@ -163,6 +164,7 @@ export function buildDemoData(): DashboardData {
         action,
         confidence,
         size_fraction: action === "buy" ? 0.5 : 0,
+        context: DEMO_CONTEXT,
         rationale: demoRationale(symbol, action, (drift * HORIZON) / last, (2 * spread * Math.sqrt(HORIZON)) / last),
         price: last,
         position_qty: Number(heldQty.toFixed(3)),
@@ -179,7 +181,7 @@ export function buildDemoData(): DashboardData {
           verdict === "no_order"
             ? "hold: no order"
             : verdict === "blocked"
-              ? `confidence ${confidence.toFixed(2)} below ${MIN_CONFIDENCE.toFixed(2)}`
+              ? `confidence ${Math.round(confidence * 100)}% below ${Math.round(MIN_CONFIDENCE * 100)}%`
               : reduced
                 ? `buy $${ORDER_NOTIONAL}.00, reduced from $200.00 by position/exposure limits`
                 : `buy $${ORDER_NOTIONAL}.00`,

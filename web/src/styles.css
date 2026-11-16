@@ -769,7 +769,7 @@ select:hover {
 .decision-columns,
 .decision-summary {
   display: grid;
-  grid-template-columns: 150px 64px 72px 92px 120px 100px minmax(0, 1fr) 20px;
+  grid-template-columns: 150px 72px 90px 90px 110px minmax(0, 1fr) 20px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
@@ -793,7 +793,7 @@ select:hover {
 
 .cycle-summary {
   display: grid;
-  grid-template-columns: 150px 64px 72px 92px 120px 100px minmax(0, 1fr) 20px;
+  grid-template-columns: 150px 72px 90px 90px 110px minmax(0, 1fr) 20px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -827,7 +827,7 @@ select:hover {
 }
 
 .cycle-pills {
-  grid-column: 6 / 8;
+  grid-column: 6;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
@@ -908,7 +908,7 @@ select:hover {
 .fan svg {
   display: block;
   width: 100%;
-  height: 110px;
+  height: 140px;
 }
 
 .fan svg path,
@@ -930,6 +930,12 @@ select:hover {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2;
+}
+
+.fan-title {
+  margin-bottom: var(--space-1);
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 
 .fan-caption {
@@ -962,6 +968,13 @@ select:hover {
   letter-spacing: 0.04em;
 }
 
+.result {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .verdict {
   border-radius: 4px;
   padding: 1px var(--space-2);
@@ -982,11 +995,6 @@ select:hover {
 .verdict-blocked {
   background: var(--down-soft);
   color: var(--down);
-}
-
-.verdict-no_order {
-  background: var(--border);
-  color: var(--muted);
 }
 
 /* Forecast quality */
@@ -1206,6 +1214,14 @@ select:hover {
   .cycle-summary::after {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .decision-summary .col-range {
+    display: none;
+  }
+
+  .decision-summary .result {
+    grid-column: 1 / -1;
   }
 
   .decision-body {

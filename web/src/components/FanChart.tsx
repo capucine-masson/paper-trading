@@ -28,6 +28,7 @@ export function FanChart({ forecast, price }: Props) {
   const last = median.length - 1;
   return (
     <figure className="fan">
+      <figcaption className="fan-title">Timestral forecast: median line and 80% range</figcaption>
       <svg
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         preserveAspectRatio="none"

@@ -1,13 +1,21 @@
 import type { DecisionView, ForecastPath } from "./types";
 
-export const MACRO_LABELS: Record<string, string> = {
-  brent: "Brent",
-  us10y: "US 10Y",
-  us2y: "US 2Y",
-  dollar: "Dollar",
-  vix: "VIX",
-  hy_spread: "HY spread",
+const level = (value: number): string => value.toFixed(2);
+const percentLevel = (value: number): string => `${level(value)}%`;
+
+const MACRO_FORMATS: Record<string, { label: string; format: (value: number) => string }> = {
+  brent: { label: "Brent", format: (value) => `$${level(value)}` },
+  us10y: { label: "US 10Y", format: percentLevel },
+  us2y: { label: "US 2Y", format: percentLevel },
+  dollar: { label: "Dollar", format: level },
+  vix: { label: "VIX", format: level },
+  hy_spread: { label: "HY spread", format: percentLevel },
 };
+
+export function formatMacro(name: string, value: number): string {
+  const known = MACRO_FORMATS[name];
+  return known === undefined ? `${name} ${level(value)}` : `${known.label} ${known.format(value)}`;
+}
 
 /** Median move over the forecast horizon, relative to the last price. */
 export const expectedMove = (forecast: ForecastPath, price: number): number =>

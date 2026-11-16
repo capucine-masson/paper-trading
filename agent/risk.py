@@ -91,7 +91,7 @@ def evaluate(
     if decision.action == "hold":
         return _rejected("hold: no order")
     if decision.confidence < risk.min_confidence:
-        return _rejected(f"confidence {decision.confidence:.2f} below {risk.min_confidence:.2f}")
+        return _rejected(f"confidence {decision.confidence:.0%} below {risk.min_confidence:.0%}")
     if orders_approved >= risk.max_orders_per_cycle:
         return _rejected(f"maximum of {risk.max_orders_per_cycle} orders per cycle reached")
     if decision.action == "sell":

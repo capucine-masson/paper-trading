@@ -39,7 +39,7 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | Look-ahead? | Only completed bars are used; a daily macro value is visible from the next day 00:00 UTC; the backtest is walk-forward. Tests: `test_data`, `test_macro`, `test_backtest`. |
 | Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. |
 | Risk? | Hard limits in code: 25% max per position, 90% max exposure, 10% max daily loss, $5,000 capital floor, emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
-| Explanations? | Each decision stores its rationale, forecast, risk verdict and order, visible in the dashboard. |
+| Explanations? | Each decision stores its rationale, a one-sentence macro context written by the LLM from the readings it is shown (no causes beyond them), the forecast, the risk verdict and the order, visible in the dashboard. |
 
 **Backtest** (`uv run python -m agent.backtest`, 180 days of hourly bars, walk-forward, details in `reports/backtest.md`):
 

@@ -78,6 +78,7 @@ export interface DecisionView {
   confidence: number;
   size_fraction: number;
   rationale: string;
+  context: string;
   price: number | null;
   position_qty: number;
   position_value: number;

@@ -182,6 +182,23 @@ def test_forecast_data_has_the_computed_return_the_signal_and_delimiters() -> No
     assert "signal_expected_return_over_interval_width: +0.250" in data
 
 
+def test_forecast_data_shows_the_macro_readings_and_the_next_release() -> None:
+    release = datetime(2026, 12, 9, 19, tzinfo=UTC)
+    data = build_forecast_data(
+        forecast("SPY").model_copy(update={"macro": {"vix": 16.4}, "next_event": release})
+    )
+    assert "macro_vix: 16.40" in data
+    assert "next_scheduled_macro_release_utc: 2026-12-09T19:00:00+00:00" in data
+    assert "macro_" not in build_forecast_data(forecast("SPY"))
+
+
+def test_decision_context_is_optional_and_bounded() -> None:
+    base = {"action": "hold", "confidence": 0.5, "size_fraction": 0, "rationale": "x"}
+    assert Decision.model_validate(base).context == ""
+    with pytest.raises(ValidationError):
+        Decision.model_validate({**base, "context": "x" * 1_000})
+
+
 def test_portfolio_data_gives_cash_positions_and_results() -> None:
     data = build_portfolio_data(10_500.0, 10_000.0, 10_000.0, {"SPY": 1_500.0})
     assert "cash_usd: 9,000.00" in data and "return_since_start: +5.00%" in data

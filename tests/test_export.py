@@ -121,6 +121,7 @@ def test_decision_card_content(tmp_path: Path) -> None:
     assert second.position_qty == 2.0 and second.forecast is not None
     assert second.forecast.median == [501.0, 502.0]
     assert second.order is not None and second.order.fill_price == 510.25
+    assert second.context == ""  # decisions journaled before this field have no context
     assert second.macro == {} and second.next_event is None  # forecasts journaled before this field
 
 

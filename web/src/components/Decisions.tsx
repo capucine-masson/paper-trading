@@ -1,19 +1,13 @@
 import type { ReactNode } from "react";
 import { forSymbol } from "../filters";
-import { MACRO_LABELS, rangeWidth } from "../forecast";
-import { formatDateTime, formatPercent, formatPercentOne, formatUsd } from "../format";
-import { ALL_SYMBOLS, type DecisionView, type TradeView, type VerdictStatus } from "../types";
+import { expectedMove, formatMacro, rangeWidth } from "../forecast";
+import { formatDateTime, formatPercent, formatPercentOne, formatSignedPercent, formatUsd } from "../format";
+import { ALL_SYMBOLS, type DecisionView } from "../types";
 import { Empty } from "./Feedback";
 import { FanChart } from "./FanChart";
 
 const MAX_CARDS = 30;
-const MACRO_DECIMALS = 2;
-const VERDICT_LABEL: Record<VerdictStatus, string> = {
-  accepted: "Accepted",
-  reduced: "Reduced",
-  blocked: "Blocked",
-  no_order: "No order",
-};
+const NOT_AVAILABLE = "n/a";
 
 interface Props {
   decisions: DecisionView[];
@@ -26,6 +20,7 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   const shown = forSymbol(decisions, symbol);
   const cycles = groupByCycle([...shown].reverse());
   const latest = cycles.slice(0, MAX_CARDS);
+  const horizon = decisions.find((d) => d.forecast !== null)?.forecast?.median.length ?? 0;
   return (
     <div className="page-section">
       <div className="section-head">
@@ -48,13 +43,12 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
         <>
           <div className="card decision-list">
             <div className="decision-columns" aria-hidden="true">
-              <span>Time</span>
               <span>Symbol</span>
               <span>Action</span>
-              <span>Confidence</span>
+              <span>Expected ({horizon}h)</span>
+              <span className="col-range">Range (80%)</span>
               <span>Price</span>
-              <span>Guardrails</span>
-              <span>Order</span>
+              <span>Result</span>
             </div>
             {latest.map((cycle, index) => (
               <CycleGroup key={cycle[0].cycle_id} decisions={cycle} defaultOpen={index === 0} />
@@ -114,17 +108,14 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
   return (
     <details className="decision-row">
       <summary className="decision-summary">
-        <time dateTime={d.t}>{formatDateTime(d.t)}</time>
         <strong>{d.symbol}</strong>
         <span>
           <span className={`pill pill-${d.action}`}>{d.action}</span>
         </span>
-        <span>{formatPercent(d.confidence)}</span>
-        <span>{d.price === null ? "n/a" : formatUsd(d.price)}</span>
-        <span>
-          <span className={`verdict verdict-${d.verdict}`}>{VERDICT_LABEL[d.verdict]}</span>
-        </span>
-        <Order order={d.order} />
+        <Expected decision={d} />
+        <span className="col-range">{d.forecast === null ? NOT_AVAILABLE : formatPercentOne(rangeWidth(d.forecast))}</span>
+        <span>{d.price === null ? NOT_AVAILABLE : formatUsd(d.price)}</span>
+        <Result decision={d} />
       </summary>
       <div className="decision-body">
         <div className="decision-chart">
@@ -133,8 +124,13 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
         <div className="decision-text">
           <p className="rationale">{d.rationale}</p>
           <DetailLine label="Sizing">{sizing(d)}</DetailLine>
-          <DetailLine label="Context">{context(d)}</DetailLine>
-          {d.risk_reason !== null && d.verdict !== "no_order" && <DetailLine label="Risk check">{d.risk_reason}</DetailLine>}
+          <DetailLine label="Held before">
+            {d.position_qty === 0 ? "Nothing" : `${d.position_qty} sh, ${formatUsd(d.position_value)}`}
+          </DetailLine>
+          <DetailLine label="Context">{d.context === "" ? contextSentence(d) : d.context}</DetailLine>
+          {d.risk_reason !== null && d.verdict !== "no_order" && (
+            <DetailLine label="Risk check">{riskNote(d)}</DetailLine>
+          )}
         </div>
       </div>
     </details>
@@ -150,32 +146,53 @@ function DetailLine({ label, children }: { label: string; children: ReactNode })
   );
 }
 
+function riskNote(d: DecisionView): string {
+  return d.verdict === "blocked" ? `Blocked: ${d.risk_reason}` : `Approved: ${d.risk_reason}`;
+}
+
 function sizing(d: DecisionView): string {
   if (d.forecast === null) return "No forecast.";
-  const range = `Range width ${formatPercentOne(rangeWidth(d.forecast))}, confidence ${formatPercent(d.confidence)}`;
-  return d.action === "buy" ? `${range}, size ${formatPercent(d.size_fraction)} of the maximum position.` : `${range}.`;
+  const range = `Range ${formatPercentOne(rangeWidth(d.forecast))} · confidence ${formatPercent(d.confidence)}`;
+  return d.action === "buy" ? `${range} → asks for ${formatPercent(d.size_fraction)} of the maximum position` : range;
 }
 
-function context(d: DecisionView): string {
-  const drivers = Object.entries(d.macro).map(
-    ([name, value]) => `${MACRO_LABELS[name] ?? name} ${value.toFixed(MACRO_DECIMALS)}`,
-  );
-  const event = d.next_event === null ? [] : [`next scheduled release ${formatDateTime(d.next_event)}`];
-  const parts = [...drivers, ...event];
-  return parts.length === 0 ? "Not recorded for this decision." : parts.join(" · ");
+function contextSentence(d: DecisionView): string {
+  const drivers = Object.entries(d.macro).map(([name, value]) => formatMacro(name, value));
+  const parts = [
+    ...(drivers.length === 0 ? [] : [`macro data (${drivers.join(", ")})`]),
+    ...(d.next_event === null ? [] : [`a macro release scheduled on ${formatDateTime(d.next_event)}`]),
+  ];
+  return parts.length === 0
+    ? "No macro data was recorded for this decision."
+    : `Besides the price, Timestral also used ${parts.join(" and ")}.`;
 }
 
-function Order({ order }: { order: TradeView | null }) {
-  if (order === null) return <span className="muted">No order sent</span>;
-  const quantity = order.qty === null ? "" : ` ${order.qty}`;
-  const fill = order.fill_price === null ? "fill pending" : `filled at ${formatUsd(order.fill_price)}`;
-  return (
-    <span>
-      <strong className="upper">{order.side}</strong>
-      {quantity}{" "}
-      <span className="muted">
-        {order.status}, {fill}
+function Expected({ decision: d }: { decision: DecisionView }) {
+  if (d.forecast === null || d.price === null) return <span className="muted">{NOT_AVAILABLE}</span>;
+  const move = expectedMove(d.forecast, d.price);
+  return <span className={move === 0 ? undefined : move > 0 ? "up" : "down"}>{formatSignedPercent(move)}</span>;
+}
+
+function Result({ decision: d }: { decision: DecisionView }) {
+  if (d.order !== null) {
+    const { side, qty, fill_price: fill, status } = d.order;
+    const amount = qty === null ? "" : ` ${qty}`;
+    const detail = fill === null ? `${amount}, ${status}` : `${amount} @ ${formatUsd(fill)}`;
+    return (
+      <span className="result">
+        <span className={`verdict verdict-${d.verdict}`} title={d.risk_reason ?? undefined}>
+          {side === "buy" ? "Bought" : "Sold"}
+        </span>
+        {detail}
       </span>
-    </span>
-  );
+    );
+  }
+  if (d.verdict === "blocked") {
+    return (
+      <span className="result" title={d.risk_reason ?? undefined}>
+        <span className="verdict verdict-blocked">Blocked</span> <span className="muted">{d.risk_reason}</span>
+      </span>
+    );
+  }
+  return <span className="result muted">No trade</span>;
 }
