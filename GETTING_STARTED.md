@@ -4,7 +4,7 @@ Everything needed to run the agent from a fresh clone. Paper trading only: no re
 
 ## What you need
 
-- **Python 3.12+** and [`uv`](https://docs.astral.sh/uv/)
+- **Python 3.12** (`uv` installs it for you if missing) and [`uv`](https://docs.astral.sh/uv/)
 - **Node 22** and `pnpm` (only to view the dashboard locally)
 - Three free accounts, each giving a key:
   - **Alpaca paper trading** (alpaca.markets): `ALPACA_API_KEY` and `ALPACA_SECRET_KEY` (paper keys)
@@ -14,7 +14,7 @@ Everything needed to run the agent from a fresh clone. Paper trading only: no re
 ## 1. Install
 
 ```bash
-uv sync
+uv sync --frozen
 ```
 
 This installs Timestral and the CPU build of `torch`. The first forecast downloads the Timestral weights
