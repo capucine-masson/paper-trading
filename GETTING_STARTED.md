@@ -5,11 +5,13 @@ Everything needed to run the agent from a fresh clone. Paper trading only: no re
 ## What you need
 
 - **Python 3.12** (`uv` installs it for you if missing) and [`uv`](https://docs.astral.sh/uv/)
-- **Node 22** and `pnpm` (only to view the dashboard locally)
+- [**Node 22**](https://nodejs.org) and [`pnpm`](https://pnpm.io/installation) (only to view the dashboard locally)
 - Three free accounts, each giving a key:
-  - **Alpaca paper trading** (alpaca.markets): `ALPACA_API_KEY` and `ALPACA_SECRET_KEY` (paper keys)
-  - **Mistral AI Studio**: `MISTRAL_API_KEY`
-  - **FRED** (fred.stlouisfed.org, My Account > API Keys): `FRED_API_KEY`
+  - [**Alpaca paper trading**](https://app.alpaca.markets/signup): `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`
+    (paper keys, shown on the [paper dashboard](https://app.alpaca.markets/paper/dashboard/overview))
+  - [**Mistral AI Studio**](https://console.mistral.ai/api-keys): `MISTRAL_API_KEY`
+  - [**FRED**](https://fredaccount.stlouisfed.org/apikeys) (create an account, then request an API key):
+    `FRED_API_KEY`
 
 ## 1. Install
 
@@ -26,7 +28,7 @@ This installs Timestral and the CPU build of `torch`. The first forecast downloa
 cp .env.example .env
 ```
 
-Fill the four keys listed above in `.env` (the file is git-ignored). `HF_TOKEN` is optional.
+Fill the four keys listed above in `.env` (the file is git-ignored). `HF_TOKEN` is optional (a [Hugging Face token](https://huggingface.co/settings/tokens) only speeds up the weights download).
 
 ## 3. Run one cycle
 
@@ -63,16 +65,74 @@ The LLM outputs of the backtest are cached in `reports/llm_cache.db`, so re-runn
 
 ## Deploy (optional)
 
-The agent runs on its own through `.github/workflows/cycle.yml` (every hour of the US session, Monday to
-Friday). The cron is fixed in UTC and set for winter time (15:07 to 20:07 UTC); in summer, change it to
-`7 14-19 * * 1-5`. To deploy your own copy:
+The agent runs on its own through `.github/workflows/cycle.yml`, once per hour of the US session, Monday to
+Friday. Do the steps below in order, in your own copy of the repository.
+
+### A. Set up the workflow
 
 1. Push the repository to GitHub.
-2. Settings > Secrets and variables > Actions: add `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `MISTRAL_API_KEY`
-   and `FRED_API_KEY`.
-3. Settings > Pages > Source: **GitHub Actions**. Settings > Actions > General: workflow permissions
-   "Read and write".
-4. Actions > cycle > Run workflow, with `simulate` ticked, to check everything works without any order.
+2. Add the secrets `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `MISTRAL_API_KEY` and `FRED_API_KEY` in
+   Settings > Secrets and variables > Actions
+   (`https://github.com/<owner>/<repo>/settings/secrets/actions`).
+3. Pages source: **GitHub Actions** (`https://github.com/<owner>/<repo>/settings/pages`). Workflow permissions:
+   "Read and write" (`https://github.com/<owner>/<repo>/settings/actions`).
+4. Open `https://github.com/<owner>/<repo>/actions/workflows/cycle.yml` > Run workflow, with `simulate` ticked,
+   to check everything works without any order.
+
+### B. Choose what triggers the hourly run
+
+The workflow has a built-in GitHub `schedule` (`7 15-20 * * 1-5`, UTC, winter time; in summer change it to
+`7 14-19 * * 1-5`). You can test it, but **GitHub often delays or silently skips scheduled runs**, especially
+on a recent repository. Keep it only as a fallback and use an **external cron** as the main trigger: a free
+service that calls the GitHub API every hour. A duplicate run is harmless, it reads the journal back and places
+no second order. The steps below use [cron-job.org](https://cron-job.org) (free account, no card).
+
+**B1. Create a GitHub token** ([new fine-grained token](https://github.com/settings/personal-access-tokens/new))
+
+1. Token name: `cron-job-dispatch`. Expiration: 90 days (write the date down, you must renew it).
+2. Resource owner: your account. Repository access: **Only select repositories**, then pick this repository.
+3. Repository permissions: **Actions: Read and write**. Leave everything else at "No access".
+4. Generate the token and copy it now (`github_pat_...`): GitHub shows it only once. Paste it only into
+   cron-job.org. Never put it in the repository, in `.env` or in a chat.
+
+**B2. Create the cron job** ([sign up](https://cron-job.org/en/signup/), then [console](https://console.cron-job.org) > Create cronjob)
+
+1. Common tab:
+   - Title: `trading-agent cycle`.
+   - URL: `https://api.github.com/repos/<owner>/<repo>/actions/workflows/cycle.yml/dispatches`
+   - Schedule: **Personalized**, crontab expression `7 10-15 * * 1-5`, job time zone `America/New_York`.
+     This is minute 7 of hours 10 to 15, Monday to Friday, New York time: it follows daylight saving time by
+     itself. Check "Next executions" on the right: only `:07` slots should appear.
+   - Keep "Save responses in job history" on.
+2. Advanced tab:
+   - Request method: **POST**.
+   - Request body: `{"ref":"main"}`
+   - Headers (button **Add**, once per line):
+
+     | Name | Value |
+     |---|---|
+     | `Authorization` | `Bearer ` then the token (one space, no quotes, nothing after it) |
+     | `Accept` | `application/vnd.github+json` |
+     | `X-GitHub-Api-Version` | `2022-11-28` |
+     | `Content-Type` | `application/json` |
+
+   - Leave "Requires HTTP authentication" off.
+3. Notifications tab: enable the alert on failure, so an expired token does not go unnoticed.
+4. Save, then run **Test run**. Expected status: **204 No Content**, and a new `cycle` run appears in the
+   Actions tab of the repository. A test run is a real cycle: it places paper orders if the market is open.
+
+| Status | Meaning |
+|---|---|
+| 401 | Token mistyped or expired |
+| 403 | Token lacks **Actions: Read and write** |
+| 404 | Method is not POST, the `Authorization` header is missing, the token cannot see the repository, or the URL has a typo |
+| 422 | Body or `Content-Type` header is wrong |
+
+Renew the token before its expiration date ([your tokens](https://github.com/settings/personal-access-tokens) >
+the token > Regenerate token, then paste the new value in the `Authorization` header). Market open or closed is always decided by the Alpaca clock in code, never by the
+trigger.
+
+### C. Resume a failed cycle
 
 A failed cycle is resumed in place with the same cycle id: journaled steps (LLM output, orders) are read back,
 never repeated. To resume by hand, use the workflow inputs `cycle_id` (the cycle to resume) and `resume`

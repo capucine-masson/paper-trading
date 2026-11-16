@@ -66,11 +66,10 @@ These differences are noise over 28 days, not skill.
 - **Short evidence:** 28 decision days, one market regime.
 - **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross and "Est. costs" applies the same 5 bps to the filled amounts.
 - **Data:** free IEX feed; the dollar driver is the Fed broad index `DTWEXBGS` (free substitute for DXY).
-- **Scheduling:** GitHub may delay or skip a scheduled run, so an external cron (cron-job.org, `America/New_York`,
-  Mon-Fri, hours 10-15, minute 7) triggers the workflow with `POST /repos/capucine-masson/paper-trading/actions/workflows/cycle.yml/dispatches`
-  (body `{"ref":"main"}`, expects 204). The GitHub `schedule` stays as a fallback; a duplicate run reads the journal
-  back and places no second order. The token is fine-grained, repo-only, *Actions: write*, stored only in cron-job.org;
-  rotate it before it expires. Market open/closed comes from the Alpaca clock.
+- **Scheduling:** GitHub may delay or skip a scheduled run, so an external cron calls the workflow every hour
+  (setup in [GETTING_STARTED.md](GETTING_STARTED.md#deploy-optional)); the GitHub `schedule` stays as a fallback and
+  a duplicate run places no second order. Its token expires and must be renewed. Market open/closed comes from
+  the Alpaca clock.
 
 ## Code map
 
