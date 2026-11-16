@@ -64,7 +64,8 @@ The LLM outputs of the backtest are cached in `reports/llm_cache.db`, so re-runn
 ## Deploy (optional)
 
 The agent runs on its own through `.github/workflows/cycle.yml` (every hour of the US session, Monday to
-Friday). To deploy your own copy:
+Friday). The cron is fixed in UTC and set for winter time (15:07 to 20:07 UTC); in summer, change it to
+`7 14-19 * * 1-5`. To deploy your own copy:
 
 1. Push the repository to GitHub.
 2. Settings > Secrets and variables > Actions: add `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `MISTRAL_API_KEY`
@@ -72,5 +73,9 @@ Friday). To deploy your own copy:
 3. Settings > Pages > Source: **GitHub Actions**. Settings > Actions > General: workflow permissions
    "Read and write".
 4. Actions > cycle > Run workflow, with `simulate` ticked, to check everything works without any order.
+
+A failed cycle is resumed in place with the same cycle id: journaled steps (LLM output, orders) are read back,
+never repeated. To resume by hand, use the workflow inputs `cycle_id` (the cycle to resume) and `resume`
+(clears the halted state), or locally `uv run python -m agent.run --execute --cycle-id <id> --resume`.
 
 Settings (symbols, horizon, risk limits) live in `config.toml`. The emergency stop is `enabled = false` there.
