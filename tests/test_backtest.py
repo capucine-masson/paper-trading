@@ -117,7 +117,7 @@ def test_exported_points_give_the_same_hit_rate_as_the_table() -> None:
     points = forecast_points(records)
     outside = sum(p.actual < p.lower or p.actual > p.upper for p in points)
     assert outside == 3
-    assert evaluate_model("m", "m", records).overall.coverage == 1 - outside / len(points)
+    assert evaluate_model("m", records).overall.coverage == 1 - outside / len(points)
 
 
 def test_cash_never_trades(config: Config) -> None:

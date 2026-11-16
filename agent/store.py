@@ -129,11 +129,11 @@ class Store:
             self._db.execute("INSERT OR REPLACE INTO state VALUES (?, ?)", (key, value))
 
     def get_or_set_state(self, key: str, value: str) -> str:
-        with self._db:
-            self._db.execute("INSERT OR IGNORE INTO state VALUES (?, ?)", (key, value))
         stored = self.get_state(key)
-        assert stored is not None
-        return stored
+        if stored is not None:
+            return stored
+        self.set_state(key, value)
+        return value
 
     def delete_state(self, key: str) -> None:
         with self._db:

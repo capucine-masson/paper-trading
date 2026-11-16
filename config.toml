@@ -55,6 +55,10 @@ timeout_s = 30
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).
 retry_delay_s = 2.0
+# Median of the absolute signal over the backtest points before the decision window (shown to the LLM).
+signal_typical = 0.026
+# 90th percentile of the same signal: a strong signal (shown to the LLM).
+signal_strong = 0.079
 
 [risk]
 # Emergency stop: false blocks every order.
@@ -75,6 +79,8 @@ max_orders_per_cycle = 5
 min_confidence = 0.5
 # Maximum forecast uncertainty (interval width over median) to buy.
 max_uncertainty = 0.08
+# Block a buy when the forecast expects no gain.
+forecast_guard = true
 
 [broker]
 # Attempts on transient Alpaca errors (network, 429, 5xx).

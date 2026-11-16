@@ -23,7 +23,13 @@ from agent.llm import (
 )
 
 CONFIG = LlmConfig(
-    model="test-model", temperature=0.2, timeout_s=5, max_attempts=2, retry_delay_s=0.001
+    model="test-model",
+    temperature=0.2,
+    timeout_s=5,
+    max_attempts=2,
+    retry_delay_s=0.001,
+    signal_typical=0.026,
+    signal_strong=0.079,
 )
 SYMBOLS = ["SPY", "QQQ"]
 GOOD = Decision(

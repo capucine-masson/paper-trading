@@ -62,6 +62,8 @@ class LlmConfig(StrictModel):
     timeout_s: int = Field(ge=1, le=300)
     max_attempts: int = Field(ge=1, le=10)
     retry_delay_s: float = Field(gt=0, le=60)
+    signal_typical: float = Field(gt=0)
+    signal_strong: float = Field(gt=0)
 
 
 class RiskConfig(StrictModel):
@@ -74,6 +76,7 @@ class RiskConfig(StrictModel):
     max_orders_per_cycle: int = Field(ge=1, le=50)
     min_confidence: float = Field(ge=0, le=1)
     max_uncertainty: float = Field(gt=0, le=1)
+    forecast_guard: bool
 
     @model_validator(mode="after")
     def check_consistency(self) -> "RiskConfig":

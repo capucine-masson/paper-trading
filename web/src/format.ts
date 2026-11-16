@@ -34,5 +34,7 @@ export const formatSignedUsd = (value: number): string =>
 export const formatPercent = (value: number): string => percent.format(value);
 export const formatPercentOne = (value: number): string => percentOneDecimal.format(value);
 export const formatSignedPercent = (value: number): string => signedPercent.format(value);
+export const formatDrawdown = (value: number): string =>
+  value === 0 ? percent.format(0) : `-${percent.format(value)}`;
 export const formatDateTime = (iso: string): string => `${dateTime.format(new Date(iso))} UTC`;
 export const formatDate = (iso: string): string => date.format(new Date(iso));

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from agent.broker import OrderRecord
 from agent.config import EXPORT_DIR, JOURNAL_PATH, REPORTS_DIR, Config, load_config
@@ -302,8 +302,8 @@ def write_export(export: Export, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, model in (("status.json", export.status), ("portfolio.json", export.portfolio)):
         (out_dir / name).write_text(model.model_dump_json(indent=2), encoding="utf-8")
-    payload = "[" + ",".join(row.model_dump_json() for row in export.decisions) + "]"
-    (out_dir / "decisions.json").write_text(payload, encoding="utf-8")
+    payload = TypeAdapter(list[DecisionView]).dump_json(export.decisions)
+    (out_dir / "decisions.json").write_bytes(payload)
     _write_csv(
         out_dir / "trades.csv",
         ["timestamp", "symbol", "side", "quantity", "fill_price", "status"],

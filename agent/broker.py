@@ -103,10 +103,10 @@ class Broker:
 
     def get_positions(self) -> dict[str, Position]:
         positions = self._retry(self._trading.get_all_positions)
+        checked = [_expect(p, AlpacaPosition) for p in positions]
         return {
             p.symbol: Position(qty=float(p.qty), market_value=float(p.market_value or 0.0))
-            for p in positions
-            if isinstance(p, AlpacaPosition)
+            for p in checked
         }
 
     def fetch_hourly_bars(self, symbols: list[str], start: datetime, end: datetime) -> list[Bar]:

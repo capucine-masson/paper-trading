@@ -6,7 +6,7 @@ import logging
 import time
 from collections import defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -17,22 +17,22 @@ from pydantic import BaseModel
 from timestral import TimestralForecaster
 
 from agent.broker import Broker
-from agent.config import PERCENT, REPORTS_DIR, Config, load_config, load_secrets
+from agent.config import PERCENT, REPORTS_DIR, Config, RiskConfig, load_config, load_secrets
 from agent.data import BAR_PERIOD, Bar, DataError, PriceSeries, build_series
 from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_model
 from agent.llm import (
-    SYSTEM_PROMPT,
     Decision,
     Decisions,
     LlmError,
     build_forecast_data,
     build_portfolio_data,
+    build_system_prompt,
     decide,
     make_client,
 )
 from agent.macro import MacroData, fetch_macro
 from agent.metrics import ForecastMetrics, ForecastSample, forecast_metrics, max_drawdown
-from agent.risk import Portfolio, Position, apply_to_portfolio, evaluate, halt_reason
+from agent.risk import OrderSpec, Portfolio, Position, apply_to_portfolio, evaluate, halt_reason
 from agent.store import CYCLE_SCOPE, Store
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,6 @@ class ForecastRecord:
 
 
 class ModelResult(BaseModel):
-    label: str
     model: str
     seconds_per_forecast: float
     overall: ForecastMetrics
@@ -156,30 +155,27 @@ def run_forecasts(
     points: list[EvalPoint],
     forecaster: TimestralForecaster,
     config: Config,
-    model: str,
     macro: MacroData,
 ) -> list[ForecastRecord]:
-    forecast_config = config.forecast.model_copy(update={"model": model})
     records: list[ForecastRecord] = []
     for done, point in enumerate(points, start=1):
         started = time.perf_counter()
         try:
-            forecast = forecast_symbol(forecaster, point.series, forecast_config, macro)
+            forecast = forecast_symbol(forecaster, point.series, config.forecast, macro)
         except ForecastError as error:
             logger.warning("skipped point: %s", error)
             continue
         records.append(ForecastRecord(point, forecast, time.perf_counter() - started))
         if done % PROGRESS_EVERY == 0:
-            logger.info("%s: %d/%d forecasts", model, done, len(points))
+            logger.info("%s: %d/%d forecasts", config.forecast.model, done, len(points))
     return records
 
 
-def evaluate_model(label: str, model: str, records: list[ForecastRecord]) -> ModelResult:
+def evaluate_model(model: str, records: list[ForecastRecord]) -> ModelResult:
     by_symbol: dict[str, list[ForecastSample]] = defaultdict(list)
     for record in records:
         by_symbol[record.forecast.symbol].append(record.sample)
     return ModelResult(
-        label=label,
         model=model,
         seconds_per_forecast=float(np.mean([r.seconds for r in records])),
         overall=forecast_metrics([r.sample for r in records]),
@@ -263,7 +259,8 @@ class LlmStrategy:
         self._client = client
         self._config = config
         self._cache = cache
-        fingerprint = f"{SYSTEM_PROMPT}|{config.llm.model}|{config.llm.temperature}"
+        llm = config.llm
+        fingerprint = f"{build_system_prompt(llm)}|{llm.model}|{llm.temperature}"
         self._prefix = "bt-" + hashlib.sha256(fingerprint.encode()).hexdigest()[:8]
         self.failures = 0
 
@@ -300,6 +297,75 @@ def _by_symbol(decisions: Decisions) -> dict[str, Decision]:
     return {item.symbol: item.decision for item in decisions.decisions}
 
 
+@dataclass
+class Book:
+    """Cash and holdings of one simulated strategy, valued at the last known prices."""
+
+    cash: float
+    quantities: dict[str, float] = field(default_factory=dict)
+    prices: dict[str, float] = field(default_factory=dict)
+
+    def holdings(self) -> float:
+        return sum(q * self.prices[s] for s, q in self.quantities.items())
+
+    def equity(self) -> float:
+        return self.cash + self.holdings()
+
+    def portfolio(self, day_start_equity: float) -> Portfolio:
+        return Portfolio(
+            equity=self.equity(),
+            day_start_equity=day_start_equity,
+            positions={
+                s: Position(qty=q, market_value=q * self.prices[s])
+                for s, q in self.quantities.items()
+            },
+        )
+
+    def fill(self, order: OrderSpec, price: float, cost: float) -> None:
+        if order.side == "buy" and order.notional is not None:
+            self.cash -= order.notional * (1 + cost)
+            self.quantities[order.symbol] = (
+                self.quantities.get(order.symbol, 0.0) + order.notional / price
+            )
+            return
+        sold = order.qty or 0.0
+        self.cash += sold * price * (1 - cost)
+        self.quantities[order.symbol] -= sold
+        if self.quantities[order.symbol] <= 0:
+            del self.quantities[order.symbol]
+
+
+def _approved_orders(
+    group: list[ForecastRecord],
+    decisions: dict[str, Decision],
+    portfolio: Portfolio,
+    config: Config,
+    risk: RiskConfig,
+    halted: str | None,
+) -> list[tuple[OrderSpec, ForecastRecord]]:
+    """Run the decisions through the real rules, the most confident first."""
+    decided = sorted(
+        ((decisions[r.forecast.symbol], r) for r in group if r.forecast.symbol in decisions),
+        key=lambda item: item[0].confidence,
+        reverse=True,
+    )
+    approved: list[tuple[OrderSpec, ForecastRecord]] = []
+    for decision, record in decided:
+        verdict = evaluate(
+            decision,
+            record.forecast,
+            portfolio,
+            risk,
+            config.market.symbols,
+            halted,
+            len(approved),
+        )
+        if verdict.order is not None:
+            apply_to_portfolio(portfolio, verdict.order)
+            approved.append((verdict.order, record))
+    return approved
+
+
 def simulate(
     name: str,
     strategy: Strategy,
@@ -308,75 +374,34 @@ def simulate(
     forecast_guard: bool = True,
 ) -> StrategyResult:
     """Replay decisions through the real rules; fills happen at the next bar close, minus a cost."""
-    risk = config.risk
+    risk = config.risk.model_copy(
+        update={"forecast_guard": config.risk.forecast_guard and forecast_guard}
+    )
     cost = config.backtest.cost_bps / BPS_PER_UNIT
     by_time: dict[datetime, list[ForecastRecord]] = defaultdict(list)
     for record in records:
         by_time[record.point.time].append(record)
-    cash = risk.allocated_capital
-    quantities: dict[str, float] = {}
-    prices: dict[str, float] = {}
+    book = Book(cash=risk.allocated_capital)
     halted: str | None = None
     day = None
-    day_start = cash
+    day_start = book.cash
     curve: list[float] = []
     exposures: list[float] = []
     trades = 0
-
-    def holdings() -> float:
-        return sum(q * prices[s] for s, q in quantities.items())
-
     for moment, group in sorted(by_time.items()):
         for record in group:
-            prices[record.forecast.symbol] = record.forecast.last_price
-        equity = cash + holdings()
+            book.prices[record.forecast.symbol] = record.forecast.last_price
+        equity = book.equity()
         if moment.date() != day:
             day, day_start = moment.date(), equity
         halted = halted or halt_reason(equity, risk)
-        portfolio = Portfolio(
-            equity=equity,
-            day_start_equity=day_start,
-            positions={
-                s: Position(qty=q, market_value=q * prices[s]) for s, q in quantities.items()
-            },
-        )
+        portfolio = book.portfolio(day_start)
         decisions = strategy(group, portfolio)
-        decided = sorted(
-            ((decisions[r.forecast.symbol], r) for r in group if r.forecast.symbol in decisions),
-            key=lambda item: item[0].confidence,
-            reverse=True,
-        )
-        approved = 0
-        for decision, record in decided:
-            verdict = evaluate(
-                decision,
-                record.forecast,
-                portfolio,
-                risk,
-                config.market.symbols,
-                halted,
-                approved,
-                forecast_guard,
-            )
-            if not verdict.approved or verdict.order is None:
-                continue
-            approved += 1
-            apply_to_portfolio(portfolio, verdict)
-            order, price = verdict.order, record.point.fill_price
-            if order.side == "buy" and order.notional is not None:
-                cash -= order.notional * (1 + cost)
-                quantities[order.symbol] = (
-                    quantities.get(order.symbol, 0.0) + order.notional / price
-                )
-            else:
-                sold = order.qty or 0.0
-                cash += sold * price * (1 - cost)
-                quantities[order.symbol] -= sold
-                if quantities[order.symbol] <= 0:
-                    del quantities[order.symbol]
+        for order, record in _approved_orders(group, decisions, portfolio, config, risk, halted):
+            book.fill(order, record.point.fill_price, cost)
             trades += 1
-        curve.append(cash + holdings())
-        exposures.append(holdings() / risk.allocated_capital)
+        curve.append(book.equity())
+        exposures.append(book.holdings() / risk.allocated_capital)
     return StrategyResult(
         name=name,
         final_equity=curve[-1],
@@ -411,7 +436,7 @@ def _markdown(report: BacktestReport) -> str:
     for m in report.models:
         o = m.overall
         lines.append(
-            f"| {m.label} | {o.n} | {o.mae_ratio:.3f} "
+            f"| {m.model} | {o.n} | {o.mae_ratio:.3f} "
             f"| {o.direction_hit_rate:.1%} (n={o.direction_n}) "
             f"| {o.coverage:.1%} | {o.mean_width:.2%} | {m.seconds_per_forecast:.2f} |"
         )
@@ -435,14 +460,29 @@ def _markdown(report: BacktestReport) -> str:
     return "\n".join(lines) + "\n"
 
 
+def named_strategies(config: Config, llm: LlmStrategy) -> list[tuple[str, Strategy, bool]]:
+    """Each strategy with its forecast guard flag: pure baselines ignore the forecast, so the
+    no-buy-against-the-forecast rule skips them."""
+    return [
+        ("Cash (never trade)", per_symbol(cash_rule), False),
+        ("Equal-weight buy and hold", equal_weight_buy_and_hold(config), False),
+        ("Momentum rule", per_symbol(momentum_rule(config.backtest.momentum_bars)), False),
+        (
+            "Timestral-only rule",
+            per_symbol(timestral_rule(config.backtest.rule_signal_threshold)),
+            True,
+        ),
+        ("Timestral + LLM (the agent)", llm, True),
+    ]
+
+
 def run_backtest(
     config: Config, bars: list[Bar], macro: MacroData, llm_client: Mistral | None
 ) -> BacktestReport:
     points = build_points(bars, config)
     logger.info("%d evaluation points", len(points))
-    model_id = config.forecast.model
-    records = run_forecasts(points, load_model(config.forecast), config, model_id, macro)
-    models = [evaluate_model("Timestral-28M", model_id, records)]
+    records = run_forecasts(points, load_model(config.forecast), config, macro)
+    models = [evaluate_model(config.forecast.model, records)]
     stamps = [b.timestamp for b in bars]
     window_start = max(r.point.time for r in records) - timedelta(
         days=config.backtest.decision_window_days
@@ -453,19 +493,10 @@ def run_backtest(
     if llm_client is not None and window:
         LLM_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         llm = LlmStrategy(llm_client, config, Store(LLM_CACHE_PATH))
-        # Pure baselines ignore the forecast, so the no-buy-against-the-forecast rule skips them.
-        named: list[tuple[str, Strategy, bool]] = [
-            ("Cash (never trade)", per_symbol(cash_rule), False),
-            ("Equal-weight buy and hold", equal_weight_buy_and_hold(config), False),
-            ("Momentum rule", per_symbol(momentum_rule(config.backtest.momentum_bars)), False),
-            (
-                "Timestral-only rule",
-                per_symbol(timestral_rule(config.backtest.rule_signal_threshold)),
-                True,
-            ),
-            ("Timestral + LLM (the agent)", llm, True),
+        strategies = [
+            simulate(name, strategy, window, config, guard)
+            for name, strategy, guard in named_strategies(config, llm)
         ]
-        strategies = [simulate(n, strategy, window, config, guard) for n, strategy, guard in named]
         llm_failures = llm.failures
     return BacktestReport(
         generated_at=datetime.now(UTC),

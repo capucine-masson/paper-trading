@@ -75,7 +75,6 @@ def evaluate(
     allowed_symbols: list[str],
     halted_reason: str | None,
     orders_approved: int,
-    forecast_guard: bool = True,
 ) -> Verdict:
     symbol = forecast.symbol
     if not risk.enabled:
@@ -92,7 +91,7 @@ def evaluate(
         return _rejected(f"maximum of {risk.max_orders_per_cycle} orders per cycle reached")
     if decision.action == "sell":
         return _sell(decision, symbol, portfolio)
-    return _buy(decision, forecast, portfolio, risk, forecast_guard)
+    return _buy(decision, forecast, portfolio, risk)
 
 
 def _rejected(reason: str) -> Verdict:
@@ -120,13 +119,12 @@ def _buy(
     forecast: PriceForecast,
     portfolio: Portfolio,
     risk: RiskConfig,
-    forecast_guard: bool,
 ) -> Verdict:
     symbol = forecast.symbol
     if decision.size_fraction == 0:
         return _rejected("buy with a size of zero: no order")
     expected_return = forecast.median[-1] / forecast.last_price - 1
-    if forecast_guard and expected_return <= 0:
+    if risk.forecast_guard and expected_return <= 0:
         return _rejected(
             f"expected return {expected_return:+.2%} is not positive: no buy against the forecast"
         )
@@ -156,10 +154,8 @@ def _buy(
     return Verdict(approved=True, reason=reason, order=order, reduced=reduced)
 
 
-def apply_to_portfolio(portfolio: Portfolio, verdict: Verdict) -> None:
+def apply_to_portfolio(portfolio: Portfolio, order: OrderSpec) -> None:
     """Keep exposure consistent between orders of the same cycle."""
-    order = verdict.order
-    assert order is not None
     if order.side == "sell":
         held_position = portfolio.positions[order.symbol]
         remaining = held_position.qty - (order.qty or 0.0)

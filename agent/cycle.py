@@ -17,6 +17,7 @@ from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_m
 from agent.llm import Decision, Decisions, LlmError, build_portfolio_data, decide
 from agent.macro import MacroData, MacroError, fetch_macro
 from agent.risk import (
+    OrderSpec,
     Portfolio,
     PortfolioSnapshot,
     Verdict,
@@ -54,6 +55,14 @@ class CycleReport(BaseModel):
     outcomes: dict[str, SymbolOutcome] = {}
 
 
+@dataclass(frozen=True)
+class CycleInputs:
+    bars: list[Bar]
+    forecaster: TimestralForecaster
+    macro: MacroData
+    now: datetime
+
+
 @dataclass
 class Cycle:
     config: Config
@@ -64,9 +73,7 @@ class Cycle:
     execute: bool
     ignore_market_clock: bool
     fred_api_key: str
-    _inputs: tuple[list[Bar], TimestralForecaster, MacroData, datetime] | None = field(
-        default=None, init=False
-    )
+    _inputs: CycleInputs | None = field(default=None, init=False)
 
     def run(self) -> CycleReport:
         self.store.start_cycle(self.cycle_id)
@@ -145,7 +152,7 @@ class Cycle:
                 logger.error("cycle %s: HALTED: %s", self.cycle_id, halted)
         return Portfolio(equity=equity, day_start_equity=day_start, positions=positions), halted
 
-    def _get_inputs(self) -> tuple[list[Bar], TimestralForecaster, MacroData, datetime]:
+    def _get_inputs(self) -> CycleInputs:
         if self._inputs is None:
             now = datetime.now(UTC)
             start = now - timedelta(days=self.config.market.history_days)
@@ -156,16 +163,18 @@ class Cycle:
                 now - timedelta(days=self.config.macro.history_days),
                 now,
             )
-            self._inputs = (bars, load_model(self.config.forecast), macro, now)
+            self._inputs = CycleInputs(bars, load_model(self.config.forecast), macro, now)
         return self._inputs
 
     def _forecast(self, symbol: str) -> PriceForecast:
-        bars, forecaster, macro, now = self._get_inputs()
+        inputs = self._get_inputs()
         market = self.config.market
-        series = build_series(symbol, bars, self.config.forecast.context_length, now, market)
+        series = build_series(
+            symbol, inputs.bars, self.config.forecast.context_length, inputs.now, market
+        )
         if not self.ignore_market_clock:
-            check_freshness(series, now, market)
-        return forecast_symbol(forecaster, series, self.config.forecast, macro)
+            check_freshness(series, inputs.now, market)
+        return forecast_symbol(inputs.forecaster, series, self.config.forecast, inputs.macro)
 
     def _forecast_step(self, symbol: str) -> PriceForecast:
         """The Timestral tool: run once per symbol and cycle, then read back from the journal."""
@@ -206,12 +215,16 @@ class Cycle:
             message = self._fail(CYCLE_SCOPE, str(error))
             return {symbol: SymbolOutcome(error=errors.get(symbol, message)) for symbol in symbols}
         decided = {item.symbol: item.decision for item in decisions.decisions}
-        return {
-            symbol: SymbolOutcome(forecast=self._forecast_step(symbol), decision=decided[symbol])
-            if symbol in decided
-            else SymbolOutcome(error=errors.get(symbol, "no forecast requested by the LLM"))
-            for symbol in symbols
-        }
+        outcomes: dict[str, SymbolOutcome] = {}
+        for symbol in symbols:
+            if symbol in decided:
+                outcomes[symbol] = SymbolOutcome(
+                    forecast=self._forecast_step(symbol), decision=decided[symbol]
+                )
+            else:
+                reason = errors.get(symbol, "no forecast requested by the LLM")
+                outcomes[symbol] = SymbolOutcome(error=reason)
+        return outcomes
 
     def _apply_risk(
         self, outcomes: dict[str, SymbolOutcome], portfolio: Portfolio, halted: str | None
@@ -227,11 +240,11 @@ class Cycle:
         ):
             verdict = self._verdict(symbol, decision, forecast, portfolio, halted, approved_count)
             outcome.verdict = verdict
-            if verdict.approved:
+            if verdict.order is not None:
                 approved_count += 1
-                apply_to_portfolio(portfolio, verdict)
+                apply_to_portfolio(portfolio, verdict.order)
                 if self.execute:
-                    self._send_order(symbol, outcome, verdict)
+                    self._send_order(symbol, outcome, verdict.order)
 
     def _verdict(
         self,
@@ -257,9 +270,7 @@ class Cycle:
             ),
         )
 
-    def _send_order(self, symbol: str, outcome: SymbolOutcome, verdict: Verdict) -> None:
-        spec = verdict.order
-        assert spec is not None
+    def _send_order(self, symbol: str, outcome: SymbolOutcome, spec: OrderSpec) -> None:
         client_order_id = f"{self.cycle_id}-{symbol}-{spec.side}"
         try:
             outcome.order = self._step(

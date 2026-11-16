@@ -333,8 +333,13 @@ select:hover {
 }
 
 .kpi-sub {
+  min-height: 1lh;
   color: var(--muted);
   font-size: 0.7rem;
+}
+
+.run-info .kpi-label {
+  display: block;
 }
 
 .side > .run-info {

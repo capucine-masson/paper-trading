@@ -94,7 +94,6 @@ const BACKTEST: BacktestReport = {
   history_end: "2026-11-13T21:00:00Z",
   models: [
     {
-      label: "Timestral-28M",
       model: "mistralai/Timestral-28M",
       overall: { n: 1579, mae_ratio: 0.998, coverage: 0.783 },
       per_symbol: {

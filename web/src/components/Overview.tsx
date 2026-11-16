@@ -3,6 +3,7 @@ import { EXPORT_LINKS, exportUrl } from "../api";
 import { forSymbol, inPeriod } from "../filters";
 import {
   formatDateTime,
+  formatDrawdown,
   formatPercent,
   formatSignedPercent,
   formatSignedUsd,
@@ -138,8 +139,8 @@ function Performance({ metrics, ordersSent }: { metrics: Metrics; ordersSent: nu
       />
       <Kpi
         label="Max drawdown"
-        value={dd === null ? NOT_AVAILABLE : dd === 0 ? "0%" : `-${formatPercent(dd)}`}
-        tone={dd === null || dd === 0 ? undefined : "down"}
+        value={dd === null ? NOT_AVAILABLE : formatDrawdown(dd)}
+        tone={tone(dd === null ? null : -dd)}
       />
       <Kpi label="Orders sent" value={String(ordersSent)} sub="Since the start" />
     </div>
@@ -170,7 +171,7 @@ function Kpi({ label, value, sub, tone: valueTone }: KpiProps) {
     <div className="kpi">
       <span className="kpi-label">{label}</span>
       <span className={`kpi-value ${valueTone ?? ""}`}>{value}</span>
-      <span className="kpi-sub">{sub ?? " "}</span>
+      <span className="kpi-sub">{sub}</span>
     </div>
   );
 }
@@ -216,7 +217,6 @@ function RunInfo({ status }: { status: Status }) {
       ) : (
         <span>
           <span className="kpi-label">Last run</span>
-          <br />
           {formatDateTime(cycle.started_at)}{" "}
           <span className={cycle.status === "error" ? "down" : "muted"}>{cycle.status ?? "running"}</span>
         </span>

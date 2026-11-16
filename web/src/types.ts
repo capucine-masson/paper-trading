@@ -93,7 +93,6 @@ export interface ForecastMetrics {
 }
 
 interface ModelResult {
-  label: string;
   model: string;
   overall: ForecastMetrics;
   per_symbol: Record<string, ForecastMetrics>;

@@ -24,6 +24,7 @@ RISK = RiskConfig(
     max_orders_per_cycle=2,
     min_confidence=0.6,
     max_uncertainty=0.06,
+    forecast_guard=True,
 )
 SYMBOLS = ["SPY", "QQQ"]
 
@@ -200,7 +201,8 @@ def test_sell_with_zero_size_rejected() -> None:
 def test_partial_sell_keeps_the_rest_of_the_position() -> None:
     held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
     verdict = run(dec=decision("sell", size_fraction=0.25), pf=held)
-    apply_to_portfolio(held, verdict)
+    assert verdict.order is not None
+    apply_to_portfolio(held, verdict.order)
     assert held.positions["SPY"].qty == pytest.approx(7.5)
     assert held.positions["SPY"].market_value == pytest.approx(750.0)
 
@@ -215,8 +217,8 @@ def test_buy_against_the_forecast_is_blocked() -> None:
 
 def test_forecast_guard_can_be_skipped_for_baselines() -> None:
     below = forecast().model_copy(update={"median": [99.0]})
-    verdict = evaluate(decision(), below, portfolio(), RISK, SYMBOLS, None, 0, forecast_guard=False)
-    assert verdict.approved
+    unguarded = RISK.model_copy(update={"forecast_guard": False})
+    assert run(fc=below, risk=unguarded).approved
 
 
 def test_sell_is_allowed_even_when_the_forecast_is_positive() -> None:
