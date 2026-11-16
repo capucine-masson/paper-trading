@@ -209,6 +209,15 @@ def test_partial_sell_keeps_the_rest_of_the_position() -> None:
     assert held.positions["SPY"].market_value == pytest.approx(750.0)
 
 
+def test_replayed_sell_of_an_already_sold_position_is_ignored() -> None:
+    held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
+    verdict = run(dec=decision("sell"), pf=held)
+    assert verdict.order is not None
+    apply_to_portfolio(held, verdict.order)
+    apply_to_portfolio(held, verdict.order)
+    assert "SPY" not in held.positions
+
+
 def test_buy_against_the_forecast_is_blocked() -> None:
     below = forecast().model_copy(update={"median": [99.0]})
     flat = forecast().model_copy(update={"median": [100.0]})

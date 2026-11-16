@@ -186,7 +186,9 @@ def evaluate_ranked(
 def apply_to_portfolio(portfolio: Portfolio, order: OrderSpec) -> None:
     """Keep exposure consistent between orders of the same cycle."""
     if order.side == "sell":
-        held_position = portfolio.positions[order.symbol]
+        held_position = portfolio.positions.get(order.symbol)
+        if held_position is None:
+            return  # sold by an earlier run of this cycle: the journaled verdict is replayed
         remaining = held_position.qty - (order.qty or 0.0)
         if remaining <= 0:
             portfolio.positions.pop(order.symbol)
