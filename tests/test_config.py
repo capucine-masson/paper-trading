@@ -16,7 +16,3 @@ def test_invalid_value_is_rejected(tmp_path: Path) -> None:
     path.write_text(text)
     with pytest.raises(ValidationError):
         load_config(path)
-
-
-def test_news_is_disabled_by_default() -> None:
-    assert load_config(CONFIG_PATH).news.enabled is False

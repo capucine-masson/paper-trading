@@ -42,13 +42,9 @@ def _tables(path: Path) -> set[str]:
         return {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
 
 
-def test_news_tables_are_only_created_on_request(tmp_path: Path) -> None:
+def test_journal_has_only_the_core_tables(tmp_path: Path) -> None:
     Store(tmp_path / "live.db").close()
-    Store(tmp_path / "news.db", news_tables=True).close()
     assert _tables(tmp_path / "live.db") == {"steps", "cycles", "state"}
-    assert {"news_articles", "news_scores", "llm_calls", "news_days"} <= _tables(
-        tmp_path / "news.db"
-    )
 
 
 def test_simulation_ids_are_recognised() -> None:

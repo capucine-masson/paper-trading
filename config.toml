@@ -36,19 +36,19 @@ enabled = true
 # Capital in USD allocated to the agent; all limits are computed on it.
 allocated_capital = 10000.0
 # Agent equity in USD below which the agent halts (sticky, manual resume).
-capital_floor = 8000.0
+capital_floor = 5000.0
 # Maximum daily loss as a percentage of allocated capital; beyond it, no more buys that day.
-max_daily_loss_pct = 5.0
+max_daily_loss_pct = 10.0
 # Maximum size of one position as a percentage of allocated capital.
-max_position_pct = 20.0
+max_position_pct = 25.0
 # Maximum total exposure as a percentage of allocated capital.
-max_total_exposure_pct = 80.0
+max_total_exposure_pct = 90.0
 # Maximum number of orders per cycle.
 max_orders_per_cycle = 5
 # Minimum LLM confidence to act.
-min_confidence = 0.6
+min_confidence = 0.5
 # Maximum forecast uncertainty (interval width over median) to buy.
-max_uncertainty = 0.06
+max_uncertainty = 0.08
 
 [broker]
 # Attempts on transient Alpaca errors (network, 429, 5xx).
@@ -67,21 +67,8 @@ decision_window_days = 28
 compare_model = "mistralai/Timestral-209M"
 # Evaluation points per symbol used for the model comparison (it is slow on CPU).
 compare_points_per_symbol = 40
-# Timestral-only rule: act when the expected return exceeds this share of the interval width.
-rule_signal_threshold = 0.05
+# Timestral-only rule: act when the expected return exceeds this share of the interval width
+# (75th percentile of the absolute signal before the decision window).
+rule_signal_threshold = 0.025
 # Number of past bars used by the momentum baseline.
 momentum_bars = 6
-
-[news]
-# Bonus: news covariates. false = the agent behaves exactly as without news.
-enabled = false
-# Covariate window: article count over the last N hourly bars of the series.
-window_bars = 6
-# Pause in seconds between two Alpaca news requests (the free plan allows 200 per minute).
-request_interval_s = 0.4
-# Symbols whose headlines are scored by the LLM (version 2); GLD is left out (about 9 articles a week).
-scored_symbols = ["SPY", "QQQ", "AAPL", "MSFT"]
-# Maximum articles scored in one LLM call (one call at most per symbol, day and chunk of this size).
-score_batch_size = 40
-# One-time cap on the LLM calls of the news-scoring backtest (counted in the news cache, retries included).
-max_scoring_calls = 700

@@ -5,7 +5,14 @@ import pytest
 from agent.config import RiskConfig
 from agent.forecast import PriceForecast
 from agent.llm import Decision
-from agent.risk import Portfolio, Position, Verdict, evaluate, halt_reason, size_buy
+from agent.risk import (
+    Portfolio,
+    Position,
+    Verdict,
+    apply_to_portfolio,
+    evaluate,
+    halt_reason,
+)
 
 RISK = RiskConfig(
     enabled=True,
@@ -34,8 +41,15 @@ def forecast(symbol: str = "SPY", uncertainty: float = 0.0) -> PriceForecast:
     )
 
 
-def decision(action: str = "buy", confidence: float = 0.9) -> Decision:
-    return Decision.model_validate({"action": action, "confidence": confidence, "rationale": "t"})
+def decision(action: str = "buy", confidence: float = 0.9, size_fraction: float = 1.0) -> Decision:
+    return Decision.model_validate(
+        {
+            "action": action,
+            "confidence": confidence,
+            "size_fraction": size_fraction,
+            "rationale": "t",
+        }
+    )
 
 
 def portfolio(
@@ -130,10 +144,29 @@ def test_total_exposure_caps_buy() -> None:
 
 
 def test_wider_interval_means_smaller_position() -> None:
-    narrow = size_buy(0.01, "SPY", portfolio(), RISK)
-    wide = size_buy(0.05, "SPY", portfolio(), RISK)
-    assert narrow > wide > 0
-    assert size_buy(0.0, "SPY", portfolio(), RISK) == 2_000.0
+    def notional(uncertainty: float) -> float:
+        order = run(fc=forecast(uncertainty=uncertainty)).order
+        assert order is not None and order.notional is not None
+        return order.notional
+
+    assert notional(0.01) > notional(0.05) > 0
+    assert notional(0.0) == 2_000.0
+
+
+def test_llm_size_scales_the_position() -> None:
+    verdict = run(dec=decision(size_fraction=0.25))
+    assert verdict.order is not None and verdict.order.notional == pytest.approx(500.0)
+
+
+def test_uncertainty_caps_the_llm_size() -> None:
+    verdict = run(dec=decision(size_fraction=1.0), fc=forecast(uncertainty=0.05))
+    assert verdict.order is not None and verdict.order.notional == pytest.approx(
+        2_000.0 / 6, abs=0.01
+    )
+
+
+def test_buy_with_zero_size_rejected() -> None:
+    assert not run(dec=decision(size_fraction=0.0)).approved
 
 
 def test_capital_floor_halts() -> None:
@@ -150,3 +183,42 @@ def test_buy_cut_by_room_is_flagged_reduced() -> None:
     held = portfolio(positions={"SPY": Position(qty=15, market_value=1_500.0)})
     assert run(pf=held).reduced
     assert not run().reduced
+
+
+def test_partial_sell_uses_the_llm_share_of_the_position() -> None:
+    held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
+    verdict = run(dec=decision("sell", size_fraction=0.25), pf=held)
+    assert verdict.order is not None and verdict.order.qty == pytest.approx(2.5)
+    assert "25%" in verdict.reason
+
+
+def test_sell_with_zero_size_rejected() -> None:
+    held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
+    assert not run(dec=decision("sell", size_fraction=0.0), pf=held).approved
+
+
+def test_partial_sell_keeps_the_rest_of_the_position() -> None:
+    held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
+    verdict = run(dec=decision("sell", size_fraction=0.25), pf=held)
+    apply_to_portfolio(held, verdict)
+    assert held.positions["SPY"].qty == pytest.approx(7.5)
+    assert held.positions["SPY"].market_value == pytest.approx(750.0)
+
+
+def test_buy_against_the_forecast_is_blocked() -> None:
+    below = forecast().model_copy(update={"median": [99.0]})
+    flat = forecast().model_copy(update={"median": [100.0]})
+    for against in (below, flat):
+        verdict = run(fc=against)
+        assert not verdict.approved and "against the forecast" in verdict.reason
+
+
+def test_forecast_guard_can_be_skipped_for_baselines() -> None:
+    below = forecast().model_copy(update={"median": [99.0]})
+    verdict = evaluate(decision(), below, portfolio(), RISK, SYMBOLS, None, 0, forecast_guard=False)
+    assert verdict.approved
+
+
+def test_sell_is_allowed_even_when_the_forecast_is_positive() -> None:
+    held = portfolio(positions={"SPY": Position(qty=2, market_value=200)})
+    assert run(dec=decision("sell"), pf=held).approved

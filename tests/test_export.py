@@ -49,11 +49,17 @@ def seed_cycle(
             }
         ),
     )
+    decision = {
+        "action": action,
+        "confidence": 0.8,
+        "size_fraction": 0.5,
+        "rationale": "= Median above price.",
+    }
     store.save_step(
         cycle_id,
-        "SPY",
-        "llm",
-        json.dumps({"action": action, "confidence": 0.8, "rationale": "= Median above price."}),
+        CYCLE_SCOPE,
+        "decisions",
+        json.dumps({"decisions": [{"symbol": "SPY", "decision": decision}]}),
     )
     store.save_step(
         cycle_id,

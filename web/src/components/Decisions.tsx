@@ -131,6 +131,10 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
               <dd>{d.price === null ? "n/a" : formatUsd(d.price)}</dd>
             </div>
             <div>
+              <dt>Size chosen by the LLM</dt>
+              <dd>{d.action === "buy" ? `${formatPercent(d.size_fraction)} of the maximum position` : "n/a"}</dd>
+            </div>
+            <div>
               <dt>Position before</dt>
               <dd>{d.position_qty === 0 ? "None" : `${d.position_qty} sh, ${formatUsd(d.position_value)}`}</dd>
             </div>

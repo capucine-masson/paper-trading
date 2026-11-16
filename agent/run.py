@@ -61,7 +61,7 @@ def main() -> int:
     except (ValidationError, OSError, RuntimeError) as error:
         print(f"Startup error: {error}", file=sys.stderr)
         return 1
-    store = Store(JOURNAL_PATH, news_tables=config.news.enabled)
+    store = Store(JOURNAL_PATH)
     if args.resume:
         store.delete_state("halted_reason")
         logger.warning("halted state cleared manually")
@@ -107,8 +107,8 @@ def _format(symbol: str, outcome: SymbolOutcome) -> str:
         lines.append(f"  no decision ({outcome.error})")
         return "\n".join(lines)
     lines.append(
-        f"  LLM: {decision.action.upper()} (confidence {decision.confidence:.2f}): "
-        f"{decision.rationale}"
+        f"  LLM: {decision.action.upper()} (confidence {decision.confidence:.2f}, "
+        f"size {decision.size_fraction:.0%}): {decision.rationale}"
     )
     verdict = outcome.verdict
     if verdict is not None:

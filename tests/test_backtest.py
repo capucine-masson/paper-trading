@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from mistralai.client import Mistral
 
 from agent import backtest as bt
 from agent.backtest import (
@@ -11,17 +12,19 @@ from agent.backtest import (
     ForecastRecord,
     LlmStrategy,
     build_points,
-    buy_and_hold_strategy,
-    cash_strategy,
+    buy_and_hold_rule,
+    cash_rule,
     evaluate_model,
     forecast_points,
+    per_symbol,
     simulate,
-    timestral_rule_strategy,
+    timestral_rule,
 )
 from agent.config import Config, load_config
 from agent.data import Bar, PriceSeries
 from agent.forecast import PriceForecast
-from agent.llm import Decision
+from agent.llm import Decision, Decisions, LlmError, SymbolDecision
+from agent.risk import Portfolio, Position
 from agent.store import Store
 
 START = datetime(2026, 1, 5, tzinfo=UTC)
@@ -76,7 +79,6 @@ def make_record(
     series = PriceSeries(
         symbol="SPY",
         last_bar_start=moment - timedelta(hours=1),
-        slot_starts=[moment - timedelta(hours=10 - i) for i in range(10)],
         values=np.array([price] * 10),
     )
     forecast = PriceForecast(
@@ -119,13 +121,13 @@ def test_exported_points_give_the_same_hit_rate_as_the_table() -> None:
 
 def test_cash_never_trades(config: Config) -> None:
     records = [make_record(i, 100.0, 100.0) for i in range(5)]
-    result = simulate("cash", cash_strategy, records, config)
+    result = simulate("cash", per_symbol(cash_rule), records, config)
     assert result.trades == 0 and result.return_pct == 0 and result.average_exposure_pct == 0
 
 
 def test_buy_and_hold_respects_limits_and_earns_in_a_rising_market(config: Config) -> None:
     records = [make_record(i, 100.0 + i, 100.0 + i + 1) for i in range(10)]
-    result = simulate("bh", buy_and_hold_strategy, records, config)
+    result = simulate("bh", per_symbol(buy_and_hold_rule), records, config, False)
     assert result.return_pct > 0
     assert result.average_exposure_pct <= config.risk.max_position_pct + 1.0
 
@@ -134,8 +136,8 @@ def test_fill_is_at_next_bar_close_not_at_decision_price(config: Config) -> None
     flat = [make_record(0, 100.0, 100.0), make_record(1, 100.0, 100.0)]
     costly = [make_record(0, 100.0, 110.0), make_record(1, 100.0, 110.0)]
     assert (
-        simulate("a", buy_and_hold_strategy, flat, config).final_equity
-        > simulate("b", buy_and_hold_strategy, costly, config).final_equity
+        simulate("a", per_symbol(buy_and_hold_rule), flat, config, False).final_equity
+        > simulate("b", per_symbol(buy_and_hold_rule), costly, config, False).final_equity
     )
 
 
@@ -144,29 +146,51 @@ def test_halted_state_stops_trading_after_a_crash(config: Config) -> None:
     cfg = config.model_copy(update={"risk": risk})
     calm = [make_record(0, 100.0, 100.0), make_record(1, 100.0, 100.0)]
     crash = [make_record(2, 50.0, 50.0), make_record(3, 50.0, 50.0), make_record(4, 50.0, 50.0)]
-    before = simulate("bh", buy_and_hold_strategy, calm, cfg).trades
-    after = simulate("bh", buy_and_hold_strategy, calm + crash, cfg).trades
+    before = simulate("bh", per_symbol(buy_and_hold_rule), calm, cfg, False).trades
+    after = simulate("bh", per_symbol(buy_and_hold_rule), calm + crash, cfg, False).trades
     assert after == before
 
 
 def test_timestral_rule_acts_only_on_a_clear_signal() -> None:
-    rule = timestral_rule_strategy(0.05)
+    rule = timestral_rule(0.05)
     assert rule(make_record(0, 100.0, 100.0, median=100.01)).action == "hold"
     assert rule(make_record(0, 100.0, 100.0, median=101.0)).action == "buy"
     assert rule(make_record(0, 100.0, 100.0, median=99.0)).action == "sell"
 
 
-def test_llm_decisions_are_cached(
+def test_llm_decisions_are_cached_by_time_and_portfolio(
     config: Config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[str] = []
 
-    def fake_decide(*args: object) -> Decision:
+    def fake_decide(*args: object) -> Decisions:
         calls.append("llm")
-        return Decision(action="buy", confidence=0.9, rationale="test")
+        decision = Decision(action="buy", confidence=0.9, size_fraction=1.0, rationale="test")
+        return Decisions(decisions=[SymbolDecision(symbol="SPY", decision=decision)])
 
     monkeypatch.setattr(bt, "decide", fake_decide)
-    strategy = LlmStrategy(object(), config, Store(tmp_path / "cache.db"))
-    record = make_record(0, 100.0, 100.0)
-    assert strategy(record).action == "buy" and strategy(record).action == "buy"
+    strategy = LlmStrategy(Mistral(api_key="test"), config, Store(tmp_path / "cache.db"))
+    group = [make_record(0, 100.0, 100.0)]
+    empty = Portfolio(equity=10_000.0, day_start_equity=10_000.0, positions={})
+    assert strategy(group, empty)["SPY"].action == "buy"
+    assert strategy(group, empty)["SPY"].action == "buy"
     assert calls == ["llm"]
+    held = Portfolio(
+        equity=10_000.0,
+        day_start_equity=10_000.0,
+        positions={"SPY": Position(qty=5.0, market_value=500.0)},
+    )
+    strategy(group, held)
+    assert calls == ["llm", "llm"]
+
+
+def test_llm_failure_means_no_order_at_that_time(
+    config: Config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failing_decide(*args: object) -> Decisions:
+        raise LlmError("down")
+
+    monkeypatch.setattr(bt, "decide", failing_decide)
+    strategy = LlmStrategy(Mistral(api_key="test"), config, Store(tmp_path / "cache.db"))
+    empty = Portfolio(equity=10_000.0, day_start_equity=10_000.0, positions={})
+    assert strategy([make_record(0, 100.0, 100.0)], empty) == {} and strategy.failures == 1

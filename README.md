@@ -1,9 +1,11 @@
 # Paper Trading Agent
 
 An autonomous agent that manages a small portfolio on an **Alpaca paper account** (no real money).
-**Timestral** (a local time-series model) forecasts hourly prices, a **Mistral LLM** proposes
-`buy / sell / hold`, and the code decides: client rules and position sizing are computed in plain code
-before any order is sent. A static, read-only dashboard shows what the agent did and why.
+A **Mistral LLM** sees the portfolio and calls **Timestral** (a local time-series model) as a tool to get an
+hourly price forecast for each symbol, then proposes `buy / sell / hold` and how much of the maximum position it
+wants, for every symbol, in one conversation. The code decides: dollars, caps and risk rules are computed in
+plain code before any order is sent. A static, read-only dashboard shows
+what the agent did and why. Paper trading only, not investment advice.
 
 - Symbols: `SPY, QQQ, AAPL, MSFT, GLD`. One cycle per hour during the US session (GitHub Actions).
 - Dashboard: <https://capucine-masson.github.io/paper-trading/> (published by the workflow after each cycle).
@@ -12,15 +14,19 @@ before any order is sent. A static, read-only dashboard shows what the agent did
 ## How it works
 
 ```
-Alpaca hourly bars --> data checks --> Timestral forecast --> Mistral LLM --> risk rules + sizing --> Alpaca paper order
- (clock, history)     (gaps, stale)    (median, 10-90%)      (buy/sell/hold)   (pure code, risk.py)         |
-                                                                                                           v
+Alpaca hourly bars --> data checks --> Mistral LLM <--tool call--> Timestral forecast --> risk rules + sizing --> Alpaca paper order
+ (clock, history)     (gaps, stale)  (portfolio, 1 decision/symbol) (median, 10-90%)      (pure code, risk.py)         |
+                                                                                                                       v
                               journal.db (every step, input and output) --> export JSON/CSV --> static dashboard
 ```
 
 Principles, enforced in code and covered by tests:
 
-- **The LLM proposes, the code decides.** It never gives a quantity or a price; every decision goes through `risk.py`.
+- **The LLM proposes, the code decides.** It sees the portfolio (equity, cash, positions, results), calls the
+  Timestral tool, then gives for each symbol an action, a confidence and a size as a share of the maximum
+  position (`size_fraction`, 0 to 1). It never gives a quantity or a price: the code converts the share to
+  dollars, caps it and runs every decision through `risk.py`. The code runs the tool itself, only for allowed
+  symbols; a bad tool call gets an error text, and a decision for a symbol without forecast is dropped.
 - **No order without `--execute`.** Without it the cycle only simulates.
 - **No duplicate order.** The `client_order_id` is deterministic and looked up on Alpaca before any submission.
 - **No look-ahead.** A decision only uses bars completed before its timestamp.
@@ -36,15 +42,13 @@ Principles, enforced in code and covered by tests:
 | `agent/broker.py` | The only module talking to Alpaca (paper), with bounded retries |
 | `agent/data.py` | Hourly series: validation, gaps as `NaN`, freshness |
 | `agent/forecast.py` | Timestral forecast and its validation |
-| `agent/llm.py` | Prompts and the Mistral call (structured output, one retry, then rejection) |
+| `agent/llm.py` | Prompts and the Mistral conversation: tool call, then structured decisions (one retry, then rejection) |
 | `agent/risk.py` | Client rules and position sizing (pure functions) |
 | `agent/store.py` | SQLite journal (resumable steps, state) |
 | `agent/cycle.py` | One cycle, every external action being a resumable step |
 | `agent/run.py` | Command line entry point |
 | `agent/export.py` | Journal to JSON/CSV for the dashboard |
 | `agent/backtest.py`, `agent/metrics.py` | Walk-forward backtest and evaluation metrics |
-| `agent/news.py`, `agent/news_score.py`, `agent/news_backtest.py` | Bonus: news article cache, LLM scoring, covariates, A/B backtest (not used by the live cycle) |
-| `agent/news_analysis.py` | Bonus, experimental: one-off hypothesis analysis of the news signal |
 | `web/` | Static React dashboard (reads the exported files) |
 | `.github/workflows/cycle.yml` | Hourly cycle, journal commit, dashboard deployment |
 | `reports/` | Backtest results (`backtest.md`, `backtest.json`, cached LLM outputs) |
@@ -83,22 +87,26 @@ no short selling, allowed symbols only.
 | --- | --- | --- | --- |
 | `enabled` | `true` | Emergency stop: `false` blocks every order | - |
 | `allocated_capital` | $10,000 | Capital the agent manages; every limit is computed on it | More / less money at risk |
-| `capital_floor` | $8,000 | Equity below it halts the agent (sticky, no automatic selling) | Halts sooner / later |
-| `max_daily_loss_pct` | 5 | Daily loss beyond it blocks buys until the next UTC day | Tolerates more / less loss |
-| `max_position_pct` | 20 | Maximum size of one symbol | Bigger / smaller bets |
-| `max_total_exposure_pct` | 80 | Maximum invested share of the allocated capital | More / less invested |
+| `capital_floor` | $5,000 | Equity below it halts the agent (sticky, no automatic selling) | Halts sooner / later |
+| `max_daily_loss_pct` | 10 | Daily loss beyond it blocks buys until the next UTC day | Tolerates more / less loss |
+| `max_position_pct` | 25 | Maximum size of one symbol | Bigger / smaller bets |
+| `max_total_exposure_pct` | 90 | Maximum invested share of the allocated capital | More / less invested |
 | `max_orders_per_cycle` | 5 | Maximum orders in one cycle (highest confidence first) | More / fewer trades |
-| `min_confidence` | 0.6 | Minimum LLM confidence to act | Fewer / more trades |
-| `max_uncertainty` | 0.06 | Maximum forecast interval width (over median) to buy; median 2.9% and 99th percentile 6.3% in the backtest | More / fewer buys |
+| `min_confidence` | 0.5 | Minimum LLM confidence to act | Fewer / more trades |
+| `max_uncertainty` | 0.08 | Maximum forecast interval width (over median) to buy; median 2.9% and 99th percentile 6.3% in the backtest | More / fewer buys |
 
-Position size for a buy: `max_position_pct x allocated_capital x (1 - uncertainty / max_uncertainty)`, capped by
-the remaining position and exposure room: the wider the forecast interval, the smaller the position. A `sell`
-closes the whole position of that symbol. Agent equity is `allocated_capital` plus the account equity change
+**No buy against the forecast.** Besides these limits, `risk.py` refuses any buy when Timestral's expected return
+over the horizon is not positive: the LLM judges freely, the code only blocks what contradicts the forecast. (The
+pure baselines of the backtest skip this rule, since they ignore the forecast.)
+
+Position size for a buy: `max_position_pct x allocated_capital x min(size_fraction, 1 - uncertainty / max_uncertainty)`,
+capped by the remaining position and exposure room. The LLM chooses `size_fraction`; the code never lets a wide
+forecast interval be sized up: the wider the interval, the lower the ceiling. A `sell`
+sells the `size_fraction` share of that symbol's position. Agent equity is `allocated_capital` plus the account equity change
 since the first run, so the paper account must be used by the agent only.
 
 Other sections: `[market]` (symbols, data feed, history, freshness, gaps), `[forecast]` (model, context, horizon),
-`[llm]` (model, temperature, timeout, retries), `[broker]` (retries), `[backtest]` (evaluation settings),
-`[news]` (bonus, `enabled = false`).
+`[llm]` (model, temperature, timeout, retries), `[broker]` (retries), `[backtest]` (evaluation settings).
 
 ## Emergency stop
 
@@ -125,7 +133,7 @@ options: `resume` (clear the halted state) and `simulate`.
 **Dry run** (`simulate` ticked): one full cycle with `--ignore-market-clock` and no `--execute`, so no order can
 be sent, even when the market is closed. It installs the dependencies, loads the Timestral weights (and caches
 them), calls Alpaca and Mistral with the real keys, then commits `journal.db` and deploys the dashboard. The
-cycle is stored as `sim-...` and is not shown on the dashboard. It costs a few Mistral calls (one per symbol).
+cycle is stored as `sim-...` and is not shown on the dashboard. It costs two Mistral calls (one conversation for all symbols).
 
 Setup, once, in the GitHub repository:
 
@@ -184,16 +192,16 @@ preview the layout (development only, not part of the published site).
 ## Journal and resilience
 
 Every step (forecast, LLM output, risk verdict, order, error) is stored in `journal.db` (SQLite) per
-`(cycle, symbol, step)`. A step already stored is read back, never redone: re-running a cycle resumes where it
+`(cycle, symbol, step)` (the LLM decisions of a cycle are one step). A step already stored is read back, never redone: re-running a cycle resumes where it
 stopped, without a new LLM call or a duplicate order. Network calls are only retried on transient errors (network,
 429, 5xx), with an increasing delay and a bounded number of attempts. An invalid LLM answer is retried once, then
-rejected (no decision for that symbol); invalid data or an invalid forecast is never retried. After a timeout on an
+rejected (no decision for any symbol of that cycle); invalid data or an invalid forecast is never retried. After a timeout on an
 order, the order is looked up by its `client_order_id` before any new submission.
 
 ## How do we know the decisions are sound?
 
 `uv run python -m agent.backtest` replays the last 180 days of real hourly bars (Alpaca, 5 symbols,
-2026-05-19 to 2026-11-13) walk-forward: at each evaluation point (every 3 bars, 1,093 points) the
+2026-05-20 to 2026-11-13) walk-forward: at each evaluation point (every 3 bars, 1,080 points) the
 forecast and the decision only see bars up to that moment. Decisions go through the same `risk.py` rules
 and sizing as live, and orders are filled at the next bar close (a test checks that changing the future
 never changes a decision input). Full tables: `reports/backtest.md` and `reports/backtest.json`. The LLM
@@ -204,18 +212,18 @@ to skip parts.
 
 | Model | Points | Error vs naive (MAE ratio) | Right direction | 10%-90% coverage | Mean width | Seconds per forecast |
 | --- | --- | --- | --- | --- | --- | --- |
-| Timestral-28M, all points | 1,093 | 1.000 | 50.1% | 78.7% (target 80%) | 2.82% | 0.04 |
-| Timestral-28M, comparison subset | 200 | 1.003 | 54.0% | 81.0% | 2.77% | 0.04 |
-| Timestral-209M, comparison subset | 200 | 1.002 | 51.0% | 78.5% | 2.72% | 0.14 |
+| Timestral-28M, all points | 1,080 | 1.000 | 50.0% | 78.5% (target 80%) | 2.82% | 0.04 |
+| Timestral-28M, comparison subset | 200 | 1.005 | 45.5% | 79.0% | 2.80% | 0.04 |
+| Timestral-209M, comparison subset | 200 | 1.014 | 45.5% | 77.5% | 2.73% | 0.14 |
 
 - **The intervals are well calibrated on average, not at every date**: the 10%-90% interval contains the real
-  price 78.7% of the time over the whole period, close to the 80% target. That average hides a drift (too wide
+  price 78.5% of the time over the whole period, close to the 80% target. That average hides a drift (too wide
   from May to August, slightly too narrow since September, see "Known limits"). The agent uses the interval to
   size positions and to refuse uncertain buys (`max_uncertainty`), so treat it as approximately, not exactly,
   reliable.
 - **The median has no edge over the naive forecast** on liquid ETFs and large caps at a 6-hour horizon
-  (error ratio 1.00, direction 50%). This is expected for such markets and is why the agent should trade rarely.
-- **209M is not better than 28M** on the same points (the 28M subset is even slightly ahead on direction) and is
+  (error ratio 1.00, direction 50%). This is expected for such markets: the agent trades on a weak signal, not on a proven edge.
+- **209M is not better than 28M** on the same points (error ratio 1.014 against 1.005, same direction rate) and is
   about 3.5x slower on CPU, so the agent keeps 28M.
 
 **Decisions against baselines** (last 28 days, 59 decision times, same rules and sizing, $10,000 allocated)
@@ -223,18 +231,58 @@ to skip parts.
 | Strategy | Return | Max drawdown | Trades | Average exposure |
 | --- | --- | --- | --- | --- |
 | Cash (never trade) | +0.00% | 0.00% | 0 | 0.0% |
-| Buy and hold | -1.01% | 3.28% | 26 | 80.4% |
-| Momentum rule | -1.58% | 2.40% | 138 | 35.9% |
-| Timestral-only rule (no LLM) | +0.13% | 2.14% | 17 | 33.2% |
-| Timestral + LLM (the agent) | +0.00% | 0.00% | 0 | 0.0% |
+| Buy and hold | -1.73% | 3.69% | 19 | 90.7% |
+| Momentum rule | -1.93% | 3.19% | 188 | 46.4% |
+| Timestral-only rule (no LLM) | +1.24% | 3.06% | 36 | 70.8% |
+| Timestral + LLM (the agent) | -0.95% | 1.85% | 17 | 34.6% |
 
-The LLM answered `hold` every time (0 failures): when the expected move is tiny next to the interval, as
-the prompt asks, it does not trade. With no measurable forecast edge, not trading is the sound decision, and
-the risk rules cap the damage of any other decision. The agent did not lose money while buy and hold lost 1.01%,
-but that is the market falling in this window, not a skill claim.
+**How the LLM decides.** One conversation per cycle (two Mistral calls for all the symbols). The LLM is shown the
+portfolio (equity, cash, positions, return since the start and today) and calls the tool for each symbol; the tool
+returns the forecast and a signal computed by the code (expected return over interval width). The prompt gives it
+reference points for that signal (median 0.015, 90th percentile 0.037 of the absolute signal over the 797
+evaluation points before the decision window, up to 2026-10-16) but no threshold or formula: it judges how strong
+each forecast is, weighs the symbols against each other and against the portfolio, and gives for each symbol an
+action, a confidence, a `size_fraction` (share of the maximum position for a buy, share of the current position
+for a sell) and a rationale. The code turns the size into dollars or shares and applies the risk rules, including
+the refusal to buy against the forecast. The Timestral-only baseline acts above a signal of 0.025 (75th percentile
+of the same pre-window data).
+
+Earlier versions were tried and are not retained as results: a prompt with a threshold of 0.02 read on all the
+history (including the test window, hence biased), a prompt with no threshold that made 5 trades in 28 days, a
+prompt with the threshold 0.025 as an instruction (the LLM then applied a formula, and in a simulated cycle still
+bought below it), and a version that decided each symbol in its own LLM call without seeing the portfolio.
+
+The risk limits were raised a little on purpose (position 25%, exposure 90%, minimum confidence 0.5,
+`max_uncertainty` 0.08, daily loss 10%, capital floor $5,000); they were chosen from the amount of risk wanted,
+not tuned on returns.
+
+**Result and how to read it.** Over 59 conversations (283 symbol decisions, 0 failures) the LLM chose 60 buys (mean
+size 0.26, mean confidence 0.50), 13 sells (mean size 0.30) and 210 holds. The code blocked 24 of the 60 buys
+because the forecast was not positive, and 32 of the 73 buys and sells for a confidence below 0.5 (some overlap
+is possible); the agent made 17 trades and was invested 35% of the time on average. -0.95% against -1.73% for buy
+and hold and +1.24% for the Timestral-only rule is all within the noise of a 28-day window: the forecast has no
+measurable edge (direction 50%), and this is not evidence of skill. The low drawdown (1.85%) mostly reflects that the
+agent was often in cash. The claim is that the agent makes explained decisions inside risk limits, not that it
+beats the market or the rule.
 
 ## Known limits
 
+- **The LLM often wants to buy against the forecast** (24 of its 60 buys in the backtest), and its confidence is
+  low (mean 0.50 against a minimum of 0.5), so the code blocks many of its decisions. The limits are applied as
+  written; they were not loosened to make the agent trade more.
+- **What the LLM already knows.** The LLM only receives numbers (last price, forecast, interval) with no date and
+  no news, but it sees the ticker, and its training data may cover part of the backtest window: the backtest
+  LLM row is not proof of skill. The live paper decisions are out-of-sample by construction. Mistral publishes no cutoff
+  for `mistral-small-2603` (third-party directories say June 2025, unverified), so part of the window may be inside
+  its training data; symbols were not anonymised.
+- **Universe.** The suggested ETFs XLE, XLF, XLU, TLT and EEM were replaced by AAPL and MSFT to keep a small,
+  liquid set on the free IEX feed; FRED macro drivers are not used (the forecast is univariate). The LLM
+  also sizes sells (a share of the position), and the backtest had 6 sell decisions, mostly
+  near full size (mean 0.85), so partial sells are mainly covered by tests.
+- **No transaction costs** in the backtest (fills at the next bar close, no spread, no fees). Alpaca charges no
+  commission; its regulatory fees (SEC, FINRA TAF, on sells) are tiny and it is not documented whether paper
+  accounts simulate them. At a few basis points per trade and about 20 trades of at most $2,500 in 28 days, costs are
+  below 0.02% of the capital (estimate, not simulated).
 - **Evidence is short.** The decision backtest covers 28 days (59 decision times) and one market regime, with no
   significance test. The +0.13% of the Timestral-only rule on 17 trades is noise.
 - **The LLM never bought or sold in the backtest window**, so its buy and sell decisions are covered by tests and
@@ -249,69 +297,12 @@ but that is the market falling in this window, not a skill claim.
 - **Alpaca calls have no explicit timeout** (`alpaca-py` does not expose one simply); retries and the job timeout
   bound the damage.
 - **The 80% range calibration drifts over time.** The 10%-90% interval was too wide from May to August (about
-  13-16% of points outside it, 20% expected) and slightly too narrow since September (about 22-26% outside,
-  whatever the news volume). The 78.8% overall coverage above averages both periods, so the interval used to
+  13-16% of points outside it, 20% expected) and slightly too narrow since September (about 22-26% outside). The 78.5% overall coverage above averages both periods, so the interval used to
   size positions and refuse uncertain buys is not equally reliable at every date.
-- **News covariates: measured, no improvement** (see "News covariates (bonus)" below).
-- **`agent/news_analysis.py` is experimental:** a one-off exploratory script, not used by the agent, with partial
-  tests (statistics helpers only, not the full run).
-- Baseline parameters (`rule_signal_threshold`, `momentum_bars`) are fixed in `config.toml`, not tuned.
-
-## News covariates (bonus)
-
-Goal: give Timestral a news signal as a past-only covariate (`past_covariates`) and measure honestly whether
-it helps. **Result: neither version improves the forecast. `news.enabled = false`, and the news is not used by
-the live cycle or the dashboard.**
-
-- **First attempt, GDELT (abandoned).** Its DOC API kept answering HTTP 429 from this machine even at 15 s
-  spacing with backoff, relevance of keyword matches was poor, history is limited to 3 months and `seendate`
-  is when GDELT saw the article. The code was removed.
-- **Source: Alpaca news API** (same keys, free plan, 200 requests per minute, history back to 2015, fetched
-  with `alpaca-py` in `broker.py`). Articles are cached per symbol and day in SQLite (`agent/news.py`); only
-  headline, summary, source, URL and time are kept, never the full text.
-- **Version 1, article count (no LLM).** For each hourly bar of the context, the number of articles tagged with
-  the symbol over the last `news.window_bars` bars, computed in code. No article means 0. An article counts
-  only in bars ending at or after its `created_at` (no look-ahead); articles published between two bars
-  (overnight, weekend) fall in the next bar.
-- **Version 2, LLM sentiment (`mistral-small-2603`, Mistral Small 4).** The LLM scores each headline plus
-  summary with a `sentiment` in [-1, 1] and a `relevance` in [0, 1] (structured output, validated and clamped,
-  one retry, headlines delimited as data). Scoring is batched per symbol and day (40 articles at most per call),
-  cached per article, and capped at 700 calls once (`news.max_scoring_calls`). The covariate is the
-  relevance-weighted mean sentiment over the last `news.window_bars` bars, computed in code, NaN with no news.
-  GLD is not scored (about 9 articles a week). The score of an article only depends on its text, and the
-  articles are later than the model's release, so the score cannot leak the outcome.
-- **A/B backtest** (`uv run python -m agent.news_backtest`, add `--score` for version 2; report in
-  `reports/news_ab.md`): the same walk-forward points with and without each covariate, 6-bar horizon, May to
-  November 2026.
-
-| Variant (same points) | Points | MAE ratio vs naive | Direction hit rate | 10%-90% coverage |
-| --- | --- | --- | --- | --- |
-| Without news | 1,093 | 1.000 | 50.1% | 78.7% |
-| V1 article count | 1,093 | 1.001 | 49.5% | 78.6% |
-| Without news (4 scored symbols) | 890 | 0.998 | 51.6% | 78.7% |
-| V2 LLM sentiment | 890 | 1.000 | 49.7% | 78.1% |
-
-The paired change of the absolute error is +0.12% for version 1 and +0.16% for version 2, both with a 95%
-interval that includes zero (news better on 51% of points): **no measurable improvement**, overall or for any
-symbol. Timestral itself does not beat the naive "price stays" forecast at this horizon, so there was little to
-improve. Version 2 cost 690 calls, 0.64M input and 0.24M output tokens, about $0.24; 13 of 9,421 articles stayed
-unscored (one batch the LLM got wrong twice).
-
-Limits: points overlap in time, so the intervals are optimistic; one market regime and a single Timestral run
-per variant; a 6-hour window and one covariate were tested, not other designs (longer windows, several
-covariates, known-future events); Alpaca `created_at` is trusted as the time the article was available. Live
-integration and dashboard changes were deliberately not built because there is no improvement to show.
-
-Follow-up analysis (no new LLM call, `uv run python -m agent.news_analysis`, protocol written beforehand in
-`reports/news_analysis_plan.md`, results in `reports/news_analysis.md`). Three hypotheses were chosen on May to
-August (348 points) and confirmed once on September to November (735 points), with day-bootstrap intervals:
-(H1) high news volume or absolute sentiment precedes larger moves beyond past volatility: no clear effect, and
-the volatility + news model fits slightly worse out of sample than volatility alone; (H2) the 10%-90% range is
-more often missed when news volume is high: 25.9% against 21.8% of points, interval [-5.5, +14.0] points, no
-clear effect; (H3) finer covariates (12 and 24 bar windows, count surprise, absolute sentiment) help Timestral:
-the variant selected on tuning changes the error by -0.01%, no clear effect. All 6 + 3 + 6 variants tried are
-listed in the report. The range was missed in about 22-26% of points since September against a nominal 20%,
-whatever the news volume. The bonus stops here.
+- Baseline parameters (`rule_signal_threshold`, `momentum_bars`) are fixed in `config.toml`; the threshold comes
+  from the data before the decision window, `momentum_bars` is not tuned.
+- **No news.** The bonus (news as covariates for Timestral) was tried (Alpaca article counts and LLM sentiment),
+  showed no measurable improvement, and was removed from the code; it is still in the git history.
 
 ## Development
 

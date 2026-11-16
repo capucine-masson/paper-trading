@@ -3,23 +3,23 @@
 import logging
 import time
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 
 from alpaca.common.exceptions import APIError
 from alpaca.data.enums import DataFeed
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.historical.news import NewsClient
-from alpaca.data.models.news import News
-from alpaca.data.requests import NewsRequest, StockBarsRequest
+from alpaca.data.models.bars import BarSet
+from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.models import Clock, Order, TradeAccount
 from alpaca.trading.models import Position as AlpacaPosition
 from alpaca.trading.requests import MarketOrderRequest
 from pydantic import BaseModel
 
 from agent.config import BrokerConfig, Secrets
-from agent.data import HEADLINE_MAX, SUMMARY_MAX, Article, Bar
+from agent.data import Bar
 from agent.risk import OrderSpec, Position
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,6 @@ PAPER_ACCOUNT_PREFIX = "PA"
 HTTP_NOT_FOUND = 404
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
-NEWS_MAX_PER_WINDOW = 1000
 
 
 class BrokerError(Exception):
@@ -49,15 +48,11 @@ class OrderRecord(BaseModel):
     filled_at: datetime | None = None
 
 
-def _to_article(item: News) -> Article:
-    return Article(
-        id=item.id,
-        created_at=item.created_at.astimezone(UTC),
-        headline=item.headline[:HEADLINE_MAX],
-        summary=item.summary[:SUMMARY_MAX],
-        source=item.source,
-        url=item.url,
-    )
+def _expect[T](response: object, kind: type[T]) -> T:
+    """Alpaca types its answers as model-or-dict; only the model is ever expected here."""
+    if not isinstance(response, kind):
+        raise BrokerError(f"Unexpected Alpaca response: {type(response).__name__}")
+    return response
 
 
 def _is_transient(error: Exception) -> bool:
@@ -74,7 +69,6 @@ class Broker:
         self._config = config
         self._trading = TradingClient(key, secret, paper=True, url_override=PAPER_URL)
         self._data = StockHistoricalDataClient(key, secret)
-        self._news = NewsClient(key, secret)
         self._feed = DataFeed(feed)
         self._check_paper_account()
 
@@ -94,15 +88,15 @@ class Broker:
                 attempt += 1
 
     def _check_paper_account(self) -> None:
-        account = self._retry(self._trading.get_account)
-        if not str(account.account_number).startswith(PAPER_ACCOUNT_PREFIX):  # type: ignore[union-attr]
+        account = _expect(self._retry(self._trading.get_account), TradeAccount)
+        if not str(account.account_number).startswith(PAPER_ACCOUNT_PREFIX):
             raise RuntimeError("Refusing to start: the Alpaca account is not a paper account.")
 
     def is_market_open(self) -> bool:
-        return bool(self._retry(self._trading.get_clock).is_open)  # type: ignore[union-attr]
+        return bool(_expect(self._retry(self._trading.get_clock), Clock).is_open)
 
     def get_equity(self) -> float:
-        equity = self._retry(self._trading.get_account).equity  # type: ignore[union-attr]
+        equity = _expect(self._retry(self._trading.get_account), TradeAccount).equity
         if equity is None:
             raise BrokerError("Alpaca returned no account equity")
         return float(equity)
@@ -123,28 +117,11 @@ class Broker:
             end=end,
             feed=self._feed,
         )
-        bar_set = self._retry(lambda: self._data.get_stock_bars(request))
+        bar_set = _expect(self._retry(lambda: self._data.get_stock_bars(request)), BarSet)
         return [
             Bar(symbol=symbol, timestamp=bar.timestamp, close=bar.close)
-            for symbol, bars in bar_set.data.items()  # type: ignore[union-attr]
+            for symbol, bars in bar_set.data.items()
             for bar in bars
-        ]
-
-    def fetch_news(self, symbol: str, start: datetime, end: datetime) -> list[Article]:
-        """Articles tagged with the symbol and created in [start, end], oldest first."""
-        request = NewsRequest(
-            symbols=symbol,
-            start=start,
-            end=end,
-            sort="asc",
-            limit=NEWS_MAX_PER_WINDOW,
-            include_content=False,
-        )
-        news_set = self._retry(lambda: self._news.get_news(request))
-        return [
-            _to_article(item)
-            for item in news_set.data["news"]  # type: ignore[union-attr]
-            if isinstance(item, News)
         ]
 
     def find_order(self, client_order_id: str) -> OrderRecord | None:
@@ -154,7 +131,7 @@ class Broker:
             if error.status_code == HTTP_NOT_FOUND:
                 return None
             raise
-        return _to_record(order)
+        return _to_record(_expect(order, Order))
 
     def refresh_order(self, record: OrderRecord) -> OrderRecord:
         """Read the order again (status and fill) without ever submitting anything."""
@@ -176,23 +153,27 @@ class Broker:
             existing = self.find_order(client_order_id)
             if existing is not None:
                 return existing
-            return _to_record(self._trading.submit_order(request))
+            return _to_record(_expect(self._trading.submit_order(request), Order))
 
         return self._retry(attempt)
 
 
-def _to_record(order: object) -> OrderRecord:
+def _to_record(order: Order) -> OrderRecord:
+    if order.side is None:
+        raise BrokerError(f"Alpaca order {order.client_order_id} has no side")
     return OrderRecord(
-        order_id=str(order.id),  # type: ignore[attr-defined]
-        client_order_id=str(order.client_order_id),  # type: ignore[attr-defined]
-        symbol=str(order.symbol),  # type: ignore[attr-defined]
-        side=str(order.side.value),  # type: ignore[attr-defined]
-        status=str(order.status.value),  # type: ignore[attr-defined]
-        notional=None if order.notional is None else float(order.notional),  # type: ignore[attr-defined]
-        qty=None if order.qty is None else float(order.qty),  # type: ignore[attr-defined]
-        filled_qty=None if order.filled_qty is None else float(order.filled_qty),  # type: ignore[attr-defined]
-        filled_avg_price=(
-            None if order.filled_avg_price is None else float(order.filled_avg_price)  # type: ignore[attr-defined]
-        ),
-        filled_at=order.filled_at,  # type: ignore[attr-defined]
+        order_id=str(order.id),
+        client_order_id=str(order.client_order_id),
+        symbol=str(order.symbol),
+        side=order.side.value,
+        status=order.status.value,
+        notional=_number(order.notional),
+        qty=_number(order.qty),
+        filled_qty=_number(order.filled_qty),
+        filled_avg_price=_number(order.filled_avg_price),
+        filled_at=order.filled_at,
     )
+
+
+def _number(value: str | float | None) -> float | None:
+    return None if value is None else float(value)

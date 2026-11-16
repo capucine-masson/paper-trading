@@ -29,6 +29,11 @@ class PriceForecast(BaseModel):
     upper: list[float]
     uncertainty: float
 
+    @property
+    def signal(self) -> float:
+        """Expected return at the horizon divided by the interval width: a unitless conviction."""
+        return (self.median[-1] / self.last_price - 1) / self.uncertainty
+
 
 def load_model(name: str) -> TimestralForecaster:
     return TimestralForecaster.from_pretrained(name)
@@ -38,20 +43,9 @@ def forecast_symbol(
     forecaster: TimestralForecaster,
     series: PriceSeries,
     config: ForecastConfig,
-    news_count: NDArray[np.float64] | None = None,
 ) -> PriceForecast:
-    """With `news_count`, the article counts are given to Timestral as a past-only covariate."""
     with torch.no_grad():
-        if news_count is None:
-            result = forecaster.forecast(series.values, prediction_length=config.horizon)
-        else:
-            if news_count.shape != series.values.shape:
-                raise ForecastError(f"{series.symbol}: news covariate does not match the series")
-            result = forecaster.forecast(
-                series.values[np.newaxis, np.newaxis, :],
-                prediction_length=config.horizon,
-                past_covariates=news_count[np.newaxis, np.newaxis, :],
-            )
+        result = forecaster.forecast(series.values, prediction_length=config.horizon)
     quantiles = result.quantiles.numpy()[0, 0]
     return validate_forecast(series, config, quantiles, result.quantile_levels)
 
@@ -75,6 +69,8 @@ def validate_forecast(
     upper = quantiles[:, levels.index(UPPER_LEVEL)]
     if (lower <= 0).any():
         raise ForecastError(f"{symbol}: forecast lower bound is not positive")
+    if upper[-1] <= lower[-1]:
+        raise ForecastError(f"{symbol}: forecast interval has no width")
     return PriceForecast(
         symbol=symbol,
         model=config.model,

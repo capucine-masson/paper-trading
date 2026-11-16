@@ -4,12 +4,12 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from agent.config import RiskConfig
+from agent.config import PERCENT, RiskConfig
 from agent.forecast import PriceForecast
 from agent.llm import Decision
 
-PERCENT = 100.0
 MIN_ORDER_NOTIONAL = 1.0
+QTY_DECIMALS = 6
 
 
 class Position(BaseModel):
@@ -75,6 +75,7 @@ def evaluate(
     allowed_symbols: list[str],
     halted_reason: str | None,
     orders_approved: int,
+    forecast_guard: bool = True,
 ) -> Verdict:
     symbol = forecast.symbol
     if not risk.enabled:
@@ -90,58 +91,69 @@ def evaluate(
     if orders_approved >= risk.max_orders_per_cycle:
         return _rejected(f"maximum of {risk.max_orders_per_cycle} orders per cycle reached")
     if decision.action == "sell":
-        return _sell(symbol, portfolio)
-    return _buy(forecast, portfolio, risk)
+        return _sell(decision, symbol, portfolio)
+    return _buy(decision, forecast, portfolio, risk, forecast_guard)
 
 
 def _rejected(reason: str) -> Verdict:
     return Verdict(approved=False, reason=reason)
 
 
-def _sell(symbol: str, portfolio: Portfolio) -> Verdict:
+def _sell(decision: Decision, symbol: str, portfolio: Portfolio) -> Verdict:
     position = portfolio.positions.get(symbol)
     if position is None or position.qty <= 0:
         return _rejected(f"no {symbol} position to sell (long only)")
-    order = OrderSpec(symbol=symbol, side="sell", qty=position.qty)
-    return Verdict(approved=True, reason="sell the whole position", order=order)
+    if decision.size_fraction == 0:
+        return _rejected("sell with a size of zero: no order")
+    qty = min(round(position.qty * decision.size_fraction, QTY_DECIMALS), position.qty)
+    order = OrderSpec(symbol=symbol, side="sell", qty=qty)
+    share = (
+        "the whole position"
+        if qty == position.qty
+        else f"{decision.size_fraction:.0%} of the position"
+    )
+    return Verdict(approved=True, reason=f"sell {share}", order=order)
 
 
-def _buy(forecast: PriceForecast, portfolio: Portfolio, risk: RiskConfig) -> Verdict:
+def _buy(
+    decision: Decision,
+    forecast: PriceForecast,
+    portfolio: Portfolio,
+    risk: RiskConfig,
+    forecast_guard: bool,
+) -> Verdict:
     symbol = forecast.symbol
+    if decision.size_fraction == 0:
+        return _rejected("buy with a size of zero: no order")
+    expected_return = forecast.median[-1] / forecast.last_price - 1
+    if forecast_guard and expected_return <= 0:
+        return _rejected(
+            f"expected return {expected_return:+.2%} is not positive: no buy against the forecast"
+        )
     if forecast.uncertainty > risk.max_uncertainty:
         return _rejected(f"uncertainty {forecast.uncertainty:.2%} above {risk.max_uncertainty:.2%}")
     max_daily_loss = risk.max_daily_loss_pct / PERCENT * risk.allocated_capital
     if portfolio.day_start_equity - portfolio.equity > max_daily_loss:
         return _rejected(f"daily loss above ${max_daily_loss:,.2f}: no more buys today")
-    notional = size_buy(forecast.uncertainty, symbol, portfolio, risk)
-    if notional < MIN_ORDER_NOTIONAL:
-        return _rejected(f"no room to buy {symbol} within position and exposure limits")
-    order = OrderSpec(symbol=symbol, side="buy", notional=notional)
-    wanted = round(buy_target(forecast.uncertainty, risk), 2)
-    if notional < wanted:
-        reason = (
-            f"buy ${notional:,.2f}, reduced from ${wanted:,.2f} by position and exposure limits"
-        )
-        return Verdict(approved=True, reason=reason, order=order, reduced=True)
-    return Verdict(approved=True, reason=f"buy ${notional:,.2f}", order=order)
-
-
-def buy_target(uncertainty: float, risk: RiskConfig) -> float:
-    """Wider forecast interval, smaller position."""
-    position_cap = risk.max_position_pct / PERCENT * risk.allocated_capital
-    return position_cap * (1 - uncertainty / risk.max_uncertainty)
-
-
-def size_buy(uncertainty: float, symbol: str, portfolio: Portfolio, risk: RiskConfig) -> float:
-    """The uncertainty-scaled target, capped by position and exposure room."""
     position_cap = risk.max_position_pct / PERCENT * risk.allocated_capital
     exposure_cap = risk.max_total_exposure_pct / PERCENT * risk.allocated_capital
     held = portfolio.positions.get(symbol)
-    held_value = 0.0 if held is None else held.market_value
-    room = min(
-        buy_target(uncertainty, risk), position_cap - held_value, exposure_cap - portfolio.exposure
+    wanted = position_cap * min(
+        decision.size_fraction, 1 - forecast.uncertainty / risk.max_uncertainty
     )
-    return round(max(room, 0.0), 2)
+    room = min(
+        position_cap - (0.0 if held is None else held.market_value),
+        exposure_cap - portfolio.exposure,
+    )
+    notional = round(max(min(wanted, room), 0.0), 2)
+    if notional < MIN_ORDER_NOTIONAL:
+        return _rejected(f"no room to buy {symbol} within position and exposure limits")
+    reduced = notional < round(wanted, 2)
+    reason = f"buy ${notional:,.2f}"
+    if reduced:
+        reason += f", reduced from ${wanted:,.2f} by position and exposure limits"
+    order = OrderSpec(symbol=symbol, side="buy", notional=notional)
+    return Verdict(approved=True, reason=reason, order=order, reduced=reduced)
 
 
 def apply_to_portfolio(portfolio: Portfolio, verdict: Verdict) -> None:
@@ -149,7 +161,15 @@ def apply_to_portfolio(portfolio: Portfolio, verdict: Verdict) -> None:
     order = verdict.order
     assert order is not None
     if order.side == "sell":
-        portfolio.positions.pop(order.symbol, None)
+        held_position = portfolio.positions[order.symbol]
+        remaining = held_position.qty - (order.qty or 0.0)
+        if remaining <= 0:
+            portfolio.positions.pop(order.symbol)
+        else:
+            portfolio.positions[order.symbol] = Position(
+                qty=remaining,
+                market_value=held_position.market_value * remaining / held_position.qty,
+            )
         return
     held = portfolio.positions.get(order.symbol, Position(qty=0.0, market_value=0.0))
     portfolio.positions[order.symbol] = Position(

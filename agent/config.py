@@ -14,12 +14,16 @@ JOURNAL_PATH = ROOT / "journal.db"
 EXPORT_DIR = ROOT / "web" / "public" / "data"
 REPORTS_DIR = ROOT / "reports"
 
+PERCENT = 100.0
+
 Symbol = Annotated[str, StringConstraints(pattern=r"^[A-Z]{1,5}$")]
 
 
-class MarketConfig(BaseModel):
+class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+
+class MarketConfig(StrictModel):
     symbols: list[Symbol] = Field(min_length=1, max_length=20)
     feed: str = Field(pattern=r"^(iex|sip)$")
     history_days: int = Field(ge=7, le=365)
@@ -27,17 +31,13 @@ class MarketConfig(BaseModel):
     max_gap_ratio: float = Field(ge=0, le=1)
 
 
-class ForecastConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class ForecastConfig(StrictModel):
     model: str = Field(min_length=3, max_length=100)
     context_length: int = Field(ge=64, le=4000)
     horizon: int = Field(ge=1, le=96)
 
 
-class LlmConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class LlmConfig(StrictModel):
     model: str = Field(min_length=3, max_length=100)
     temperature: float = Field(ge=0, le=1)
     timeout_s: int = Field(ge=1, le=300)
@@ -45,9 +45,7 @@ class LlmConfig(BaseModel):
     retry_delay_s: float = Field(gt=0, le=60)
 
 
-class RiskConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class RiskConfig(StrictModel):
     enabled: bool
     allocated_capital: float = Field(gt=0)
     capital_floor: float = Field(ge=0)
@@ -67,16 +65,12 @@ class RiskConfig(BaseModel):
         return self
 
 
-class BrokerConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class BrokerConfig(StrictModel):
     max_attempts: int = Field(ge=1, le=10)
     retry_delay_s: float = Field(gt=0, le=60)
 
 
-class BacktestConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class BacktestConfig(StrictModel):
     history_days: int = Field(ge=30, le=730)
     stride_bars: int = Field(ge=1, le=100)
     decision_window_days: int = Field(ge=1, le=365)
@@ -86,33 +80,13 @@ class BacktestConfig(BaseModel):
     momentum_bars: int = Field(ge=1, le=100)
 
 
-class NewsConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    enabled: bool
-    window_bars: int = Field(ge=1, le=72)
-    request_interval_s: float = Field(ge=0, le=10)
-    scored_symbols: list[Symbol]
-    score_batch_size: int = Field(ge=1, le=100)
-    max_scoring_calls: int = Field(ge=1, le=5000)
-
-
-class Config(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
+class Config(StrictModel):
     market: MarketConfig
     forecast: ForecastConfig
     llm: LlmConfig
     risk: RiskConfig
     broker: BrokerConfig
     backtest: BacktestConfig
-    news: NewsConfig
-
-    @model_validator(mode="after")
-    def check_scored_symbols(self) -> "Config":
-        if not set(self.news.scored_symbols) <= set(self.market.symbols):
-            raise ValueError("news.scored_symbols must be market symbols")
-        return self
 
 
 class Secrets(BaseSettings):

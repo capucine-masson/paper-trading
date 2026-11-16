@@ -1,27 +1,33 @@
-from types import SimpleNamespace
+from datetime import UTC, datetime
 
 import pytest
 from alpaca.common.exceptions import APIError
+from alpaca.trading.models import Order
 
 from agent.broker import Broker, BrokerError
 from agent.config import BrokerConfig
 from agent.risk import OrderSpec
 
+NOW = datetime(2026, 11, 10, tzinfo=UTC)
 SPEC = OrderSpec(symbol="SPY", side="buy", notional=100.0)
 
 
-def fake_order(client_order_id: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        id="o1",
-        client_order_id=client_order_id,
-        symbol="SPY",
-        side=SimpleNamespace(value="buy"),
-        status=SimpleNamespace(value="accepted"),
-        notional="100",
-        qty=None,
-        filled_qty=None,
-        filled_avg_price=None,
-        filled_at=None,
+def fake_order(client_order_id: str) -> Order:
+    return Order.model_validate(
+        {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "client_order_id": client_order_id,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "submitted_at": NOW,
+            "order_class": "simple",
+            "time_in_force": "day",
+            "status": "accepted",
+            "extended_hours": False,
+            "symbol": "SPY",
+            "side": "buy",
+            "notional": "100",
+        }
     )
 
 
@@ -37,12 +43,12 @@ class FakeTrading:
         self.failures = failures
         self.submits = 0
 
-    def get_order_by_client_id(self, client_order_id: str) -> SimpleNamespace:
+    def get_order_by_client_id(self, client_order_id: str) -> Order:
         if self.existing:
             return fake_order(client_order_id)
         raise NotFound("not found")  # type: ignore[no-untyped-call]
 
-    def submit_order(self, request: object) -> SimpleNamespace:
+    def submit_order(self, request: object) -> Order:
         self.submits += 1
         if self.failures > 0:
             self.failures -= 1

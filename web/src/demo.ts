@@ -147,6 +147,7 @@ export function buildDemoData(): DashboardData {
         symbol,
         action,
         confidence,
+        size_fraction: action === "buy" ? 0.5 : 0,
         rationale: demoRationale(symbol, action, (drift * HORIZON) / last, (2 * spread * Math.sqrt(HORIZON)) / last),
         price: last,
         position_qty: Number(heldQty.toFixed(3)),

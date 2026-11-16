@@ -92,7 +92,8 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
         The agent manages {formatUsd(status.allocated_capital)}
         {status.account_size === null
           ? " of its Alpaca paper account."
-          : ` of a ${formatUsd(status.account_size)} Alpaca paper account.`}
+          : ` of a ${formatUsd(status.account_size)} Alpaca paper account.`}{" "}
+        Paper trading only, not investment advice.
       </p>
       <ExportBar />
     </div>

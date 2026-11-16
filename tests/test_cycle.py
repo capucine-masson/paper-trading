@@ -7,8 +7,9 @@ from agent import cycle as cycle_module
 from agent.broker import OrderRecord
 from agent.config import Config, load_config
 from agent.cycle import Cycle
+from agent.data import DataError
 from agent.forecast import PriceForecast
-from agent.llm import Decision
+from agent.llm import Decision, Decisions, ForecastTool, SymbolDecision
 from agent.risk import OrderSpec, Position
 from agent.store import Store
 
@@ -68,9 +69,13 @@ def llm_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
             uncertainty=0.02,
         )
 
-    def fake_decide(*args: object) -> Decision:
+    def fake_decide(
+        client: object, symbols: list[str], data: str, tool: ForecastTool, *rest: object
+    ) -> Decisions:
         calls.append("llm")
-        return Decision(action="buy", confidence=0.9, rationale="test")
+        decision = Decision(action="buy", confidence=0.9, size_fraction=1.0, rationale="test")
+        served = [symbol for symbol in symbols if tool(symbol) is not None]
+        return Decisions(decisions=[SymbolDecision(symbol=s, decision=decision) for s in served])
 
     monkeypatch.setattr(Cycle, "_forecast", fake_forecast)
     monkeypatch.setattr(cycle_module, "decide", fake_decide)
@@ -114,7 +119,8 @@ def test_below_capital_floor_halts_and_stays_halted(
     broker = FakeBroker()
     make_cycle(config, tmp_path, broker, True, "c0").run()
     broker.submitted.clear()
-    broker.equity = START_EQUITY - 2_500.0
+    below_floor = config.risk.allocated_capital - config.risk.capital_floor + 500.0
+    broker.equity = START_EQUITY - below_floor
     report = make_cycle(config, tmp_path, broker, True, "c2").run()
     assert report.halted_reason is not None and broker.submitted == []
     broker.equity = START_EQUITY
@@ -133,3 +139,26 @@ def test_fill_is_recorded_after_the_order_and_only_when_executing(
     assert len(stored) == 1
     record = OrderRecord.model_validate_json(stored[0].result)
     assert record.status == "filled" and record.filled_avg_price == 100.5
+
+
+def test_a_symbol_without_forecast_does_not_stop_the_others(
+    config: Config, tmp_path: Path, llm_calls: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original = Cycle._forecast
+
+    def forecast_or_fail(self: Cycle, symbol: str) -> PriceForecast:
+        if symbol == "QQQ":
+            raise DataError("QQQ: no data")
+        return original(self, symbol)
+
+    monkeypatch.setattr(Cycle, "_forecast", forecast_or_fail)
+    two = config.model_copy(
+        update={"market": config.market.model_copy(update={"symbols": ["SPY", "QQQ"]})}
+    )
+    broker = FakeBroker()
+    report = make_cycle(two, tmp_path, broker, True).run()
+    assert broker.submitted == ["c1-SPY-buy"]
+    assert (
+        report.outcomes["QQQ"].error == "QQQ: no data" and report.outcomes["QQQ"].decision is None
+    )
+    assert report.status == "error"

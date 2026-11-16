@@ -14,7 +14,7 @@ from agent.broker import Broker, BrokerError, OrderRecord
 from agent.config import Config
 from agent.data import Bar, DataError, build_series, check_freshness
 from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_model
-from agent.llm import Decision, LlmError, decide
+from agent.llm import Decision, Decisions, LlmError, build_portfolio_data, decide
 from agent.risk import (
     Portfolio,
     PortfolioSnapshot,
@@ -82,7 +82,7 @@ class Cycle:
             PortfolioSnapshot,
             lambda: snapshot(portfolio, halted),
         )
-        outcomes = {symbol: self._analyze(symbol) for symbol in self.config.market.symbols}
+        outcomes = self._analyze(portfolio)
         self._apply_risk(outcomes, portfolio, halted)
         errors = [f"{s}: {o.error}" for s, o in outcomes.items() if o.error is not None]
         status = STATUS_ERROR if errors else STATUS_SUCCESS
@@ -159,33 +159,59 @@ class Cycle:
             check_freshness(series, now, market)
         return forecast_symbol(forecaster, series, self.config.forecast)
 
-    def _analyze(self, symbol: str) -> SymbolOutcome:
+    def _forecast_step(self, symbol: str) -> PriceForecast:
+        """The Timestral tool: run once per symbol and cycle, then read back from the journal."""
+        return self._step(symbol, "forecast", PriceForecast, lambda: self._forecast(symbol))
+
+    def _analyze(self, portfolio: Portfolio) -> dict[str, SymbolOutcome]:
+        """One LLM conversation for all symbols; a symbol the LLM could not decide gets an error."""
+        symbols = self.config.market.symbols
+        errors: dict[str, str] = {}
+
+        def forecast_tool(symbol: str) -> PriceForecast | None:
+            try:
+                return self._forecast_step(symbol)
+            except (DataError, ForecastError, BrokerError) as error:
+                errors[symbol] = self._fail(symbol, str(error))
+                return None
+
+        held = {symbol: position.market_value for symbol, position in portfolio.positions.items()}
+        data = build_portfolio_data(
+            portfolio.equity, self.config.risk.allocated_capital, portfolio.day_start_equity, held
+        )
         try:
-            forecast = self._step(symbol, "forecast", PriceForecast, lambda: self._forecast(symbol))
-        except (DataError, ForecastError, BrokerError) as error:
-            return SymbolOutcome(error=self._fail(symbol, str(error)))
-        try:
-            decision = self._step(
-                symbol,
-                "llm",
-                Decision,
-                lambda: decide(self.llm_client, forecast, self.config.llm, self.cycle_id),
+            decisions = self._step(
+                CYCLE_SCOPE,
+                "decisions",
+                Decisions,
+                lambda: decide(
+                    self.llm_client, symbols, data, forecast_tool, self.config.llm, self.cycle_id
+                ),
             )
         except LlmError as error:
-            return SymbolOutcome(forecast=forecast, error=self._fail(symbol, str(error)))
-        return SymbolOutcome(forecast=forecast, decision=decision)
+            message = self._fail(CYCLE_SCOPE, str(error))
+            return {symbol: SymbolOutcome(error=errors.get(symbol, message)) for symbol in symbols}
+        decided = {item.symbol: item.decision for item in decisions.decisions}
+        return {
+            symbol: SymbolOutcome(forecast=self._forecast_step(symbol), decision=decided[symbol])
+            if symbol in decided
+            else SymbolOutcome(error=errors.get(symbol, "no forecast requested by the LLM"))
+            for symbol in symbols
+        }
 
     def _apply_risk(
         self, outcomes: dict[str, SymbolOutcome], portfolio: Portfolio, halted: str | None
     ) -> None:
-        by_confidence = sorted(
-            (item for item in outcomes.items() if item[1].decision is not None),
-            key=lambda item: item[1].decision.confidence,  # type: ignore[union-attr]
-            reverse=True,
-        )
+        ready = [
+            (symbol, outcome, outcome.decision, outcome.forecast)
+            for symbol, outcome in outcomes.items()
+            if outcome.decision is not None and outcome.forecast is not None
+        ]
         approved_count = 0
-        for symbol, outcome in by_confidence:
-            verdict = self._verdict(symbol, outcome, portfolio, halted, approved_count)
+        for symbol, outcome, decision, forecast in sorted(
+            ready, key=lambda item: item[2].confidence, reverse=True
+        ):
+            verdict = self._verdict(symbol, decision, forecast, portfolio, halted, approved_count)
             outcome.verdict = verdict
             if verdict.approved:
                 approved_count += 1
@@ -196,13 +222,12 @@ class Cycle:
     def _verdict(
         self,
         symbol: str,
-        outcome: SymbolOutcome,
+        decision: Decision,
+        forecast: PriceForecast,
         portfolio: Portfolio,
         halted: str | None,
         approved_count: int,
     ) -> Verdict:
-        decision, forecast = outcome.decision, outcome.forecast
-        assert decision is not None and forecast is not None
         return self._step(
             symbol,
             "verdict",

@@ -75,6 +75,7 @@ export interface DecisionView {
   symbol: string;
   action: "buy" | "sell" | "hold";
   confidence: number;
+  size_fraction: number;
   rationale: string;
   price: number | null;
   position_qty: number;

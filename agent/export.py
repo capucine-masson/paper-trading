@@ -14,7 +14,7 @@ from agent.broker import OrderRecord
 from agent.config import EXPORT_DIR, JOURNAL_PATH, REPORTS_DIR, Config, load_config
 from agent.cycle import ACCOUNT_EQUITY_KEY, HALTED_KEY
 from agent.forecast import PriceForecast
-from agent.llm import Decision
+from agent.llm import Decisions
 from agent.metrics import buy_and_hold_curve, max_drawdown
 from agent.risk import PortfolioSnapshot, Verdict
 from agent.store import StepRow, Store, is_simulation
@@ -29,7 +29,6 @@ BACKTEST_FILE = "backtest.json"
 CSV_ENCODING = "utf-8-sig"
 CSV_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 FORMULA_PREFIXES = ("=", "+", "-", "@")
-MIN_CURVE_POINTS = 2
 
 
 class EquityPoint(BaseModel):
@@ -71,6 +70,7 @@ class DecisionView(BaseModel):
     symbol: str
     action: str
     confidence: float
+    size_fraction: float
     rationale: str
     price: float | None
     position_qty: float
@@ -90,13 +90,13 @@ class CycleView(BaseModel):
 
 
 class Metrics(BaseModel):
-    equity: float | None
-    pnl: float | None
-    total_return: float | None
-    buy_and_hold_return: float | None
-    max_drawdown: float | None
-    exposure: float | None
-    cash: float | None
+    equity: float | None = None
+    pnl: float | None = None
+    total_return: float | None = None
+    buy_and_hold_return: float | None = None
+    max_drawdown: float | None = None
+    exposure: float | None = None
+    cash: float | None = None
 
 
 class Status(BaseModel):
@@ -217,25 +217,14 @@ def _metrics(
     allocated: float,
 ) -> Metrics:
     if latest is None:
-        return Metrics(
-            equity=None,
-            pnl=None,
-            total_return=None,
-            buy_and_hold_return=None,
-            max_drawdown=None,
-            exposure=None,
-            cash=None,
-        )
+        return Metrics()
     pnl = latest.equity - allocated
     reference = [p.buy_and_hold for p in points if p.buy_and_hold is not None]
-    reference_return = None
-    if len(reference) >= MIN_CURVE_POINTS:
-        reference_return = reference[-1] / reference[0] - 1
     return Metrics(
         equity=latest.equity,
         pnl=pnl,
         total_return=pnl / allocated,
-        buy_and_hold_return=reference_return,
+        buy_and_hold_return=reference[-1] / reference[0] - 1 if len(reference) >= 2 else None,
         max_drawdown=max_drawdown([p.equity for p in points]),
         exposure=latest.exposure,
         cash=latest.equity - latest.exposure,
@@ -276,32 +265,36 @@ def _decisions(
     }
     orders = {(t.cycle_id, t.symbol): t for t in trades}
     views = []
-    for row in _real_steps(store, "llm"):
-        key = (row.cycle_id, row.symbol)
-        decision = Decision.model_validate_json(row.result)
-        verdict, forecast, snap = verdicts.get(key), forecasts.get(key), snapshots.get(row.cycle_id)
-        held = None if snap is None else snap.positions.get(row.symbol)
-        views.append(
-            DecisionView(
-                t=row.created_at,
-                cycle_id=row.cycle_id,
-                symbol=row.symbol,
-                action=decision.action,
-                confidence=decision.confidence,
-                rationale=decision.rationale,
-                price=None if forecast is None else forecast.last_price,
-                position_qty=0.0 if held is None else held.qty,
-                position_value=0.0 if held is None else held.market_value,
-                forecast=None
-                if forecast is None
-                else ForecastPath(
-                    median=forecast.median, lower=forecast.lower, upper=forecast.upper
-                ),
-                verdict=_verdict_status(decision.action, verdict),
-                risk_reason=None if verdict is None else verdict.reason,
-                order=orders.get(key),
+    for row in _real_steps(store, "decisions"):
+        snap = snapshots.get(row.cycle_id)
+        for item in sorted(
+            Decisions.model_validate_json(row.result).decisions, key=lambda d: d.symbol
+        ):
+            key = (row.cycle_id, item.symbol)
+            decision, verdict, forecast = item.decision, verdicts.get(key), forecasts.get(key)
+            held = snap.positions.get(item.symbol) if snap else None
+            views.append(
+                DecisionView(
+                    t=row.created_at,
+                    cycle_id=row.cycle_id,
+                    symbol=item.symbol,
+                    action=decision.action,
+                    confidence=decision.confidence,
+                    size_fraction=decision.size_fraction,
+                    rationale=decision.rationale,
+                    price=forecast.last_price if forecast else None,
+                    position_qty=held.qty if held else 0.0,
+                    position_value=held.market_value if held else 0.0,
+                    forecast=ForecastPath(
+                        median=forecast.median, lower=forecast.lower, upper=forecast.upper
+                    )
+                    if forecast
+                    else None,
+                    verdict=_verdict_status(decision.action, verdict),
+                    risk_reason=verdict.reason if verdict else None,
+                    order=orders.get(key),
+                )
             )
-        )
     return views
 
 
@@ -367,7 +360,7 @@ def _write_csv(path: Path, header: list[str], rows: Iterable[list[object]]) -> N
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     config = load_config()
-    store = Store(JOURNAL_PATH, news_tables=config.news.enabled)
+    store = Store(JOURNAL_PATH)
     try:
         export = build_export(store, config, datetime.now(UTC))
     finally:
