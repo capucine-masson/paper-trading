@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-11-16T20:07:45.828405Z",
+  "generated_at": "2026-11-16T23:43:05.598843Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
-    "cycle_id": "20261116T20",
-    "status": "success",
-    "detail": "",
-    "started_at": "2026-11-16T20:07:23.675366Z",
-    "finished_at": "2026-11-16T20:07:43.144770Z"
+    "cycle_id": "20261116T23",
+    "status": "skipped",
+    "detail": "market closed",
+    "started_at": "2026-11-16T23:43:03.796896Z",
+    "finished_at": "2026-11-16T23:43:03.875956Z"
   },
   "allocated_capital": 10000.0,
   "symbols": [
