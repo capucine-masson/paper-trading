@@ -27,6 +27,11 @@ Principles, enforced in code and covered by tests:
   position (`size_fraction`, 0 to 1). It never gives a quantity or a price: the code converts the share to
   dollars, caps it and runs every decision through `risk.py`. The code runs the tool itself, only for allowed
   symbols; a bad tool call gets an error text, and a decision for a symbol without forecast is dropped.
+- **Macro drivers as past covariates.** Timestral also receives six daily FRED series over the context window: Brent,
+  US 10-year and 2-year yields, VIX, high-yield spread and the Fed broad dollar index (`DTWEXBGS`, the free
+  substitute for the ICE DXY). A value is only visible from the day after its date at 00:00 UTC, so no bar sees a
+  value that was not public yet (the backtest uses the same alignment). The latest published value is carried over
+  weekends and holidays. Their effect on forecast quality is not measured separately.
 - **One known-future covariate.** Timestral receives a 0/1 indicator over the context and the forecast horizon:
   1 on the hourly bar that absorbs a scheduled FOMC decision or CPI release (`event_times` in `config.toml`,
   UTC). The dates are published months ahead, so using them at decision time is not look-ahead. Future bar times
@@ -45,6 +50,7 @@ Principles, enforced in code and covered by tests:
 | --- | --- |
 | `agent/config.py` | Settings (`config.toml`) and secrets (`.env`), validated at startup |
 | `agent/broker.py` | The only module talking to Alpaca (paper), with bounded retries |
+| `agent/macro.py` | FRED macro drivers (daily) aligned on the hourly bars, published values only |
 | `agent/data.py` | Hourly series: validation, gaps as `NaN`, freshness |
 | `agent/forecast.py` | Timestral forecast and its validation |
 | `agent/llm.py` | Prompts and the Mistral conversation: tool call, then structured decisions (one retry, then rejection) |
@@ -62,7 +68,7 @@ Principles, enforced in code and covered by tests:
 ## Quick start
 
 1. `uv sync` (installs Timestral and CPU `torch`).
-2. Copy `.env.example` to `.env` and fill `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` (paper keys) and `MISTRAL_API_KEY`.
+2. Copy `.env.example` to `.env` and fill `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` (paper keys), `MISTRAL_API_KEY` and `FRED_API_KEY` (free key from fred.stlouisfed.org).
 3. Simulated cycle (no order): `uv run python -m agent.run --once`
 4. With paper orders: `uv run python -m agent.run --once --execute`
 
@@ -143,7 +149,7 @@ cycle is stored as `sim-...` and is not shown on the dashboard. It costs two Mis
 Setup, once, in the GitHub repository:
 
 1. Settings > Secrets and variables > Actions > repository secrets: `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` (paper
-   keys) and `MISTRAL_API_KEY`. `HF_TOKEN` is optional (faster Hugging Face downloads).
+   keys), `MISTRAL_API_KEY` and `FRED_API_KEY`. `HF_TOKEN` is optional (faster Hugging Face downloads).
 2. Settings > Pages > Build and deployment > Source: **GitHub Actions**.
 3. Settings > Actions > General: Actions enabled, and workflow permissions "Read and write" (the workflow already
    asks for `contents: write`, but an organization policy can override it).
@@ -210,16 +216,13 @@ order, the order is looked up by its `client_order_id` before any new submission
 forecast and the decision only see bars up to that moment. Decisions go through the same `risk.py` rules
 and sizing as live, and orders are filled at the next bar close (a test checks that changing the future
 never changes a decision input). Full tables: `reports/backtest.md` and `reports/backtest.json`. The LLM
-outputs are cached in `reports/llm_cache.db`, so a rerun costs nothing. Use `--no-llm` or `--no-compare`
-to skip parts.
+outputs are cached in `reports/llm_cache.db`, so a rerun costs nothing. Use `--no-llm` to skip the LLM and the baselines.
 
 **Forecast quality** (horizon: 6 hourly bars; the naive forecast is "the price stays where it is")
 
 | Model | Points | Error vs naive (MAE ratio) | Right direction | 10%-90% coverage | Mean width | Seconds per forecast |
 | --- | --- | --- | --- | --- | --- | --- |
-| Timestral-28M, all points | 1,579 | 0.998 | 50.4% | 78.3% (target 80%) | 2.28% | 0.03 |
-| Timestral-28M, comparison subset | 320 | 1.009 | 50.6% | 75.6% | 2.25% | 0.03 |
-| Timestral-209M, comparison subset | 320 | 1.019 | 49.4% | 75.3% | 2.27% | 0.14 |
+| Timestral-28M | 1,579 | 0.998 | 50.4% | 78.3% (target 80%) | 2.28% | 0.03 |
 
 - **The intervals are well calibrated on average, not at every date**: the 10%-90% interval contains the real
   price 78.3% of the time over the whole period, close to the 80% target. That average hides a drift (too wide
@@ -228,8 +231,6 @@ to skip parts.
   reliable.
 - **The median has no edge over the naive forecast** on liquid ETFs at a 6-hour horizon
   (error ratio 1.00, direction 50%). This is expected for such markets: the agent trades on a weak signal, not on a proven edge.
-- **209M is not better than 28M** on the same points (error ratio 1.019 against 1.009, direction 49.4% against 50.6%) and is
-  about 3.5x slower on CPU, so the agent keeps 28M.
 
 **Decisions against baselines** (last 28 days, 59 decision times, same rules and sizing, $10,000 allocated)
 
@@ -283,9 +284,8 @@ market or the baselines.
   LLM row is not proof of skill. The live paper decisions are out-of-sample by construction. Mistral publishes no cutoff
   for `mistral-small-2603` (third-party directories say June 2025, unverified), so part of the window may be inside
   its training data; symbols were not anonymised.
-- **Universe.** The 8 ETFs suggested by the brief are used. Its FRED macro drivers (Brent, 10-year and 2-year
-  yields, DXY, VIX, high-yield spread) are not used yet: the forecast is univariate, built from each ETF's own
-  hourly closes. The LLM also sizes sells (a share of the position); the backtest had 63 sell decisions with a
+- **Universe.** The 8 ETFs suggested by the brief are used. Its FRED macro drivers are given to Timestral
+  as past covariates (see Principles). The LLM also sizes sells (a share of the position); the backtest had 63 sell decisions with a
   mean size of 0.45, so partial sells are exercised.
 - **No transaction costs** in the backtest (fills at the next bar close, no spread, no fees). Alpaca charges no
   commission; its regulatory fees (SEC, FINRA TAF, on sells) are tiny and it is not documented whether paper
@@ -294,8 +294,7 @@ market or the baselines.
 - **Evidence is short.** The decision backtest covers 28 days (59 decision times) and one market regime, with no
   significance test. The +0.13% of the Timestral-only rule on 17 trades is noise.
 - **The LLM never bought or sold in the backtest window**, so its buy and sell decisions are covered by tests and
-  the risk rules, not by the backtest. The 209M comparison uses 200 points (direction rate is about +/-7 points).
-- **Execution is simplified in the backtest:** fills at the next bar close, no spread or slippage. Live orders are
+  the risk rules, not by the backtest.- **Execution is simplified in the backtest:** fills at the next bar close, no spread or slippage. Live orders are
   market orders on a paper account.
 - **Data:** Alpaca IEX hourly bars only (a fraction of the volume); overnight and weekend gaps are not filled, so
   consecutive session bars are consecutive steps for Timestral.

@@ -4,9 +4,7 @@ Symbols: SPY, QQQ, XLE, XLF, XLU, TLT, GLD, EEM. Horizon: 6 hourly bars. History
 
 | Model | Points | MAE ratio vs naive | Direction hit rate | 10%-90% coverage | Mean width | Seconds per forecast |
 | --- | --- | --- | --- | --- | --- | --- |
-| Main model, all points | 1579 | 0.998 | 50.4% (n=1574) | 78.3% | 2.28% | 0.03 |
-| Main model, comparison subset | 320 | 1.009 | 50.6% (n=316) | 75.6% | 2.25% | 0.03 |
-| Larger model, comparison subset | 320 | 1.019 | 49.4% (n=316) | 75.3% | 2.27% | 0.23 |
+| Timestral-28M | 1579 | 0.998 | 50.4% (n=1574) | 78.3% | 2.28% | 0.03 |
 
 ### Decisions against baselines
 

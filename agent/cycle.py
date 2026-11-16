@@ -15,6 +15,7 @@ from agent.config import Config
 from agent.data import Bar, DataError, build_series, check_freshness
 from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_model
 from agent.llm import Decision, Decisions, LlmError, build_portfolio_data, decide
+from agent.macro import MacroData, MacroError, fetch_macro
 from agent.risk import (
     Portfolio,
     PortfolioSnapshot,
@@ -62,7 +63,8 @@ class Cycle:
     cycle_id: str
     execute: bool
     ignore_market_clock: bool
-    _inputs: tuple[list[Bar], TimestralForecaster, datetime] | None = field(
+    fred_api_key: str
+    _inputs: tuple[list[Bar], TimestralForecaster, MacroData, datetime] | None = field(
         default=None, init=False
     )
 
@@ -143,21 +145,27 @@ class Cycle:
                 logger.error("cycle %s: HALTED: %s", self.cycle_id, halted)
         return Portfolio(equity=equity, day_start_equity=day_start, positions=positions), halted
 
-    def _get_inputs(self) -> tuple[list[Bar], TimestralForecaster, datetime]:
+    def _get_inputs(self) -> tuple[list[Bar], TimestralForecaster, MacroData, datetime]:
         if self._inputs is None:
             now = datetime.now(UTC)
             start = now - timedelta(days=self.config.market.history_days)
             bars = self.broker.fetch_hourly_bars(self.config.market.symbols, start, now)
-            self._inputs = (bars, load_model(self.config.forecast.model), now)
+            macro = fetch_macro(
+                self.config.macro,
+                self.fred_api_key,
+                now - timedelta(days=self.config.macro.history_days),
+                now,
+            )
+            self._inputs = (bars, load_model(self.config.forecast.model), macro, now)
         return self._inputs
 
     def _forecast(self, symbol: str) -> PriceForecast:
-        bars, forecaster, now = self._get_inputs()
+        bars, forecaster, macro, now = self._get_inputs()
         market = self.config.market
         series = build_series(symbol, bars, self.config.forecast.context_length, now, market)
         if not self.ignore_market_clock:
             check_freshness(series, now, market)
-        return forecast_symbol(forecaster, series, self.config.forecast)
+        return forecast_symbol(forecaster, series, self.config.forecast, macro)
 
     def _forecast_step(self, symbol: str) -> PriceForecast:
         """The Timestral tool: run once per symbol and cycle, then read back from the journal."""
@@ -171,7 +179,7 @@ class Cycle:
         def forecast_tool(symbol: str) -> PriceForecast | None:
             try:
                 return self._forecast_step(symbol)
-            except (DataError, ForecastError, BrokerError) as error:
+            except (DataError, ForecastError, BrokerError, MacroError) as error:
                 errors[symbol] = self._fail(symbol, str(error))
                 return None
 

@@ -30,6 +30,7 @@ from agent.llm import (
     decide,
     make_client,
 )
+from agent.macro import MacroData, fetch_macro
 from agent.metrics import ForecastMetrics, ForecastSample, forecast_metrics, max_drawdown
 from agent.risk import Portfolio, Position, apply_to_portfolio, evaluate, halt_reason
 from agent.store import CYCLE_SCOPE, Store
@@ -147,17 +148,6 @@ def build_points(bars: list[Bar], config: Config) -> list[EvalPoint]:
     return points
 
 
-def subsample(points: list[EvalPoint], per_symbol: int) -> list[EvalPoint]:
-    grouped: dict[str, list[EvalPoint]] = defaultdict(list)
-    for point in points:
-        grouped[point.series.symbol].append(point)
-    chosen: list[EvalPoint] = []
-    for items in grouped.values():
-        step = max(len(items) // per_symbol, 1)
-        chosen.extend(items[::step][:per_symbol])
-    return chosen
-
-
 # --- forecast quality ----------------------------------------------------------------------
 
 
@@ -166,13 +156,14 @@ def run_forecasts(
     forecaster: TimestralForecaster,
     config: Config,
     model: str,
+    macro: MacroData,
 ) -> list[ForecastRecord]:
     forecast_config = config.forecast.model_copy(update={"model": model})
     records: list[ForecastRecord] = []
     for done, point in enumerate(points, start=1):
         started = time.perf_counter()
         try:
-            forecast = forecast_symbol(forecaster, point.series, forecast_config)
+            forecast = forecast_symbol(forecaster, point.series, forecast_config, macro)
         except ForecastError as error:
             logger.warning("skipped point: %s", error)
             continue
@@ -443,21 +434,13 @@ def _markdown(report: BacktestReport) -> str:
 
 
 def run_backtest(
-    config: Config, bars: list[Bar], llm_client: Mistral | None, compare: bool
+    config: Config, bars: list[Bar], macro: MacroData, llm_client: Mistral | None
 ) -> BacktestReport:
     points = build_points(bars, config)
     logger.info("%d evaluation points", len(points))
-    main_model = config.forecast.model
-    records = run_forecasts(points, load_model(main_model), config, main_model)
-    models = [evaluate_model("Main model, all points", main_model, records)]
-    if compare:
-        subset = subsample(points, config.backtest.compare_points_per_symbol)
-        chosen = {(p.series.symbol, p.time) for p in subset}
-        main_subset = [r for r in records if (r.forecast.symbol, r.point.time) in chosen]
-        other = config.backtest.compare_model
-        other_records = run_forecasts(subset, load_model(other), config, other)
-        models.append(evaluate_model("Main model, comparison subset", main_model, main_subset))
-        models.append(evaluate_model("Larger model, comparison subset", other, other_records))
+    model_id = config.forecast.model
+    records = run_forecasts(points, load_model(model_id), config, model_id, macro)
+    models = [evaluate_model("Timestral-28M", model_id, records)]
     stamps = [b.timestamp for b in bars]
     window_start = max(r.point.time for r in records) - timedelta(
         days=config.backtest.decision_window_days
@@ -501,7 +484,6 @@ def run_backtest(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Walk-forward backtest")
     parser.add_argument("--no-llm", action="store_true", help="skip the LLM and baselines")
-    parser.add_argument("--no-compare", action="store_true", help="skip the larger model")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)sZ %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -512,8 +494,14 @@ def main() -> int:
     bars = broker.fetch_hourly_bars(
         config.market.symbols, end - timedelta(days=config.backtest.history_days), end
     )
+    macro = fetch_macro(
+        config.macro,
+        secrets.fred_api_key.get_secret_value(),
+        end - timedelta(days=config.backtest.history_days + config.macro.history_days),
+        end,
+    )
     llm_client = None if args.no_llm else make_client(secrets, config.llm)
-    report = run_backtest(config, bars, llm_client, not args.no_compare)
+    report = run_backtest(config, bars, macro, llm_client)
     write_report(report, REPORTS_DIR)
     print((REPORTS_DIR / "backtest.md").read_text(encoding="utf-8"))
     return 0

@@ -67,7 +67,14 @@ def main() -> int:
         logger.warning("halted state cleared manually")
     cycle_id = args.cycle_id or default_cycle_id(args.execute, datetime.now(UTC))
     cycle = Cycle(
-        config, broker, llm_client, store, cycle_id, args.execute, args.ignore_market_clock
+        config,
+        broker,
+        llm_client,
+        store,
+        cycle_id,
+        args.execute,
+        args.ignore_market_clock,
+        secrets.fred_api_key.get_secret_value(),
     )
     try:
         report = cycle.run()

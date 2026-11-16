@@ -86,7 +86,7 @@ def make_cycle(
     config: Config, tmp_path: Path, broker: FakeBroker, execute: bool, cycle_id: str = "c1"
 ) -> Cycle:
     store = Store(tmp_path / "j.db")
-    return Cycle(config, broker, None, store, cycle_id, execute, False)  # type: ignore[arg-type]
+    return Cycle(config, broker, None, store, cycle_id, execute, False, "key")  # type: ignore[arg-type]
 
 
 def test_rerun_never_duplicates_order_nor_llm_call(

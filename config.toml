@@ -27,6 +27,19 @@ event_times = [
   2026-12-10T13:30:00Z,
 ]
 
+[macro]
+# Daily macro drivers given to Timestral as past covariates (name = FRED series ID).
+# The dollar is the Fed broad index (DTWEXBGS), the free substitute for the ICE DXY.
+series = { brent = "DCOILBRENTEU", us10y = "DGS10", us2y = "DGS2", dollar = "DTWEXBGS", vix = "VIXCLS", hy_spread = "BAMLH0A0HYM2" }
+# Calendar days of daily history requested from FRED (must cover the context window).
+history_days = 120
+# Timeout in seconds of one FRED call.
+timeout_s = 20
+# Attempts on transient errors (network, 429, 5xx).
+max_attempts = 3
+# Delay in seconds before the first retry (doubles each time).
+retry_delay_s = 2.0
+
 [llm]
 # Mistral model ID used for decisions.
 model = "mistral-small-2603"
@@ -72,10 +85,6 @@ history_days = 180
 stride_bars = 3
 # Calendar days (most recent) replayed with the LLM and the baselines.
 decision_window_days = 28
-# Larger Timestral model compared with the main one.
-compare_model = "mistralai/Timestral-209M"
-# Evaluation points per symbol used for the model comparison (it is slow on CPU).
-compare_points_per_symbol = 40
 # Timestral-only rule: act when the expected return exceeds this share of the interval width
 # (75th percentile of the absolute signal before the decision window).
 rule_signal_threshold = 0.028

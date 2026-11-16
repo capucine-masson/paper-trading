@@ -46,6 +46,14 @@ class ForecastConfig(StrictModel):
     event_times: list[AwareDatetime] = Field(max_length=200)
 
 
+class MacroConfig(StrictModel):
+    series: dict[str, str] = Field(min_length=1, max_length=20)
+    history_days: int = Field(ge=30, le=730)
+    timeout_s: int = Field(ge=1, le=300)
+    max_attempts: int = Field(ge=1, le=10)
+    retry_delay_s: float = Field(gt=0, le=60)
+
+
 class LlmConfig(StrictModel):
     model: str = Field(min_length=3, max_length=100)
     temperature: float = Field(ge=0, le=1)
@@ -83,8 +91,6 @@ class BacktestConfig(StrictModel):
     history_days: int = Field(ge=30, le=730)
     stride_bars: int = Field(ge=1, le=100)
     decision_window_days: int = Field(ge=1, le=365)
-    compare_model: str = Field(min_length=3, max_length=100)
-    compare_points_per_symbol: int = Field(ge=1, le=1000)
     rule_signal_threshold: float = Field(gt=0, le=1)
     momentum_bars: int = Field(ge=1, le=100)
 
@@ -92,6 +98,7 @@ class BacktestConfig(StrictModel):
 class Config(StrictModel):
     market: MarketConfig
     forecast: ForecastConfig
+    macro: MacroConfig
     llm: LlmConfig
     risk: RiskConfig
     broker: BrokerConfig
@@ -104,6 +111,7 @@ class Secrets(BaseSettings):
     alpaca_api_key: SecretStr = Field(min_length=1)
     alpaca_secret_key: SecretStr = Field(min_length=1)
     mistral_api_key: SecretStr = Field(min_length=1)
+    fred_api_key: SecretStr = Field(min_length=1)
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:

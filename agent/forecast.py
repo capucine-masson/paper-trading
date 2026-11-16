@@ -10,6 +10,7 @@ from timestral import TimestralForecaster
 
 from agent.config import ForecastConfig
 from agent.data import BAR_PERIOD, PriceSeries, future_bar_starts
+from agent.macro import MacroData, macro_covariates
 
 LOWER_LEVEL = 0.1
 UPPER_LEVEL = 0.9
@@ -43,12 +44,17 @@ def forecast_symbol(
     forecaster: TimestralForecaster,
     series: PriceSeries,
     config: ForecastConfig,
+    macro: MacroData,
 ) -> PriceForecast:
     bar_starts = series.timestamps + future_bar_starts(series, config.horizon)
     events = event_indicator(bar_starts, config.event_times)
+    drivers = macro_covariates(macro, series.timestamps)
     with torch.no_grad():
         result = forecaster.forecast(
-            series.values, prediction_length=config.horizon, known_covariates=events[None, :]
+            series.values,
+            prediction_length=config.horizon,
+            past_covariates=drivers[None, :, :],
+            known_covariates=events[None, :],
         )
     quantiles = result.quantiles.numpy()[0, 0]
     return validate_forecast(series, config, quantiles, result.quantile_levels)
