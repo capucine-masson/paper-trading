@@ -69,7 +69,10 @@ symbol) or hold. Judge how strong each forecast is, weigh the symbols against ea
 what the portfolio already holds, and size each decision accordingly. Holding cash is fine.
 Write each rationale in one or two plain sentences for a client who is not a trader: the expected
 move, the uncertainty, why this action and size. Phrase it as a recommendation, not an executed
-order, since risk rules may still block or reduce it. Avoid jargon.
+order, since risk rules may still block or reduce it. Avoid jargon. Never state a size in dollars or
+as a percentage of cash: the code computes the amount, so only say whether the size is small,
+moderate or large. Describe the uncertainty with the interval width given in the data, not with
+your own wording such as narrow or wide.
 Also write a context for each symbol: one plain sentence on what the macro readings and the next
 release suggest for this symbol, using only the values given. Do not invent causes or numbers; if
 nothing stands out, say so."""

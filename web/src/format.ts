@@ -21,6 +21,7 @@ const signedPercent = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
   signDisplay: "exceptZero",
 });
+const shares = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 });
 const dateTime = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
   month: "short",
@@ -40,6 +41,7 @@ const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", 
 
 export const formatDay = (iso: string): string => day.format(new Date(iso));
 export const formatUsd = (value: number): string => usd.format(value);
+export const formatShares = (value: number): string => shares.format(value);
 export const formatSignedUsd = (value: number): string =>
   `${value > 0 ? "+" : ""}${usd.format(value)}`;
 export const formatPercent = (value: number): string => percent.format(value);

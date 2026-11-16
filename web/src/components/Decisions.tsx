@@ -1,7 +1,14 @@
 import type { ReactNode } from "react";
 import { forSymbol } from "../filters";
 import { expectedMove, formatMacro, rangeWidth } from "../forecast";
-import { formatDateTime, formatPercent, formatPercentOne, formatSignedPercent, formatUsd } from "../format";
+import {
+  formatDateTime,
+  formatPercent,
+  formatPercentOne,
+  formatShares,
+  formatSignedPercent,
+  formatUsd,
+} from "../format";
 import { ALL_SYMBOLS, type DecisionView } from "../types";
 import { Empty } from "./Feedback";
 import { FanChart } from "./FanChart";
@@ -176,13 +183,16 @@ function Expected({ decision: d }: { decision: DecisionView }) {
 function Result({ decision: d }: { decision: DecisionView }) {
   if (d.order !== null) {
     const { side, qty, fill_price: fill, status } = d.order;
-    const amount = qty === null ? "" : ` ${qty}`;
-    const detail = fill === null ? `${amount}, ${status}` : `${amount} @ ${formatUsd(fill)}`;
+    const filled = qty !== null && qty > 0 && fill !== null;
+    const label = !filled ? "Pending" : side === "buy" ? "Bought" : "Sold";
+    const detail = filled
+      ? `${formatUsd(qty * fill)} · ${formatShares(qty)} sh @ ${formatUsd(fill)}`
+      : `order ${status}`;
     return (
       <span className="result">
         <span className={`verdict verdict-${d.verdict}`} title={d.risk_reason ?? undefined}>
-          {side === "buy" ? "Bought" : "Sold"}
-        </span>
+          {label}
+        </span>{" "}
         {detail}
       </span>
     );
