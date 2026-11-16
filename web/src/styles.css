@@ -817,6 +817,14 @@ select:hover {
   transition: transform 0.15s;
 }
 
+.cycle-summary::after {
+  grid-column: 7;
+}
+
+.cycle-group[open] > .cycle-summary .cycle-pills {
+  display: none;
+}
+
 .cycle-group[open] > .cycle-summary::after {
   transform: rotate(-135deg);
 }
