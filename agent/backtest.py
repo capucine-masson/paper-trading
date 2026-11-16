@@ -441,7 +441,7 @@ def run_backtest(
     points = build_points(bars, config)
     logger.info("%d evaluation points", len(points))
     model_id = config.forecast.model
-    records = run_forecasts(points, load_model(model_id), config, model_id, macro)
+    records = run_forecasts(points, load_model(config.forecast), config, model_id, macro)
     models = [evaluate_model("Timestral-28M", model_id, records)]
     stamps = [b.timestamp for b in bars]
     window_start = max(r.point.time for r in records) - timedelta(

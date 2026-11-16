@@ -7,7 +7,13 @@ import torch
 
 from agent.config import load_config
 from agent.data import PriceSeries
-from agent.forecast import ForecastError, event_indicator, forecast_symbol, validate_forecast
+from agent.forecast import (
+    ForecastError,
+    event_indicator,
+    forecast_symbol,
+    load_model,
+    validate_forecast,
+)
 from agent.macro import MacroData, Observation
 
 CONFIG = load_config().forecast
@@ -93,3 +99,49 @@ def test_forecast_gets_macro_as_past_and_events_as_known_covariates() -> None:
     forecast_symbol(forecaster, series, CONFIG, macro)
     assert forecaster.kwargs["past_covariates"].shape == (1, 2, steps)
     assert forecaster.kwargs["known_covariates"].shape == (1, steps + CONFIG.horizon)
+
+
+class FlakyLoader:
+    def __init__(self, errors: list[OSError]) -> None:
+        self.errors = errors
+        self.calls = 0
+
+    def __call__(self, name: str) -> str:
+        self.calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+        return "weights"
+
+
+@pytest.fixture
+def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("agent.forecast.time.sleep", lambda seconds: None)
+
+
+def patch_loader(monkeypatch: pytest.MonkeyPatch, loader: FlakyLoader) -> None:
+    monkeypatch.setattr("agent.forecast.TimestralForecaster.from_pretrained", loader)
+
+
+@pytest.mark.usefixtures("no_sleep")
+def test_transient_load_error_is_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    loader = FlakyLoader([ConnectionError("offline")])
+    patch_loader(monkeypatch, loader)
+    assert load_model(CONFIG) == "weights" and loader.calls == 2
+
+
+@pytest.mark.usefixtures("no_sleep")
+def test_persistent_load_error_becomes_a_forecast_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    loader = FlakyLoader([TimeoutError()] * CONFIG.max_attempts)
+    patch_loader(monkeypatch, loader)
+    with pytest.raises(ForecastError, match="unavailable"):
+        load_model(CONFIG)
+    assert loader.calls == CONFIG.max_attempts
+
+
+@pytest.mark.usefixtures("no_sleep")
+def test_non_transient_load_error_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    loader = FlakyLoader([PermissionError("denied")])
+    patch_loader(monkeypatch, loader)
+    with pytest.raises(ForecastError):
+        load_model(CONFIG)
+    assert loader.calls == 1

@@ -17,6 +17,10 @@ model = "mistralai/Timestral-28M"
 context_length = 400
 # Forecast horizon in hourly steps.
 horizon = 6
+# Attempts to download the model weights on transient errors (network, 429, 5xx).
+max_attempts = 3
+# Delay in seconds before the first retry (doubles each time).
+retry_delay_s = 2.0
 # Scheduled macro releases (UTC) given to Timestral as a known-future covariate: FOMC decisions
 # (14:00 ET) and CPI releases (08:30 ET), from federalreserve.gov and bls.gov.
 event_times = [

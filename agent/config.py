@@ -43,6 +43,8 @@ class ForecastConfig(StrictModel):
     model: str = Field(min_length=3, max_length=100)
     context_length: int = Field(ge=64, le=4000)
     horizon: int = Field(ge=1, le=96)
+    max_attempts: int = Field(ge=1, le=10)
+    retry_delay_s: float = Field(gt=0, le=60)
     event_times: list[AwareDatetime] = Field(max_length=200)
 
 

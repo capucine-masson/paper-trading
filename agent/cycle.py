@@ -156,7 +156,7 @@ class Cycle:
                 now - timedelta(days=self.config.macro.history_days),
                 now,
             )
-            self._inputs = (bars, load_model(self.config.forecast.model), macro, now)
+            self._inputs = (bars, load_model(self.config.forecast), macro, now)
         return self._inputs
 
     def _forecast(self, symbol: str) -> PriceForecast:
@@ -175,6 +175,12 @@ class Cycle:
         """One LLM conversation for all symbols; a symbol the LLM could not decide gets an error."""
         symbols = self.config.market.symbols
         errors: dict[str, str] = {}
+        if self.store.get_step(self.cycle_id, CYCLE_SCOPE, "decisions") is None:
+            try:
+                self._get_inputs()
+            except (DataError, ForecastError, BrokerError, MacroError) as error:
+                message = self._fail(CYCLE_SCOPE, str(error))
+                return {symbol: SymbolOutcome(error=message) for symbol in symbols}
 
         def forecast_tool(symbol: str) -> PriceForecast | None:
             try:

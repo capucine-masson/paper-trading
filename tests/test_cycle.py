@@ -8,8 +8,8 @@ from agent.broker import OrderRecord
 from agent.config import Config, load_config
 from agent.cycle import Cycle
 from agent.data import DataError
-from agent.forecast import PriceForecast
-from agent.llm import Decision, Decisions, ForecastTool, LlmError, SymbolDecision
+from agent.forecast import ForecastError, PriceForecast
+from agent.llm import Decision, Decisions, ForecastTool, SymbolDecision
 from agent.macro import MacroError
 from agent.risk import OrderSpec, Position
 from agent.store import Store
@@ -78,6 +78,7 @@ def llm_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         served = [symbol for symbol in symbols if tool(symbol) is not None]
         return Decisions(decisions=[SymbolDecision(symbol=s, decision=decision) for s in served])
 
+    monkeypatch.setattr(Cycle, "_get_inputs", lambda self: None)
     monkeypatch.setattr(Cycle, "_forecast", fake_forecast)
     monkeypatch.setattr(cycle_module, "decide", fake_decide)
     return calls
@@ -171,18 +172,34 @@ def test_macro_failure_gives_no_forecast_and_no_order(
     def failing_macro(*args: object) -> None:
         raise MacroError("vix: FRED request failed (HTTP 503)")
 
-    def decide_with_tool(
-        client: object, symbols: list[str], data: str, tool: ForecastTool, *rest: object
-    ) -> Decisions:
-        assert all(tool(symbol) is None for symbol in symbols)
-        raise LlmError("no forecast served")
+    def decide_never_called(*args: object) -> None:
+        pytest.fail("the LLM must not be called when the inputs are unavailable")
 
     broker = FakeBroker()
     broker.fetch_hourly_bars = lambda *args: []  # type: ignore[attr-defined]
     monkeypatch.setattr(cycle_module, "fetch_macro", failing_macro)
-    monkeypatch.setattr(cycle_module, "load_model", lambda name: object())
-    monkeypatch.setattr(cycle_module, "decide", decide_with_tool)
+    monkeypatch.setattr(cycle_module, "load_model", lambda forecast_config: object())
+    monkeypatch.setattr(cycle_module, "decide", decide_never_called)
     report = make_cycle(config, tmp_path, broker, True).run()
     assert report.status == "error" and broker.submitted == []
     assert report.outcomes["SPY"].forecast is None
     assert "FRED" in str(report.outcomes["SPY"].error)
+
+
+def test_weights_failure_gives_no_forecast_and_no_order(
+    config: Config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failing_load(forecast_config: object) -> None:
+        raise ForecastError("Timestral weights unavailable (ConnectionError)")
+
+    def decide_never_called(*args: object) -> None:
+        pytest.fail("the LLM must not be called when the inputs are unavailable")
+
+    broker = FakeBroker()
+    broker.fetch_hourly_bars = lambda *args: []  # type: ignore[attr-defined]
+    monkeypatch.setattr(cycle_module, "fetch_macro", lambda *args: None)
+    monkeypatch.setattr(cycle_module, "load_model", failing_load)
+    monkeypatch.setattr(cycle_module, "decide", decide_never_called)
+    report = make_cycle(config, tmp_path, broker, True).run()
+    assert report.status == "error" and broker.submitted == []
+    assert "weights unavailable" in str(report.outcomes["SPY"].error)

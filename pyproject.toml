@@ -6,6 +6,7 @@ requires-python = "==3.12.*"
 dependencies = [
     "alpaca-py",
     "httpx",
+    "huggingface-hub",
     "mistralai",
     "numpy",
     "pydantic>=2",

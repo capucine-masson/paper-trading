@@ -40,7 +40,7 @@ export function App() {
         onToggleTheme={toggleTheme}
       />
       <main className={fitScreen ? "content content-fit" : "content"}>
-        {import.meta.env.DEV && isDemo() && <p className="notice">Demo data for layout preview only (development).</p>}
+        {isDemo() && <p className="notice">Demo data for layout preview only (development).</p>}
         {load.kind === "loading" && <Loading />}
         {load.kind === "error" && <ErrorState message={load.message} />}
         {data !== null && view.tab === "overview" && (

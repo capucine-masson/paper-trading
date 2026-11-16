@@ -1,7 +1,7 @@
 export type AgentState = "active" | "halted" | "stopped";
 export type VerdictStatus = "accepted" | "reduced" | "blocked" | "no_order";
 
-export interface CycleView {
+interface CycleView {
   cycle_id: string;
   status: string | null;
   detail: string | null;
@@ -92,7 +92,7 @@ export interface ForecastMetrics {
   coverage: number;
 }
 
-export interface ModelResult {
+interface ModelResult {
   label: string;
   model: string;
   overall: ForecastMetrics;
