@@ -58,7 +58,7 @@ function readUrl(): ViewState {
   return {
     tab: TABS.some((t) => t.id === tab) ? (tab as Tab) : "overview",
     period: PERIODS.includes(period as Period) ? (period as Period) : "all",
-    symbol: params.get("symbol") ?? ALL_SYMBOLS,
+    symbol: ALL_SYMBOLS,
   };
 }
 
@@ -72,7 +72,6 @@ export function useViewState(): [ViewState, (next: Partial<ViewState>) => void] 
         value === fallback ? params.delete(key) : params.set(key, value);
       setOrDrop("tab", merged.tab, "overview");
       setOrDrop("period", merged.period, "all");
-      setOrDrop("symbol", merged.symbol, ALL_SYMBOLS);
       const query = params.toString();
       window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
       return merged;
