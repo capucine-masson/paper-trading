@@ -1,4 +1,23 @@
 {
-  "points": [],
+  "points": [
+    {
+      "t": "2026-11-16T15:50:35.702198Z",
+      "cycle_id": "20261116T15",
+      "equity": 10000.0,
+      "buy_and_hold": 10000.0,
+      "exposure": 0.0,
+      "positions": {},
+      "prices": {
+        "SPY": 746.53,
+        "QQQ": 667.83,
+        "XLE": 64.0,
+        "XLF": 58.51,
+        "XLU": 44.29,
+        "TLT": 79.585,
+        "GLD": 355.38,
+        "EEM": 59.185
+      }
+    }
+  ],
   "positions": []
 }
