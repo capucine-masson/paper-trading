@@ -79,6 +79,7 @@ def make_record(
     series = PriceSeries(
         symbol="SPY",
         last_bar_start=moment - timedelta(hours=1),
+        timestamps=[moment - timedelta(hours=1)] * 10,
         values=np.array([price] * 10),
     )
     forecast = PriceForecast(

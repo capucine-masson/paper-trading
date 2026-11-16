@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from agent.config import load_config
-from agent.data import Bar, DataError, build_series, check_freshness
+from agent.data import Bar, DataError, build_series, check_freshness, future_bar_starts
 
 MARKET = load_config().market
 START = datetime(2026, 11, 10, 14, tzinfo=UTC)
@@ -39,3 +39,20 @@ def test_stale_data_rejected() -> None:
     series = build_series("SPY", make_bars(8), 8, START + timedelta(hours=8), MARKET)
     with pytest.raises(DataError):
         check_freshness(series, START + timedelta(hours=20), MARKET)
+
+
+def test_future_bars_skip_the_night_and_the_weekend() -> None:
+    friday = datetime(2026, 11, 13, 15, tzinfo=UTC)
+    bars = [Bar(symbol="SPY", timestamp=friday + timedelta(hours=i), close=100.0) for i in range(6)]
+    series = build_series("SPY", bars, 6, friday + timedelta(hours=6), MARKET)
+    assert future_bar_starts(series, 3) == [
+        datetime(2026, 11, 16, 15, tzinfo=UTC),
+        datetime(2026, 11, 16, 16, tzinfo=UTC),
+        datetime(2026, 11, 16, 17, tzinfo=UTC),
+    ]
+
+
+def test_build_series_keeps_timestamps_aligned_with_values() -> None:
+    now = START + timedelta(hours=10)
+    series = build_series("SPY", make_bars(8, skip={3}), 8, now, MARKET)
+    assert series.timestamps == [START + timedelta(hours=i) for i in range(8)]

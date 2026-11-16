@@ -17,6 +17,15 @@ model = "mistralai/Timestral-28M"
 context_length = 400
 # Forecast horizon in hourly steps.
 horizon = 6
+# Scheduled macro releases (UTC) given to Timestral as a known-future covariate: FOMC decisions
+# (14:00 ET) and CPI releases (08:30 ET), from federalreserve.gov and bls.gov.
+event_times = [
+  2026-03-11T12:30:00Z, 2026-03-18T18:00:00Z, 2026-04-10T12:30:00Z, 2026-04-29T18:00:00Z,
+  2026-05-12T12:30:00Z, 2026-06-10T12:30:00Z, 2026-06-17T18:00:00Z, 2026-07-14T12:30:00Z,
+  2026-07-29T18:00:00Z, 2026-08-12T12:30:00Z, 2026-09-11T12:30:00Z, 2026-09-16T18:00:00Z,
+  2026-10-14T12:30:00Z, 2026-10-28T18:00:00Z, 2026-11-10T13:30:00Z, 2026-12-09T19:00:00Z,
+  2026-12-10T13:30:00Z,
+]
 
 [llm]
 # Mistral model ID used for decisions.

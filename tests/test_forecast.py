@@ -1,19 +1,23 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pytest
 
 from agent.config import load_config
 from agent.data import PriceSeries
-from agent.forecast import ForecastError, validate_forecast
+from agent.forecast import ForecastError, event_indicator, validate_forecast
 
 CONFIG = load_config().forecast
 LEVELS = (0.1, 0.5, 0.9)
 SERIES = PriceSeries(
     symbol="SPY",
     last_bar_start=datetime(2026, 11, 10, tzinfo=UTC),
+    timestamps=[datetime(2026, 11, 10, tzinfo=UTC)],
     values=np.array([100.0]),
 )
+HOUR = timedelta(hours=1)
+FIRST_BAR = datetime(2026, 11, 10, 14, tzinfo=UTC)
+BARS = [FIRST_BAR + i * HOUR for i in range(6)]
 
 
 def quantiles(row: list[float]) -> np.ndarray:
@@ -39,3 +43,18 @@ def test_decreasing_quantiles_rejected() -> None:
 def test_flat_interval_is_rejected() -> None:
     with pytest.raises(ForecastError, match="no width"):
         validate_forecast(SERIES, CONFIG, quantiles([100.0, 100.0, 100.0]), LEVELS)
+
+
+def test_event_marks_the_bar_that_contains_it() -> None:
+    result = event_indicator(BARS, [FIRST_BAR + 2 * HOUR + timedelta(minutes=30)])
+    assert result.tolist() == [0, 0, 1, 0, 0, 0]
+
+
+def test_event_before_open_marks_the_first_bar_after_it() -> None:
+    gap = [FIRST_BAR, FIRST_BAR + HOUR, FIRST_BAR + 20 * HOUR]
+    assert event_indicator(gap, [FIRST_BAR + 10 * HOUR]).tolist() == [0, 0, 1]
+
+
+def test_events_outside_the_window_are_ignored() -> None:
+    result = event_indicator(BARS, [FIRST_BAR - HOUR, FIRST_BAR + 6 * HOUR])
+    assert result.tolist() == [0] * 6

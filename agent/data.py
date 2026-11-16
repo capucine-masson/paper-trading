@@ -1,6 +1,7 @@
 """Hourly price series: validation, gap marking and freshness checks (no look-ahead)."""
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,6 +10,8 @@ from pydantic import BaseModel, ConfigDict
 from agent.config import MarketConfig
 
 BAR_PERIOD = timedelta(hours=1)
+MARKET_TIMEZONE = ZoneInfo("America/New_York")
+WEEKDAYS_PER_WEEK = 5
 
 
 class Bar(BaseModel):
@@ -26,6 +29,7 @@ class PriceSeries(BaseModel):
 
     symbol: str
     last_bar_start: datetime
+    timestamps: list[datetime]
     values: NDArray[np.float64]
 
     @property
@@ -43,19 +47,37 @@ def build_series(
         raise DataError(f"{symbol}: no completed bar available")
     timestamps = sorted(completed)
     values: list[float] = []
+    starts: list[datetime] = []
     previous: datetime | None = None
     for timestamp in timestamps:
         if previous is not None and previous.date() == timestamp.date():
-            values.extend([float("nan")] * (int((timestamp - previous) / BAR_PERIOD) - 1))
+            missing = int((timestamp - previous) / BAR_PERIOD) - 1
+            values.extend([float("nan")] * missing)
+            starts.extend(previous + BAR_PERIOD * (k + 1) for k in range(missing))
         values.append(completed[timestamp])
+        starts.append(timestamp)
         previous = timestamp
     window = np.array(values[-context_length:], dtype=np.float64)
     _check_quality(symbol, window, context_length, market)
     return PriceSeries(
         symbol=symbol,
         last_bar_start=timestamps[-1],
+        timestamps=starts[-context_length:],
         values=window,
     )
+
+
+def future_bar_starts(series: PriceSeries, count: int) -> list[datetime]:
+    """Next bar starts: weekday hours seen in the context (New York time); holidays not modelled."""
+    seen_hours = {t.astimezone(MARKET_TIMEZONE).hour for t in series.timestamps}
+    starts: list[datetime] = []
+    candidate = series.timestamps[-1]
+    while len(starts) < count:
+        candidate += BAR_PERIOD
+        local = candidate.astimezone(MARKET_TIMEZONE)
+        if local.weekday() < WEEKDAYS_PER_WEEK and local.hour in seen_hours:
+            starts.append(candidate)
+    return starts
 
 
 def _check_quality(

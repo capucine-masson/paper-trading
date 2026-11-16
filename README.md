@@ -27,6 +27,11 @@ Principles, enforced in code and covered by tests:
   position (`size_fraction`, 0 to 1). It never gives a quantity or a price: the code converts the share to
   dollars, caps it and runs every decision through `risk.py`. The code runs the tool itself, only for allowed
   symbols; a bad tool call gets an error text, and a decision for a symbol without forecast is dropped.
+- **One known-future covariate.** Timestral receives a 0/1 indicator over the context and the forecast horizon:
+  1 on the hourly bar that absorbs a scheduled FOMC decision or CPI release (`event_times` in `config.toml`,
+  UTC). The dates are published months ahead, so using them at decision time is not look-ahead. Future bar times
+  skip nights and weekends but not market holidays, and most cycles see no event in their 6-bar horizon, so its
+  effect is not measured here.
 - **No order without `--execute`.** Without it the cycle only simulates.
 - **No duplicate order.** The `client_order_id` is deterministic and looked up on Alpaca before any submission.
 - **No look-ahead.** A decision only uses bars completed before its timestamp.
@@ -304,8 +309,6 @@ market or the baselines.
   size positions and refuse uncertain buys is not equally reliable at every date.
 - Baseline parameters (`rule_signal_threshold`, `momentum_bars`) are fixed in `config.toml`; the threshold comes
   from the data before the decision window, `momentum_bars` is not tuned.
-- **No news.** The bonus (news as covariates for Timestral) was tried (Alpaca article counts and LLM sentiment),
-  showed no measurable improvement, and was removed from the code; it is still in the git history.
 
 ## Development
 

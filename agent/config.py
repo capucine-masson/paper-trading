@@ -4,7 +4,15 @@ import tomllib
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StringConstraints, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    StringConstraints,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +43,7 @@ class ForecastConfig(StrictModel):
     model: str = Field(min_length=3, max_length=100)
     context_length: int = Field(ge=64, le=4000)
     horizon: int = Field(ge=1, le=96)
+    event_times: list[AwareDatetime] = Field(max_length=200)
 
 
 class LlmConfig(StrictModel):
