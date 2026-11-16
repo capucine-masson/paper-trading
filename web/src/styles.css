@@ -201,7 +201,7 @@ h3 {
 /* Layout */
 
 .content {
-  max-width: 1400px;
+  max-width: none;
   margin: 0 auto;
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
@@ -227,6 +227,7 @@ h3 {
 }
 
 .section-head {
+  min-height: 40px;
   margin-bottom: var(--space-4);
 }
 
@@ -1033,17 +1034,19 @@ select:hover {
   font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
-  cursor: help;
 }
 
-.total-row {
-  font-weight: 600;
+.quality-table td {
+  font-variant-numeric: tabular-nums;
 }
 
-.quality-table thead small {
-  display: block;
-  font-size: 0.7rem;
+.quality-table tbody th {
   font-weight: 400;
+}
+
+.total-row th,
+.total-row td {
+  font-weight: 700;
 }
 
 .quality-table .pill {
@@ -1051,8 +1054,14 @@ select:hover {
   font-size: 0.8rem;
 }
 
-.num-inline {
-  font-variant-numeric: tabular-nums;
+.quality-note {
+  margin: var(--space-2) 0 0;
+  font-size: 0.75rem;
+}
+
+.symbol-stats {
+  margin-left: auto;
+  font-size: 0.8rem;
 }
 
 .status-ok {
@@ -1121,7 +1130,7 @@ select:hover {
   .quality-body {
     flex: 1;
     min-height: 0;
-    grid-template-columns: minmax(520px, 1fr) 1fr;
+    grid-template-columns: minmax(420px, 1fr) 1.4fr;
   }
 
   .quality-side {
@@ -1129,7 +1138,23 @@ select:hover {
   }
 
   .quality-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .quality-details .quality-table {
+    flex: 1;
+  }
+
+  .quality-table tbody th,
+  .quality-table tbody td {
+    height: clamp(38px, 8vh, 68px);
+  }
+
+  .quality-summary {
     flex: none;
+    font-size: 0.8rem;
   }
 
   .quality-chart {

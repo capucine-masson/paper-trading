@@ -44,7 +44,12 @@ function demoRationale(
   return `${outlook} That move is small compared to the uncertainty, so the model recommends waiting.`;
 }
 
-const stats = (mae_ratio: number, coverage: number): ForecastMetrics => ({ n: 221, mae_ratio, coverage });
+const stats = (mae_ratio: number, coverage: number): ForecastMetrics => ({
+  n: 221,
+  mae_ratio,
+  coverage,
+  direction_hit_rate: 0.51,
+});
 
 const DEMO_MACRO = { brent: 82.1, us10y: 4.21, us2y: 4.55, dollar: 121.3, vix: 16.4, hy_spread: 3.05 };
 const DEMO_NEXT_EVENT = "2026-12-09T19:00:00Z";
@@ -97,10 +102,18 @@ const BACKTEST: BacktestReport = {
   horizon_bars: HORIZON,
   history_start: "2026-05-20T12:00:00Z",
   history_end: "2026-11-13T21:00:00Z",
+  decision_start: "2026-10-16T14:00:00Z",
+  strategies: [
+    { name: "Cash (never trade)", return_pct: 0, max_drawdown_pct: 0 },
+    { name: "Equal-weight buy and hold", return_pct: -1.13, max_drawdown_pct: 3.18 },
+    { name: "Momentum rule", return_pct: -4.29, max_drawdown_pct: 4.5 },
+    { name: "Timestral-only rule", return_pct: -0.78, max_drawdown_pct: 4.26 },
+    { name: "Timestral + LLM (the agent)", return_pct: -0.23, max_drawdown_pct: 4.85 },
+  ],
   models: [
     {
       model: "mistralai/Timestral-28M",
-      overall: { n: 1579, mae_ratio: 0.998, coverage: 0.783 },
+      overall: { n: 1579, mae_ratio: 0.998, coverage: 0.783, direction_hit_rate: 0.51 },
       per_symbol: {
         SPY: stats(0.998, 0.77),
         QQQ: stats(1.004, 0.79),

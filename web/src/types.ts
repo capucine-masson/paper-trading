@@ -94,6 +94,7 @@ export interface ForecastMetrics {
   n: number;
   mae_ratio: number | null;
   coverage: number;
+  direction_hit_rate: number | null;
 }
 
 interface ModelResult {
@@ -111,11 +112,19 @@ export interface ForecastPoint {
   actual: number;
 }
 
+export interface StrategyResult {
+  name: string;
+  return_pct: number;
+  max_drawdown_pct: number;
+}
+
 export interface BacktestReport {
   symbols: string[];
   horizon_bars: number;
   history_start: string;
   history_end: string;
+  decision_start: string;
+  strategies: StrategyResult[];
   models: ModelResult[];
   forecasts: ForecastPoint[];
 }

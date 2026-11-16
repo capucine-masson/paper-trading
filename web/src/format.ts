@@ -1,5 +1,16 @@
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 });
+const percentTwoDecimals = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const signedPercentTwoDecimals = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  signDisplay: "exceptZero",
+});
 const percentOneDecimal = new Intl.NumberFormat("en-US", {
   style: "percent",
   minimumFractionDigits: 1,
@@ -32,6 +43,8 @@ export const formatUsd = (value: number): string => usd.format(value);
 export const formatSignedUsd = (value: number): string =>
   `${value > 0 ? "+" : ""}${usd.format(value)}`;
 export const formatPercent = (value: number): string => percent.format(value);
+export const formatPercentTwo = (value: number): string => percentTwoDecimals.format(value);
+export const formatSignedPercentTwo = (value: number): string => signedPercentTwoDecimals.format(value);
 export const formatPercentOne = (value: number): string => percentOneDecimal.format(value);
 export const formatSignedPercent = (value: number): string => signedPercent.format(value);
 export const formatDrawdown = (value: number): string =>
