@@ -6,6 +6,13 @@ from pathlib import Path
 from typing import NamedTuple
 
 CYCLE_SCOPE = "*"
+STEP_PORTFOLIO = "portfolio"
+STEP_FORECAST = "forecast"
+STEP_DECISIONS = "decisions"
+STEP_VERDICT = "verdict"
+STEP_ORDER = "order"
+HALTED_KEY = "halted_reason"
+ACCOUNT_EQUITY_KEY = "account_equity"
 SIMULATION_PREFIX = "sim-"
 
 SCHEMA = """
@@ -74,9 +81,11 @@ class Store:
         return None if row is None else str(row[0])
 
     def save_step(self, cycle_id: str, symbol: str, name: str, result: str) -> None:
+        """Journal a step once; saving the same step twice raises sqlite3.IntegrityError."""
         with self._db:
             self._db.execute(
-                "INSERT OR REPLACE INTO steps VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO steps (cycle_id, symbol, name, result, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
                 (cycle_id, symbol, name, result, _now()),
             )
 

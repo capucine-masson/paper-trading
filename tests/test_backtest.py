@@ -8,6 +8,7 @@ from mistralai.client import Mistral
 
 from agent import backtest as bt
 from agent.backtest import (
+    BacktestError,
     EvalPoint,
     ForecastRecord,
     LlmStrategy,
@@ -17,6 +18,7 @@ from agent.backtest import (
     evaluate_model,
     forecast_points,
     per_symbol,
+    run_backtest,
     simulate,
     timestral_rule,
 )
@@ -24,6 +26,7 @@ from agent.config import Config, load_config
 from agent.data import Bar, PriceSeries
 from agent.forecast import PriceForecast
 from agent.llm import Decision, Decisions, LlmError, SymbolDecision
+from agent.macro import MacroData
 from agent.risk import Portfolio, Position
 from agent.store import Store
 
@@ -228,3 +231,11 @@ def test_cost_lowers_final_equity_and_zero_cost_changes_nothing(config: Config) 
     net = simulate("bh", bh(config), records, config, False).final_equity
     assert gross == free.risk.allocated_capital
     assert net < gross
+
+
+def test_backtest_without_any_forecast_fails_with_a_clear_error(
+    config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(bt, "load_model", lambda _: None)
+    with pytest.raises(BacktestError):
+        run_backtest(config, [], MacroData(series={}), None)

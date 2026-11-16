@@ -17,6 +17,8 @@ from alpaca.trading.models import Clock, Order, TradeAccount
 from alpaca.trading.models import Position as AlpacaPosition
 from alpaca.trading.requests import MarketOrderRequest
 from pydantic import BaseModel
+from requests import PreparedRequest, Response
+from requests.adapters import HTTPAdapter
 
 from agent.config import BrokerConfig, Secrets
 from agent.data import Bar
@@ -62,6 +64,31 @@ def _is_transient(error: Exception) -> bool:
     return True
 
 
+class TimeoutAdapter(HTTPAdapter):
+    """alpaca-py sets no timeout on its requests; every call through this adapter gets one."""
+
+    def __init__(self, timeout_s: float) -> None:
+        super().__init__()
+        self._timeout_s = timeout_s
+
+    def send(
+        self,
+        request: PreparedRequest,
+        stream: bool = False,
+        timeout: float | tuple[float | None, float | None] | None = None,
+        verify: bool | str = True,
+        cert: str | tuple[str, str] | None = None,
+        proxies: dict[str, str] | None = None,
+    ) -> Response:
+        return super().send(
+            request, stream, self._timeout_s if timeout is None else timeout, verify, cert, proxies
+        )
+
+
+def _with_timeout(client: TradingClient | StockHistoricalDataClient, timeout_s: float) -> None:
+    client._session.mount("https://", TimeoutAdapter(timeout_s))
+
+
 class Broker:
     def __init__(self, secrets: Secrets, feed: str, config: BrokerConfig) -> None:
         key = secrets.alpaca_api_key.get_secret_value()
@@ -69,6 +96,8 @@ class Broker:
         self._config = config
         self._trading = TradingClient(key, secret, paper=True, url_override=PAPER_URL)
         self._data = StockHistoricalDataClient(key, secret)
+        _with_timeout(self._trading, config.timeout_s)
+        _with_timeout(self._data, config.timeout_s)
         self._feed = DataFeed(feed)
         self._check_paper_account()
 

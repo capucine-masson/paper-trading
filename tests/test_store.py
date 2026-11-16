@@ -1,6 +1,8 @@
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from agent.store import Store, is_simulation
 
 HOSTILE = "SPY'; DROP TABLE steps;--"
@@ -12,6 +14,14 @@ def test_step_round_trip(tmp_path: Path) -> None:
     store.save_step("c1", "SPY", "llm", '{"a": 1}')
     assert store.get_step("c1", "SPY", "llm") == '{"a": 1}'
     assert store.get_step("c2", "SPY", "llm") is None
+
+
+def test_a_step_cannot_be_saved_twice(tmp_path: Path) -> None:
+    store = Store(tmp_path / "j.db")
+    store.save_step("c1", "SPY", "llm", "first")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.save_step("c1", "SPY", "llm", "second")
+    assert store.get_step("c1", "SPY", "llm") == "first"
 
 
 def test_state_is_set_once_and_deletable(tmp_path: Path) -> None:

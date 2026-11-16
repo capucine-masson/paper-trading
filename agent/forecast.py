@@ -38,9 +38,14 @@ class PriceForecast(BaseModel):
     uncertainty: float
 
     @property
+    def expected_return(self) -> float:
+        """Median return at the end of the horizon."""
+        return self.median[-1] / self.last_price - 1
+
+    @property
     def signal(self) -> float:
         """Expected return at the horizon divided by the interval width: a unitless conviction."""
-        return (self.median[-1] / self.last_price - 1) / self.uncertainty
+        return self.expected_return / self.uncertainty
 
 
 def load_model(config: ForecastConfig) -> TimestralForecaster:

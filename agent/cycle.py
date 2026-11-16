@@ -1,10 +1,10 @@
 """One cycle: data, forecast, LLM, risk, order. Every external action is a resumable step."""
 
-import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from mistralai.client import Mistral
 from pydantic import BaseModel
@@ -17,27 +17,40 @@ from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_m
 from agent.llm import Decision, Decisions, LlmError, build_portfolio_data, decide
 from agent.macro import MacroData, MacroError, fetch_macro
 from agent.risk import (
+    Candidate,
     OrderSpec,
     Portfolio,
     PortfolioSnapshot,
     Verdict,
-    apply_to_portfolio,
     evaluate,
+    evaluate_ranked,
     halt_reason,
     snapshot,
 )
-from agent.store import CYCLE_SCOPE, Store
+from agent.store import (
+    ACCOUNT_EQUITY_KEY,
+    CYCLE_SCOPE,
+    HALTED_KEY,
+    STEP_DECISIONS,
+    STEP_FORECAST,
+    STEP_ORDER,
+    STEP_PORTFOLIO,
+    STEP_VERDICT,
+    Store,
+)
 
 logger = logging.getLogger(__name__)
 
-STATUS_SUCCESS = "success"
-STATUS_ERROR = "error"
-STATUS_SKIPPED = "skipped"
+CycleStatus = Literal["success", "error", "skipped"]
+
+STATUS_SUCCESS: CycleStatus = "success"
+STATUS_ERROR: CycleStatus = "error"
+STATUS_SKIPPED: CycleStatus = "skipped"
 BASELINE_KEY = "baseline_equity"
-HALTED_KEY = "halted_reason"
-ACCOUNT_EQUITY_KEY = "account_equity"
 DAY_START_KEY = "day_start_equity:"
 FINAL_ORDER_STATUSES = {"filled", "canceled", "expired", "rejected"}
+ERROR_STEP = "error"
+RECOVERABLE_ERRORS = (DataError, ForecastError, BrokerError, MacroError)
 
 
 class SymbolOutcome(BaseModel):
@@ -49,7 +62,7 @@ class SymbolOutcome(BaseModel):
 
 
 class CycleReport(BaseModel):
-    status: str
+    status: CycleStatus
     detail: str
     halted_reason: str | None = None
     outcomes: dict[str, SymbolOutcome] = {}
@@ -87,7 +100,7 @@ class Cycle:
         portfolio, halted = self._load_portfolio()
         self._step(
             CYCLE_SCOPE,
-            "portfolio",
+            STEP_PORTFOLIO,
             PortfolioSnapshot,
             lambda: snapshot(portfolio, halted),
         )
@@ -98,7 +111,11 @@ class Cycle:
         return self._finish(status, "; ".join(errors), halted, outcomes)
 
     def _finish(
-        self, status: str, detail: str, halted: str | None, outcomes: dict[str, SymbolOutcome]
+        self,
+        status: CycleStatus,
+        detail: str,
+        halted: str | None,
+        outcomes: dict[str, SymbolOutcome],
     ) -> CycleReport:
         if self.execute:
             self._refresh_fills()
@@ -107,7 +124,7 @@ class Cycle:
 
     def _refresh_fills(self) -> None:
         """Record the fill of orders that were not final when they were journaled."""
-        for row in self.store.list_steps("order"):
+        for row in self.store.list_steps(STEP_ORDER):
             record = OrderRecord.model_validate_json(row.result)
             if record.status in FINAL_ORDER_STATUSES:
                 continue
@@ -116,7 +133,7 @@ class Cycle:
             except BrokerError as error:
                 logger.warning("cycle %s: %s: %s", self.cycle_id, row.symbol, error)
                 continue
-            self.store.update_step(row.cycle_id, row.symbol, "order", latest.model_dump_json())
+            self.store.update_step(row.cycle_id, row.symbol, STEP_ORDER, latest.model_dump_json())
 
     def _step[T: BaseModel](
         self, symbol: str, name: str, model: type[T], action: Callable[[], T]
@@ -129,10 +146,15 @@ class Cycle:
         self.store.save_step(self.cycle_id, symbol, name, result.model_dump_json())
         return result
 
-    def _fail(self, symbol: str, message: str) -> str:
+    def _record_error(self, symbol: str, message: str) -> str:
+        """Log and journal an error (the first one of a resumed cycle is kept); return it."""
         logger.warning("cycle %s: %s: %s", self.cycle_id, symbol, message)
-        self.store.save_step(self.cycle_id, symbol, "error", json.dumps({"message": message}))
+        if self._journaled_error(symbol) is None:
+            self.store.save_step(self.cycle_id, symbol, ERROR_STEP, message)
         return message
+
+    def _journaled_error(self, symbol: str) -> str | None:
+        return self.store.get_step(self.cycle_id, symbol, ERROR_STEP)
 
     def _load_portfolio(self) -> tuple[Portfolio, str | None]:
         risk = self.config.risk
@@ -178,73 +200,75 @@ class Cycle:
 
     def _forecast_step(self, symbol: str) -> PriceForecast:
         """The Timestral tool: run once per symbol and cycle, then read back from the journal."""
-        return self._step(symbol, "forecast", PriceForecast, lambda: self._forecast(symbol))
+        return self._step(symbol, STEP_FORECAST, PriceForecast, lambda: self._forecast(symbol))
+
+    def _forecast_tool(self, symbol: str) -> PriceForecast | None:
+        try:
+            return self._forecast_step(symbol)
+        except RECOVERABLE_ERRORS as error:
+            self._record_error(symbol, str(error))
+            return None
+
+    def _decide(self, portfolio: Portfolio) -> Decisions:
+        """One LLM conversation for all symbols, read back from the journal when already done."""
+        if self.store.get_step(self.cycle_id, CYCLE_SCOPE, STEP_DECISIONS) is None:
+            self._get_inputs()
+        data = build_portfolio_data(
+            portfolio.equity,
+            self.config.risk.allocated_capital,
+            portfolio.day_start_equity,
+            portfolio.market_values,
+        )
+        return self._step(
+            CYCLE_SCOPE,
+            STEP_DECISIONS,
+            Decisions,
+            lambda: decide(
+                self.llm_client,
+                self.config.market.symbols,
+                data,
+                self._forecast_tool,
+                self.config.llm,
+                self.cycle_id,
+            ),
+        )
 
     def _analyze(self, portfolio: Portfolio) -> dict[str, SymbolOutcome]:
-        """One LLM conversation for all symbols; a symbol the LLM could not decide gets an error."""
+        """A symbol the LLM could not decide gets the error that explains why."""
         symbols = self.config.market.symbols
-        errors: dict[str, str] = {}
-        if self.store.get_step(self.cycle_id, CYCLE_SCOPE, "decisions") is None:
-            try:
-                self._get_inputs()
-            except (DataError, ForecastError, BrokerError, MacroError) as error:
-                message = self._fail(CYCLE_SCOPE, str(error))
-                return {symbol: SymbolOutcome(error=message) for symbol in symbols}
-
-        def forecast_tool(symbol: str) -> PriceForecast | None:
-            try:
-                return self._forecast_step(symbol)
-            except (DataError, ForecastError, BrokerError, MacroError) as error:
-                errors[symbol] = self._fail(symbol, str(error))
-                return None
-
-        held = {symbol: position.market_value for symbol, position in portfolio.positions.items()}
-        data = build_portfolio_data(
-            portfolio.equity, self.config.risk.allocated_capital, portfolio.day_start_equity, held
-        )
         try:
-            decisions = self._step(
-                CYCLE_SCOPE,
-                "decisions",
-                Decisions,
-                lambda: decide(
-                    self.llm_client, symbols, data, forecast_tool, self.config.llm, self.cycle_id
-                ),
+            decisions = self._decide(portfolio)
+        except (*RECOVERABLE_ERRORS, LlmError) as error:
+            message = self._record_error(CYCLE_SCOPE, str(error))
+            return {s: SymbolOutcome(error=self._journaled_error(s) or message) for s in symbols}
+        decided = decisions.by_symbol()
+        return {
+            symbol: SymbolOutcome(forecast=self._forecast_step(symbol), decision=decided[symbol])
+            if symbol in decided
+            else SymbolOutcome(
+                error=self._journaled_error(symbol) or "no forecast requested by the LLM"
             )
-        except LlmError as error:
-            message = self._fail(CYCLE_SCOPE, str(error))
-            return {symbol: SymbolOutcome(error=errors.get(symbol, message)) for symbol in symbols}
-        decided = {item.symbol: item.decision for item in decisions.decisions}
-        outcomes: dict[str, SymbolOutcome] = {}
-        for symbol in symbols:
-            if symbol in decided:
-                outcomes[symbol] = SymbolOutcome(
-                    forecast=self._forecast_step(symbol), decision=decided[symbol]
-                )
-            else:
-                reason = errors.get(symbol, "no forecast requested by the LLM")
-                outcomes[symbol] = SymbolOutcome(error=reason)
-        return outcomes
+            for symbol in symbols
+        }
 
     def _apply_risk(
         self, outcomes: dict[str, SymbolOutcome], portfolio: Portfolio, halted: str | None
     ) -> None:
-        ready = [
-            (symbol, outcome, outcome.decision, outcome.forecast)
+        candidates = [
+            Candidate(symbol, outcome.decision, outcome.forecast)
             for symbol, outcome in outcomes.items()
             if outcome.decision is not None and outcome.forecast is not None
         ]
-        approved_count = 0
-        for symbol, outcome, decision, forecast in sorted(
-            ready, key=lambda item: item[2].confidence, reverse=True
+        for symbol, verdict in evaluate_ranked(
+            candidates,
+            portfolio,
+            lambda decision, forecast, approved: self._verdict(
+                forecast.symbol, decision, forecast, portfolio, halted, approved
+            ),
         ):
-            verdict = self._verdict(symbol, decision, forecast, portfolio, halted, approved_count)
-            outcome.verdict = verdict
-            if verdict.order is not None:
-                approved_count += 1
-                apply_to_portfolio(portfolio, verdict.order)
-                if self.execute:
-                    self._send_order(symbol, outcome, verdict.order)
+            outcomes[symbol].verdict = verdict
+            if verdict.order is not None and self.execute:
+                self._send_order(symbol, outcomes[symbol], verdict.order)
 
     def _verdict(
         self,
@@ -257,7 +281,7 @@ class Cycle:
     ) -> Verdict:
         return self._step(
             symbol,
-            "verdict",
+            STEP_VERDICT,
             Verdict,
             lambda: evaluate(
                 decision,
@@ -275,9 +299,9 @@ class Cycle:
         try:
             outcome.order = self._step(
                 symbol,
-                "order",
+                STEP_ORDER,
                 OrderRecord,
                 lambda: self.broker.submit_order(spec, client_order_id),
             )
         except BrokerError as error:
-            outcome.error = self._fail(symbol, str(error))
+            outcome.error = self._record_error(symbol, str(error))

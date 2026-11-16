@@ -1,10 +1,13 @@
 from datetime import UTC, datetime
 
 import pytest
+import requests
 from alpaca.common.exceptions import APIError
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.trading.client import TradingClient
 from alpaca.trading.models import Order
 
-from agent.broker import Broker, BrokerError
+from agent.broker import Broker, BrokerError, TimeoutAdapter, _with_timeout
 from agent.config import BrokerConfig
 from agent.risk import OrderSpec
 
@@ -59,7 +62,7 @@ class FakeTrading:
 
 def make_broker(trading: FakeTrading, attempts: int = 3) -> Broker:
     broker = Broker.__new__(Broker)
-    broker._config = BrokerConfig(max_attempts=attempts, retry_delay_s=0.001)
+    broker._config = BrokerConfig(timeout_s=5, max_attempts=attempts, retry_delay_s=0.001)
     broker._trading = trading  # type: ignore[assignment]
     return broker
 
@@ -81,3 +84,25 @@ def test_gives_up_after_max_attempts() -> None:
     with pytest.raises(BrokerError):
         make_broker(trading, attempts=2).submit_order(SPEC, "id1")
     assert trading.submits == 2
+
+
+def test_adapter_applies_its_timeout_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[object] = []
+
+    def fake_send(self: object, request: object, stream: bool, timeout: object, *_: object) -> None:
+        seen.append(timeout)
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", fake_send)
+    adapter = TimeoutAdapter(7)
+    prepared = requests.Request("GET", "https://example.test").prepare()
+    adapter.send(prepared)
+    adapter.send(prepared, timeout=3)
+    assert seen == [7, 3]
+
+
+def test_alpaca_clients_use_the_timeout_adapter() -> None:
+    """Fails if an alpaca-py upgrade changes the session the timeout relies on."""
+    for client in (TradingClient("k", "s", paper=True), StockHistoricalDataClient("k", "s")):
+        _with_timeout(client, 7)
+        adapter = client._session.get_adapter("https://paper-api.alpaca.markets")
+        assert isinstance(adapter, TimeoutAdapter)

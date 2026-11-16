@@ -13,6 +13,10 @@ on:
         description: "Clear the halted state before running (manual resume)"
         type: boolean
         default: false
+      cycle_id:
+        description: "Resume a specific cycle, without the sim- prefix (e.g. 20261116T15); default: the current UTC hour"
+        type: string
+        default: ""
       simulate:
         description: "Dry run: one full cycle without any order, market clock ignored (kept out of the dashboard)"
         type: boolean
@@ -53,23 +57,45 @@ jobs:
 
       - run: uv sync --frozen
 
-      - name: Run one cycle
+      # A failed cycle is re-run with the same cycle id: journaled steps are read back, so no external
+      # action (LLM call, order) is repeated. Stays within the cycle's UTC hour, so data is still fresh.
+      - name: Run one cycle (resumed in place on failure)
+        timeout-minutes: 15
+        env:
+          CYCLE_ID_INPUT: ${{ inputs.cycle_id }}
         run: |
+          EXIT_CYCLE_ERROR=2  # exit code of agent.run for a cycle that ran and failed (agent/run.py)
+          MAX_RETRIES=2
+          RETRY_DELAY_SECONDS=30
           if [ "$SIMULATE" = "true" ]; then
             args="--ignore-market-clock"
+            prefix="sim-"
           else
             args="--execute"
+            prefix=""
           fi
+          cycle_id="${prefix}${CYCLE_ID_INPUT:-$(date -u +%Y%m%dT%H)}"
+          resume_arg=""
           if [ "$RESUME" = "true" ]; then
-            args="$args --resume"
+            resume_arg="--resume"  # first attempt only: a retry must not clear a halt it just raised
           fi
-          uv run python -m agent.run --once $args
+          for attempt in $(seq 0 "$MAX_RETRIES"); do
+            status=0
+            uv run python -m agent.run $args --cycle-id "$cycle_id" $resume_arg || status=$?
+            if [ "$status" -ne "$EXIT_CYCLE_ERROR" ] || [ "$attempt" -eq "$MAX_RETRIES" ]; then
+              exit "$status"
+            fi
+            resume_arg=""
+            echo "Cycle $cycle_id failed (attempt $((attempt + 1))), resuming in $((RETRY_DELAY_SECONDS * (attempt + 1)))s."
+            sleep $((RETRY_DELAY_SECONDS * (attempt + 1)))
+          done
 
       - name: Export dashboard data (even on failure)
         if: always()
         run: uv run python -m agent.export
 
       - name: Commit the journal and exports (even on failure)
+        id: commit
         if: always()
         run: |
           git config user.name "github-actions[bot]"
@@ -82,10 +108,21 @@ jobs:
           git commit -m "Update journal and exports ($(date -u +%Y-%m-%dT%H:%MZ))"
           for attempt in 1 2 3; do
             git pull --rebase && git push && exit 0
-            sleep $((attempt * 5))
+            git rebase --abort 2>/dev/null || true  # leave a clean tree for the next attempt
+            sleep $((attempt * 10))
           done
-          echo "Could not push the journal and exports." >&2
+          echo "::error::Could not push the journal and exports; they are kept in the 'journal-backup' artifact."
           exit 1
+
+      - name: Keep the journal if it could not be pushed
+        if: always() && steps.commit.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: journal-backup
+          path: |
+            journal.db
+            web/public/data
+          retention-days: 30
 
   deploy:
     needs: cycle

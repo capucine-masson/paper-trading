@@ -12,12 +12,23 @@ from pydantic import BaseModel, TypeAdapter
 
 from agent.broker import OrderRecord
 from agent.config import EXPORT_DIR, JOURNAL_PATH, REPORTS_DIR, Config, load_config
-from agent.cycle import ACCOUNT_EQUITY_KEY, HALTED_KEY
 from agent.forecast import PriceForecast
-from agent.llm import Decisions
+from agent.llm import Decisions, SymbolDecision
 from agent.metrics import buy_and_hold_curve, max_drawdown
 from agent.risk import PortfolioSnapshot, Verdict
-from agent.store import StepRow, Store, is_simulation
+from agent.store import (
+    ACCOUNT_EQUITY_KEY,
+    HALTED_KEY,
+    STEP_DECISIONS,
+    STEP_FORECAST,
+    STEP_ORDER,
+    STEP_PORTFOLIO,
+    STEP_VERDICT,
+    CycleRow,
+    StepRow,
+    Store,
+    is_simulation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,13 +140,13 @@ def _real_steps(store: Store, name: str) -> list[StepRow]:
 
 
 def build_export(store: Store, config: Config, now: datetime) -> Export:
-    snapshot_rows = _real_steps(store, "portfolio")
+    snapshot_rows = _real_steps(store, STEP_PORTFOLIO)
     snapshots = {r.cycle_id: PortfolioSnapshot.model_validate_json(r.result) for r in snapshot_rows}
     forecasts = {
         (r.cycle_id, r.symbol): PriceForecast.model_validate_json(r.result)
-        for r in _real_steps(store, "forecast")
+        for r in _real_steps(store, STEP_FORECAST)
     }
-    trades = [_trade(row) for row in _real_steps(store, "order")]
+    trades = [_trade(row) for row in _real_steps(store, STEP_ORDER)]
     allocated = config.risk.allocated_capital
     points = _equity_points(snapshot_rows, snapshots, forecasts, config)
     latest = snapshots[snapshot_rows[-1].cycle_id] if snapshot_rows else None
@@ -147,7 +158,7 @@ def build_export(store: Store, config: Config, now: datetime) -> Export:
         generated_at=now,
         state=_state(halted, config),
         halted_reason=halted,
-        last_cycle=None if last is None else CycleView(**last._asdict()),
+        last_cycle=None if last is None else _cycle_view(last),
         allocated_capital=allocated,
         symbols=config.market.symbols,
         capital_floor=config.risk.capital_floor,
@@ -163,6 +174,16 @@ def _state(halted: str | None, config: Config) -> State:
     if halted is not None:
         return "halted"
     return "active" if config.risk.enabled else "stopped"
+
+
+def _cycle_view(cycle: CycleRow) -> CycleView:
+    return CycleView(
+        cycle_id=cycle.cycle_id,
+        status=cycle.status,
+        detail=cycle.detail,
+        started_at=cycle.started_at,
+        finished_at=cycle.finished_at,
+    )
 
 
 def _trade(row: StepRow) -> TradeView:
@@ -261,41 +282,54 @@ def _decisions(
 ) -> list[DecisionView]:
     verdicts = {
         (r.cycle_id, r.symbol): Verdict.model_validate_json(r.result)
-        for r in _real_steps(store, "verdict")
+        for r in _real_steps(store, STEP_VERDICT)
     }
     orders = {(t.cycle_id, t.symbol): t for t in trades}
-    views = []
-    for row in _real_steps(store, "decisions"):
-        snap = snapshots.get(row.cycle_id)
+    return [
+        _decision_view(
+            row,
+            item,
+            snapshots.get(row.cycle_id),
+            forecasts.get((row.cycle_id, item.symbol)),
+            verdicts.get((row.cycle_id, item.symbol)),
+            orders.get((row.cycle_id, item.symbol)),
+        )
+        for row in _real_steps(store, STEP_DECISIONS)
         for item in sorted(
             Decisions.model_validate_json(row.result).decisions, key=lambda d: d.symbol
-        ):
-            key = (row.cycle_id, item.symbol)
-            decision, verdict, forecast = item.decision, verdicts.get(key), forecasts.get(key)
-            held = snap.positions.get(item.symbol) if snap else None
-            views.append(
-                DecisionView(
-                    t=row.created_at,
-                    cycle_id=row.cycle_id,
-                    symbol=item.symbol,
-                    action=decision.action,
-                    confidence=decision.confidence,
-                    size_fraction=decision.size_fraction,
-                    rationale=decision.rationale,
-                    price=forecast.last_price if forecast else None,
-                    position_qty=held.qty if held else 0.0,
-                    position_value=held.market_value if held else 0.0,
-                    forecast=ForecastPath(
-                        median=forecast.median, lower=forecast.lower, upper=forecast.upper
-                    )
-                    if forecast
-                    else None,
-                    verdict=_verdict_status(decision.action, verdict),
-                    risk_reason=verdict.reason if verdict else None,
-                    order=orders.get(key),
-                )
-            )
-    return views
+        )
+    ]
+
+
+def _decision_view(
+    row: StepRow,
+    item: SymbolDecision,
+    snapshot: PortfolioSnapshot | None,
+    forecast: PriceForecast | None,
+    verdict: Verdict | None,
+    order: TradeView | None,
+) -> DecisionView:
+    decision = item.decision
+    held = snapshot.positions.get(item.symbol) if snapshot else None
+    path = forecast and ForecastPath(
+        median=forecast.median, lower=forecast.lower, upper=forecast.upper
+    )
+    return DecisionView(
+        t=row.created_at,
+        cycle_id=row.cycle_id,
+        symbol=item.symbol,
+        action=decision.action,
+        confidence=decision.confidence,
+        size_fraction=decision.size_fraction,
+        rationale=decision.rationale,
+        price=forecast.last_price if forecast else None,
+        position_qty=held.qty if held else 0.0,
+        position_value=held.market_value if held else 0.0,
+        forecast=path,
+        verdict=_verdict_status(decision.action, verdict),
+        risk_reason=verdict.reason if verdict else None,
+        order=order,
+    )
 
 
 def write_export(export: Export, out_dir: Path) -> None:

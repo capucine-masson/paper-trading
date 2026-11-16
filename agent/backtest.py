@@ -3,13 +3,14 @@
 import argparse
 import hashlib
 import logging
+import sys
 import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Literal
+from typing import Literal, NamedTuple
 
 import numpy as np
 from mistralai.client import Mistral
@@ -30,10 +31,19 @@ from agent.llm import (
     decide,
     make_client,
 )
-from agent.macro import MacroData, fetch_macro
+from agent.macro import MacroData, MacroError, fetch_macro
 from agent.metrics import ForecastMetrics, ForecastSample, forecast_metrics, max_drawdown
-from agent.risk import OrderSpec, Portfolio, Position, apply_to_portfolio, evaluate, halt_reason
-from agent.store import CYCLE_SCOPE, Store
+from agent.risk import (
+    Candidate,
+    OrderSpec,
+    Portfolio,
+    Position,
+    evaluate,
+    evaluate_ranked,
+    halt_reason,
+)
+from agent.run import STARTUP_ERRORS
+from agent.store import CYCLE_SCOPE, STEP_DECISIONS, Store
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +51,12 @@ LLM_CACHE_PATH = REPORTS_DIR / "llm_cache.db"
 PROGRESS_EVERY = 100
 BPS_PER_UNIT = 10_000.0
 RULE_CONFIDENCE = 1.0
+HASH_LENGTH = 8
+
+
+class BacktestError(Exception):
+    """Raised when the backtest cannot produce a report."""
+
 
 Rule = Callable[["ForecastRecord"], Decision]
 Strategy = Callable[[list["ForecastRecord"], Portfolio], dict[str, Decision]]
@@ -135,7 +151,8 @@ def build_points(bars: list[Bar], config: Config) -> list[EvalPoint]:
             now = ref_bar.timestamp + BAR_PERIOD
             try:
                 series = build_series(symbol, history[: index + 1], context, now, config.market)
-            except DataError:
+            except DataError as error:
+                logger.warning("skipped %s at %s: %s", symbol, now, error)
                 continue
             points.append(
                 EvalPoint(
@@ -249,6 +266,10 @@ def per_symbol(rule: Rule) -> Strategy:
     return lambda group, _: {record.forecast.symbol: rule(record) for record in group}
 
 
+def _short_hash(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:HASH_LENGTH]
+
+
 class LlmStrategy:
     """The real LLM decision for all symbols at once, cached so a rerun costs nothing.
 
@@ -261,21 +282,23 @@ class LlmStrategy:
         self._cache = cache
         llm = config.llm
         fingerprint = f"{build_system_prompt(llm)}|{llm.model}|{llm.temperature}"
-        self._prefix = "bt-" + hashlib.sha256(fingerprint.encode()).hexdigest()[:8]
+        self._prefix = "bt-" + _short_hash(fingerprint)
         self.failures = 0
 
     def __call__(self, group: list[ForecastRecord], portfolio: Portfolio) -> dict[str, Decision]:
-        held = {symbol: position.market_value for symbol, position in portfolio.positions.items()}
         data = build_portfolio_data(
-            portfolio.equity, self._config.risk.allocated_capital, portfolio.day_start_equity, held
+            portfolio.equity,
+            self._config.risk.allocated_capital,
+            portfolio.day_start_equity,
+            portfolio.market_values,
         )
         forecasts = {record.forecast.symbol: record.forecast for record in group}
         context = data + "".join(build_forecast_data(f) for f in forecasts.values())
         moment = group[0].point.time.isoformat()
-        cycle_id = f"{self._prefix}-{moment}-{hashlib.sha256(context.encode()).hexdigest()[:8]}"
-        cached = self._cache.get_step(cycle_id, CYCLE_SCOPE, "decisions")
+        cycle_id = f"{self._prefix}-{moment}-{_short_hash(context)}"
+        cached = self._cache.get_step(cycle_id, CYCLE_SCOPE, STEP_DECISIONS)
         if cached is not None:
-            return _by_symbol(Decisions.model_validate_json(cached))
+            return Decisions.model_validate_json(cached).by_symbol()
         try:
             decisions = decide(
                 self._client,
@@ -289,12 +312,8 @@ class LlmStrategy:
             logger.warning("LLM failed, no order: %s", error)
             self.failures += 1
             return {}
-        self._cache.save_step(cycle_id, CYCLE_SCOPE, "decisions", decisions.model_dump_json())
-        return _by_symbol(decisions)
-
-
-def _by_symbol(decisions: Decisions) -> dict[str, Decision]:
-    return {item.symbol: item.decision for item in decisions.decisions}
+        self._cache.save_step(cycle_id, CYCLE_SCOPE, STEP_DECISIONS, decisions.model_dump_json())
+        return decisions.by_symbol()
 
 
 @dataclass
@@ -339,31 +358,71 @@ def _approved_orders(
     group: list[ForecastRecord],
     decisions: dict[str, Decision],
     portfolio: Portfolio,
-    config: Config,
+    symbols: list[str],
     risk: RiskConfig,
     halted: str | None,
 ) -> list[tuple[OrderSpec, ForecastRecord]]:
     """Run the decisions through the real rules, the most confident first."""
-    decided = sorted(
-        ((decisions[r.forecast.symbol], r) for r in group if r.forecast.symbol in decisions),
-        key=lambda item: item[0].confidence,
-        reverse=True,
+    records = {record.forecast.symbol: record for record in group}
+    candidates = [
+        Candidate(symbol, decision, records[symbol].forecast)
+        for symbol, decision in decisions.items()
+        if symbol in records
+    ]
+    verdicts = evaluate_ranked(
+        candidates,
+        portfolio,
+        lambda decision, forecast, approved: evaluate(
+            decision, forecast, portfolio, risk, symbols, halted, approved
+        ),
     )
-    approved: list[tuple[OrderSpec, ForecastRecord]] = []
-    for decision, record in decided:
-        verdict = evaluate(
-            decision,
-            record.forecast,
-            portfolio,
-            risk,
-            config.market.symbols,
-            halted,
-            len(approved),
+    return [(verdict.order, records[symbol]) for symbol, verdict in verdicts if verdict.order]
+
+
+class Simulation:
+    """One strategy replayed through the real rules, one decision time after the other."""
+
+    def __init__(self, config: Config, risk: RiskConfig) -> None:
+        self._symbols = config.market.symbols
+        self._risk = risk
+        self._cost = config.backtest.cost_bps / BPS_PER_UNIT
+        self._book = Book(cash=risk.allocated_capital)
+        self._halted: str | None = None
+        self._day: date | None = None
+        self._day_start = self._book.cash
+        self._curve: list[float] = []
+        self._exposures: list[float] = []
+        self._trades = 0
+
+    def step(self, moment: datetime, group: list[ForecastRecord], strategy: Strategy) -> None:
+        book = self._book
+        for record in group:
+            book.prices[record.forecast.symbol] = record.forecast.last_price
+        equity = book.equity()
+        if moment.date() != self._day:
+            self._day, self._day_start = moment.date(), equity
+        self._halted = self._halted or halt_reason(equity, self._risk)
+        portfolio = book.portfolio(self._day_start)
+        decisions = strategy(group, portfolio)
+        orders = _approved_orders(
+            group, decisions, portfolio, self._symbols, self._risk, self._halted
         )
-        if verdict.order is not None:
-            apply_to_portfolio(portfolio, verdict.order)
-            approved.append((verdict.order, record))
-    return approved
+        for order, record in orders:
+            book.fill(order, record.point.fill_price, self._cost)
+        self._trades += len(orders)
+        self._curve.append(book.equity())
+        self._exposures.append(book.holdings() / self._risk.allocated_capital)
+
+    def result(self, name: str) -> StrategyResult:
+        capital = self._risk.allocated_capital
+        return StrategyResult(
+            name=name,
+            final_equity=self._curve[-1],
+            return_pct=(self._curve[-1] / capital - 1) * PERCENT,
+            max_drawdown_pct=max_drawdown(self._curve) * PERCENT,
+            trades=self._trades,
+            average_exposure_pct=float(np.mean(self._exposures)) * PERCENT,
+        )
 
 
 def simulate(
@@ -371,45 +430,19 @@ def simulate(
     strategy: Strategy,
     records: list[ForecastRecord],
     config: Config,
-    forecast_guard: bool = True,
+    uses_forecast: bool = True,
 ) -> StrategyResult:
     """Replay decisions through the real rules; fills happen at the next bar close, minus a cost."""
     risk = config.risk.model_copy(
-        update={"forecast_guard": config.risk.forecast_guard and forecast_guard}
+        update={"forecast_guard": config.risk.forecast_guard and uses_forecast}
     )
-    cost = config.backtest.cost_bps / BPS_PER_UNIT
     by_time: dict[datetime, list[ForecastRecord]] = defaultdict(list)
     for record in records:
         by_time[record.point.time].append(record)
-    book = Book(cash=risk.allocated_capital)
-    halted: str | None = None
-    day = None
-    day_start = book.cash
-    curve: list[float] = []
-    exposures: list[float] = []
-    trades = 0
+    simulation = Simulation(config, risk)
     for moment, group in sorted(by_time.items()):
-        for record in group:
-            book.prices[record.forecast.symbol] = record.forecast.last_price
-        equity = book.equity()
-        if moment.date() != day:
-            day, day_start = moment.date(), equity
-        halted = halted or halt_reason(equity, risk)
-        portfolio = book.portfolio(day_start)
-        decisions = strategy(group, portfolio)
-        for order, record in _approved_orders(group, decisions, portfolio, config, risk, halted):
-            book.fill(order, record.point.fill_price, cost)
-            trades += 1
-        curve.append(book.equity())
-        exposures.append(book.holdings() / risk.allocated_capital)
-    return StrategyResult(
-        name=name,
-        final_equity=curve[-1],
-        return_pct=(curve[-1] / risk.allocated_capital - 1) * PERCENT,
-        max_drawdown_pct=max_drawdown(curve) * PERCENT,
-        trades=trades,
-        average_exposure_pct=float(np.mean(exposures)) * PERCENT,
-    )
+        simulation.step(moment, group, strategy)
+    return simulation.result(name)
 
 
 # --- report --------------------------------------------------------------------------------
@@ -460,19 +493,22 @@ def _markdown(report: BacktestReport) -> str:
     return "\n".join(lines) + "\n"
 
 
-def named_strategies(config: Config, llm: LlmStrategy) -> list[tuple[str, Strategy, bool]]:
-    """Each strategy with its forecast guard flag: pure baselines ignore the forecast, so the
-    no-buy-against-the-forecast rule skips them."""
+class NamedStrategy(NamedTuple):
+    name: str
+    strategy: Strategy
+    uses_forecast: bool  # pure baselines ignore the forecast, so the forecast guard skips them
+
+
+def named_strategies(config: Config, llm: LlmStrategy) -> list[NamedStrategy]:
+    backtest = config.backtest
     return [
-        ("Cash (never trade)", per_symbol(cash_rule), False),
-        ("Equal-weight buy and hold", equal_weight_buy_and_hold(config), False),
-        ("Momentum rule", per_symbol(momentum_rule(config.backtest.momentum_bars)), False),
-        (
-            "Timestral-only rule",
-            per_symbol(timestral_rule(config.backtest.rule_signal_threshold)),
-            True,
+        NamedStrategy("Cash (never trade)", per_symbol(cash_rule), False),
+        NamedStrategy("Equal-weight buy and hold", equal_weight_buy_and_hold(config), False),
+        NamedStrategy("Momentum rule", per_symbol(momentum_rule(backtest.momentum_bars)), False),
+        NamedStrategy(
+            "Timestral-only rule", per_symbol(timestral_rule(backtest.rule_signal_threshold)), True
         ),
-        ("Timestral + LLM (the agent)", llm, True),
+        NamedStrategy("Timestral + LLM (the agent)", llm, True),
     ]
 
 
@@ -482,6 +518,8 @@ def run_backtest(
     points = build_points(bars, config)
     logger.info("%d evaluation points", len(points))
     records = run_forecasts(points, load_model(config.forecast), config, macro)
+    if not records:
+        raise BacktestError("no forecast could be produced: nothing to evaluate")
     models = [evaluate_model(config.forecast.model, records)]
     stamps = [b.timestamp for b in bars]
     window_start = max(r.point.time for r in records) - timedelta(
@@ -490,14 +528,18 @@ def run_backtest(
     window = [r for r in records if r.point.time >= window_start]
     strategies: list[StrategyResult] = []
     llm_failures = 0
-    if llm_client is not None and window:
+    if llm_client is not None:
         LLM_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        llm = LlmStrategy(llm_client, config, Store(LLM_CACHE_PATH))
-        strategies = [
-            simulate(name, strategy, window, config, guard)
-            for name, strategy, guard in named_strategies(config, llm)
-        ]
-        llm_failures = llm.failures
+        cache = Store(LLM_CACHE_PATH)
+        try:
+            llm = LlmStrategy(llm_client, config, cache)
+            strategies = [
+                simulate(item.name, item.strategy, window, config, item.uses_forecast)
+                for item in named_strategies(config, llm)
+            ]
+            llm_failures = llm.failures
+        finally:
+            cache.close()
     return BacktestReport(
         generated_at=datetime.now(UTC),
         symbols=config.market.symbols,
@@ -520,21 +562,25 @@ def main() -> int:
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)sZ %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    config = load_config()
-    secrets = load_secrets()
-    broker = Broker(secrets, config.market.feed, config.broker)
-    end = datetime.now(UTC)
-    bars = broker.fetch_hourly_bars(
-        config.market.symbols, end - timedelta(days=config.backtest.history_days), end
-    )
-    macro = fetch_macro(
-        config.macro,
-        secrets.fred_api_key.get_secret_value(),
-        end - timedelta(days=config.backtest.history_days + config.macro.history_days),
-        end,
-    )
-    llm_client = None if args.no_llm else make_client(secrets, config.llm)
-    report = run_backtest(config, bars, macro, llm_client)
+    try:
+        config = load_config()
+        secrets = load_secrets()
+        broker = Broker(secrets, config.market.feed, config.broker)
+        end = datetime.now(UTC)
+        bars = broker.fetch_hourly_bars(
+            config.market.symbols, end - timedelta(days=config.backtest.history_days), end
+        )
+        macro = fetch_macro(
+            config.macro,
+            secrets.fred_api_key.get_secret_value(),
+            end - timedelta(days=config.backtest.history_days + config.macro.history_days),
+            end,
+        )
+        llm_client = None if args.no_llm else make_client(secrets, config.llm)
+        report = run_backtest(config, bars, macro, llm_client)
+    except (*STARTUP_ERRORS, MacroError, BacktestError) as error:
+        print(f"Backtest failed: {error}", file=sys.stderr)
+        return 1
     write_report(report, REPORTS_DIR)
     print((REPORTS_DIR / "backtest.md").read_text(encoding="utf-8"))
     return 0

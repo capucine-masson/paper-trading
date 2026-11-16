@@ -83,6 +83,8 @@ max_uncertainty = 0.08
 forecast_guard = true
 
 [broker]
+# Timeout in seconds of one Alpaca call.
+timeout_s = 20
 # Attempts on transient Alpaca errors (network, 429, 5xx).
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).

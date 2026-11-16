@@ -1,6 +1,7 @@
 """Pure client rules and position sizing. Every decision goes through here before the broker."""
 
-from typing import Literal
+from collections.abc import Callable, Iterator
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel
 
@@ -25,6 +26,10 @@ class Portfolio(BaseModel):
     @property
     def exposure(self) -> float:
         return sum(position.market_value for position in self.positions.values())
+
+    @property
+    def market_values(self) -> dict[str, float]:
+        return {symbol: position.market_value for symbol, position in self.positions.items()}
 
 
 class PortfolioSnapshot(BaseModel):
@@ -123,10 +128,10 @@ def _buy(
     symbol = forecast.symbol
     if decision.size_fraction == 0:
         return _rejected("buy with a size of zero: no order")
-    expected_return = forecast.median[-1] / forecast.last_price - 1
-    if risk.forecast_guard and expected_return <= 0:
+    if risk.forecast_guard and forecast.expected_return <= 0:
         return _rejected(
-            f"expected return {expected_return:+.2%} is not positive: no buy against the forecast"
+            f"expected return {forecast.expected_return:+.2%} is not positive: "
+            "no buy against the forecast"
         )
     if forecast.uncertainty > risk.max_uncertainty:
         return _rejected(f"uncertainty {forecast.uncertainty:.2%} above {risk.max_uncertainty:.2%}")
@@ -152,6 +157,30 @@ def _buy(
         reason += f", reduced from ${wanted:,.2f} by position and exposure limits"
     order = OrderSpec(symbol=symbol, side="buy", notional=notional)
     return Verdict(approved=True, reason=reason, order=order, reduced=reduced)
+
+
+class Candidate(NamedTuple):
+    symbol: str
+    decision: Decision
+    forecast: PriceForecast
+
+
+def evaluate_ranked(
+    candidates: list[Candidate],
+    portfolio: Portfolio,
+    assess: Callable[[Decision, PriceForecast, int], Verdict],
+) -> Iterator[tuple[str, Verdict]]:
+    """Assess the most confident decisions first; each approved order is applied to the portfolio
+    before the next one, so later decisions see the exposure and the order count it leaves."""
+    approved = 0
+    for symbol, decision, forecast in sorted(
+        candidates, key=lambda candidate: candidate.decision.confidence, reverse=True
+    ):
+        verdict = assess(decision, forecast, approved)
+        if verdict.order is not None:
+            approved += 1
+            apply_to_portfolio(portfolio, verdict.order)
+        yield symbol, verdict
 
 
 def apply_to_portfolio(portfolio: Portfolio, order: OrderSpec) -> None:

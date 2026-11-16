@@ -23,7 +23,7 @@ export const isDemo = (): boolean =>
   import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo");
 
 export async function loadDashboard(): Promise<DashboardData> {
-  if (import.meta.env.DEV && isDemo()) {
+  if (isDemo()) {
     return (await import("./demo")).buildDemoData();
   }
   const [status, portfolio, decisions, backtest] = await Promise.all([

@@ -32,10 +32,10 @@ Fill the four keys listed above in `.env` (the file is git-ignored). `HF_TOKEN` 
 
 ```bash
 # Simulation: full pipeline, no order is sent (works even when the market is closed)
-uv run python -m agent.run --once --ignore-market-clock
+uv run python -m agent.run --ignore-market-clock
 
 # Real paper orders (only when the US market is open)
-uv run python -m agent.run --once --execute
+uv run python -m agent.run --execute
 ```
 
 The console prints, for each symbol, the Timestral forecast, the LLM decision and rationale, the risk verdict

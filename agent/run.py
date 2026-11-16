@@ -1,26 +1,36 @@
-"""CLI entry point: uv run python -m agent.run --once [--execute]"""
+"""CLI entry point: uv run python -m agent.run [--execute]"""
 
 import argparse
 import logging
 import sys
 import time
+import tomllib
 from datetime import UTC, datetime
 
 from pydantic import ValidationError
 
-from agent.broker import Broker
+from agent.broker import Broker, BrokerError
 from agent.config import JOURNAL_PATH, load_config, load_secrets
 from agent.cycle import STATUS_ERROR, STATUS_SKIPPED, Cycle, CycleReport, SymbolOutcome
 from agent.llm import make_client
-from agent.store import SIMULATION_PREFIX, Store
+from agent.store import HALTED_KEY, SIMULATION_PREFIX, Store, is_simulation
 
 CYCLE_ID_FORMAT = "%Y%m%dT%H"
+EXIT_STARTUP_ERROR = 1  # configuration or credentials: retrying cannot help
+EXIT_CYCLE_ERROR = 2  # the cycle ran and failed: the workflow may resume it
+STARTUP_ERRORS = (ValidationError, tomllib.TOMLDecodeError, OSError, RuntimeError, BrokerError)
 logger = logging.getLogger(__name__)
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Paper-trading agent")
-    parser.add_argument("--once", action="store_true", required=True, help="run a single cycle")
+class CliArgs(argparse.Namespace):
+    execute: bool
+    resume: bool
+    cycle_id: str | None
+    ignore_market_clock: bool
+
+
+def _parse_args() -> CliArgs:
+    parser = argparse.ArgumentParser(description="Run one paper-trading cycle")
     parser.add_argument(
         "--execute", action="store_true", help="send paper orders (otherwise simulate only)"
     )
@@ -37,9 +47,12 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="simulate while the market is closed (skips the clock and freshness checks)",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=CliArgs())
     if args.execute and args.ignore_market_clock:
         parser.error("--ignore-market-clock cannot be combined with --execute")
+    if args.cycle_id and is_simulation(args.cycle_id) == args.execute:
+        rule = "must not start" if args.execute else "must start"
+        parser.error(f"--cycle-id {rule} with {SIMULATION_PREFIX}")
     return args
 
 
@@ -58,23 +71,23 @@ def main() -> int:
         secrets = load_secrets()
         broker = Broker(secrets, config.market.feed, config.broker)
         llm_client = make_client(secrets, config.llm)
-    except (ValidationError, OSError, RuntimeError) as error:
+    except STARTUP_ERRORS as error:
         print(f"Startup error: {error}", file=sys.stderr)
-        return 1
+        return EXIT_STARTUP_ERROR
     store = Store(JOURNAL_PATH)
     if args.resume:
-        store.delete_state("halted_reason")
+        store.delete_state(HALTED_KEY)
         logger.warning("halted state cleared manually")
     cycle_id = args.cycle_id or default_cycle_id(args.execute, datetime.now(UTC))
     cycle = Cycle(
-        config,
-        broker,
-        llm_client,
-        store,
-        cycle_id,
-        args.execute,
-        args.ignore_market_clock,
-        secrets.fred_api_key.get_secret_value(),
+        config=config,
+        broker=broker,
+        llm_client=llm_client,
+        store=store,
+        cycle_id=cycle_id,
+        execute=args.execute,
+        ignore_market_clock=args.ignore_market_clock,
+        fred_api_key=secrets.fred_api_key.get_secret_value(),
     )
     try:
         report = cycle.run()
@@ -82,11 +95,11 @@ def main() -> int:
         logger.exception("cycle %s failed", cycle_id)
         store.finish_cycle(cycle_id, STATUS_ERROR, f"{type(error).__name__}: {error}")
         print(f"Cycle {cycle_id} failed: {error}", file=sys.stderr)
-        return 1
+        return EXIT_CYCLE_ERROR
     finally:
         store.close()
     _print_report(cycle_id, report, args.execute)
-    return 1 if report.status == STATUS_ERROR else 0
+    return EXIT_CYCLE_ERROR if report.status == STATUS_ERROR else 0
 
 
 def _print_report(cycle_id: str, report: CycleReport, execute: bool) -> None:

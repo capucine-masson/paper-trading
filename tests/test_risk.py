@@ -6,11 +6,13 @@ from agent.config import RiskConfig
 from agent.forecast import PriceForecast
 from agent.llm import Decision
 from agent.risk import (
+    Candidate,
     Portfolio,
     Position,
     Verdict,
     apply_to_portfolio,
     evaluate,
+    evaluate_ranked,
     halt_reason,
 )
 
@@ -224,3 +226,21 @@ def test_forecast_guard_can_be_skipped_for_baselines() -> None:
 def test_sell_is_allowed_even_when_the_forecast_is_positive() -> None:
     held = portfolio(positions={"SPY": Position(qty=2, market_value=200)})
     assert run(dec=decision("sell"), pf=held).approved
+
+
+def test_most_confident_decision_is_assessed_first_and_sees_the_orders_before_it() -> None:
+    pf = portfolio()
+    candidates = [
+        Candidate("SPY", decision(confidence=0.7), forecast("SPY")),
+        Candidate("QQQ", decision(confidence=0.9), forecast("QQQ")),
+    ]
+    seen: list[tuple[str, int]] = []
+
+    def assess(dec: Decision, fc: PriceForecast, approved: int) -> Verdict:
+        seen.append((fc.symbol, approved))
+        return run(dec, fc, pf, approved=approved)
+
+    verdicts = list(evaluate_ranked(candidates, pf, assess))
+    assert seen == [("QQQ", 0), ("SPY", 1)]
+    assert [symbol for symbol, _ in verdicts] == ["QQQ", "SPY"]
+    assert set(pf.positions) == {"QQQ", "SPY"}

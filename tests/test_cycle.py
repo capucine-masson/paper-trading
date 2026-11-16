@@ -12,7 +12,7 @@ from agent.forecast import ForecastError, PriceForecast
 from agent.llm import Decision, Decisions, ForecastTool, SymbolDecision
 from agent.macro import MacroError
 from agent.risk import OrderSpec, Position
-from agent.store import Store
+from agent.store import ACCOUNT_EQUITY_KEY, HALTED_KEY, Store
 
 START_EQUITY = 100_000.0
 
@@ -104,7 +104,7 @@ def test_rerun_never_duplicates_order_nor_llm_call(
 
 def test_account_equity_is_journaled(config: Config, tmp_path: Path, llm_calls: list[str]) -> None:
     make_cycle(config, tmp_path, FakeBroker(), False).run()
-    assert Store(tmp_path / "j.db").get_state(cycle_module.ACCOUNT_EQUITY_KEY) == str(START_EQUITY)
+    assert Store(tmp_path / "j.db").get_state(ACCOUNT_EQUITY_KEY) == str(START_EQUITY)
 
 
 def test_simulation_sends_no_order(config: Config, tmp_path: Path, llm_calls: list[str]) -> None:
@@ -128,7 +128,7 @@ def test_below_capital_floor_halts_and_stays_halted(
     broker.equity = START_EQUITY
     report = make_cycle(config, tmp_path, broker, True, "c3").run()
     assert report.halted_reason is not None and broker.submitted == []
-    Store(tmp_path / "j.db").delete_state(cycle_module.HALTED_KEY)
+    Store(tmp_path / "j.db").delete_state(HALTED_KEY)
     report = make_cycle(config, tmp_path, broker, True, "c4").run()
     assert report.halted_reason is None and broker.submitted == ["c4-SPY-buy"]
 

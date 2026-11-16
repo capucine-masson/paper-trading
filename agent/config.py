@@ -88,6 +88,7 @@ class RiskConfig(StrictModel):
 
 
 class BrokerConfig(StrictModel):
+    timeout_s: int = Field(ge=1, le=300)
     max_attempts: int = Field(ge=1, le=10)
     retry_delay_s: float = Field(gt=0, le=60)
 

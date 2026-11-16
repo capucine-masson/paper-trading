@@ -92,6 +92,9 @@ class SymbolDecision(BaseModel):
 class Decisions(BaseModel):
     decisions: list[SymbolDecision]
 
+    def by_symbol(self) -> dict[str, Decision]:
+        return {item.symbol: item.decision for item in self.decisions}
+
 
 class ForecastRequest(BaseModel):
     symbol: str
@@ -136,7 +139,7 @@ def build_forecast_data(forecast: PriceForecast) -> str:
         f"Symbol: {forecast.symbol}\n"
         f"Forecast horizon: {len(forecast.median)} hourly steps\n"
         "<forecast_data>\n"
-        f"expected_return_median: {forecast.median[-1] / last - 1:+.4%}\n"
+        f"expected_return_median: {forecast.expected_return:+.4%}\n"
         f"expected_return_lower_10pct: {forecast.lower[-1] / last - 1:+.4%}\n"
         f"expected_return_upper_90pct: {forecast.upper[-1] / last - 1:+.4%}\n"
         f"uncertainty_interval_width_over_median: {forecast.uncertainty:.4%}\n"
@@ -257,16 +260,17 @@ def _answer(
 def _retrying[R](config: LlmConfig, request: Callable[[], R]) -> R:
     """Run an LLM request, retrying only transient errors with an increasing delay."""
     delay = config.retry_delay_s
-    for attempt in range(1, config.max_attempts + 1):
+    attempt = 1
+    while True:
         try:
             return request()
         except (httpx.TransportError, MistralError) as error:
-            if not _is_transient(error) or attempt == config.max_attempts:
+            if not _is_transient(error) or attempt >= config.max_attempts:
                 raise LlmError(f"LLM call failed: {type(error).__name__}") from error
             logger.warning("transient LLM error %s, retrying in %.1fs", type(error).__name__, delay)
             time.sleep(delay)
             delay *= 2
-    raise LlmError("LLM call failed: no attempt allowed")
+            attempt += 1
 
 
 def _ask_decisions(
