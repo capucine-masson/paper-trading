@@ -35,8 +35,8 @@ MS_PER_SECOND = 1000
 
 # Median and 90th percentile of the absolute signal over the 1,138 backtest points before the
 # decision window (everything before 2026-10-16): reference points given to the LLM, not thresholds.
-SIGNAL_TYPICAL = 0.016
-SIGNAL_STRONG = 0.045
+SIGNAL_TYPICAL = 0.026
+SIGNAL_STRONG = 0.079
 
 FORECAST_TOOL_NAME = "get_forecast"
 FORECAST_TOOL = Tool(

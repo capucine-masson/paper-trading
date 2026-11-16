@@ -217,3 +217,14 @@ def test_llm_failure_means_no_order_at_that_time(
     strategy = LlmStrategy(Mistral(api_key="test"), config, Store(tmp_path / "cache.db"))
     empty = Portfolio(equity=10_000.0, day_start_equity=10_000.0, positions={})
     assert strategy([make_record(0, 100.0, 100.0)], empty) == {} and strategy.failures == 1
+
+
+def test_cost_lowers_final_equity_and_zero_cost_changes_nothing(config: Config) -> None:
+    records = [make_record(i, 100.0, 100.0) for i in range(5)]
+    no_cost = config.backtest.model_copy(update={"cost_bps": 0})
+    free = config.model_copy(update={"backtest": no_cost})
+    bh = equal_weight_buy_and_hold
+    gross = simulate("bh", bh(free), records, free, False).final_equity
+    net = simulate("bh", bh(config), records, config, False).final_equity
+    assert gross == free.risk.allocated_capital
+    assert net < gross

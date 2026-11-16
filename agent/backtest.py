@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 LLM_CACHE_PATH = REPORTS_DIR / "llm_cache.db"
 PROGRESS_EVERY = 100
+BPS_PER_UNIT = 10_000.0
 RULE_CONFIDENCE = 1.0
 
 Rule = Callable[["ForecastRecord"], Decision]
@@ -306,8 +307,9 @@ def simulate(
     config: Config,
     forecast_guard: bool = True,
 ) -> StrategyResult:
-    """Replay decisions through the real rules; fills happen at the next bar close."""
+    """Replay decisions through the real rules; fills happen at the next bar close, minus a cost."""
     risk = config.risk
+    cost = config.backtest.cost_bps / BPS_PER_UNIT
     by_time: dict[datetime, list[ForecastRecord]] = defaultdict(list)
     for record in records:
         by_time[record.point.time].append(record)
@@ -362,13 +364,13 @@ def simulate(
             apply_to_portfolio(portfolio, verdict)
             order, price = verdict.order, record.point.fill_price
             if order.side == "buy" and order.notional is not None:
-                cash -= order.notional
+                cash -= order.notional * (1 + cost)
                 quantities[order.symbol] = (
                     quantities.get(order.symbol, 0.0) + order.notional / price
                 )
             else:
                 sold = order.qty or 0.0
-                cash += sold * price
+                cash += sold * price * (1 - cost)
                 quantities[order.symbol] -= sold
                 if quantities[order.symbol] <= 0:
                     del quantities[order.symbol]

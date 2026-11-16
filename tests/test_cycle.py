@@ -9,7 +9,8 @@ from agent.config import Config, load_config
 from agent.cycle import Cycle
 from agent.data import DataError
 from agent.forecast import PriceForecast
-from agent.llm import Decision, Decisions, ForecastTool, SymbolDecision
+from agent.llm import Decision, Decisions, ForecastTool, LlmError, SymbolDecision
+from agent.macro import MacroError
 from agent.risk import OrderSpec, Position
 from agent.store import Store
 
@@ -162,3 +163,26 @@ def test_a_symbol_without_forecast_does_not_stop_the_others(
         report.outcomes["QQQ"].error == "QQQ: no data" and report.outcomes["QQQ"].decision is None
     )
     assert report.status == "error"
+
+
+def test_macro_failure_gives_no_forecast_and_no_order(
+    config: Config, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def failing_macro(*args: object) -> None:
+        raise MacroError("vix: FRED request failed (HTTP 503)")
+
+    def decide_with_tool(
+        client: object, symbols: list[str], data: str, tool: ForecastTool, *rest: object
+    ) -> Decisions:
+        assert all(tool(symbol) is None for symbol in symbols)
+        raise LlmError("no forecast served")
+
+    broker = FakeBroker()
+    broker.fetch_hourly_bars = lambda *args: []  # type: ignore[attr-defined]
+    monkeypatch.setattr(cycle_module, "fetch_macro", failing_macro)
+    monkeypatch.setattr(cycle_module, "load_model", lambda name: object())
+    monkeypatch.setattr(cycle_module, "decide", decide_with_tool)
+    report = make_cycle(config, tmp_path, broker, True).run()
+    assert report.status == "error" and broker.submitted == []
+    assert report.outcomes["SPY"].forecast is None
+    assert "FRED" in str(report.outcomes["SPY"].error)

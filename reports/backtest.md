@@ -4,7 +4,7 @@ Symbols: SPY, QQQ, XLE, XLF, XLU, TLT, GLD, EEM. Horizon: 6 hourly bars. History
 
 | Model | Points | MAE ratio vs naive | Direction hit rate | 10%-90% coverage | Mean width | Seconds per forecast |
 | --- | --- | --- | --- | --- | --- | --- |
-| Timestral-28M | 1579 | 0.998 | 50.4% (n=1574) | 78.3% | 2.28% | 0.03 |
+| Timestral-28M | 1579 | 0.998 | 51.0% (n=1574) | 79.4% | 2.40% | 0.19 |
 
 ### Decisions against baselines
 
@@ -13,7 +13,7 @@ Window starts 2026-10-16, 59 decision times, 0 LLM failures (no order at that ti
 | Strategy | Return | Max drawdown | Trades | Average exposure | Final equity |
 | --- | --- | --- | --- | --- | --- |
 | Cash (never trade) | +0.00% | 0.00% | 0 | 0.0% | $10,000.00 |
-| Equal-weight buy and hold | -1.09% | 3.18% | 8 | 88.9% | $9,891.17 |
-| Momentum rule | -3.65% | 4.31% | 224 | 67.4% | $9,634.84 |
-| Timestral-only rule | -1.80% | 5.48% | 37 | 83.6% | $9,820.07 |
-| Timestral + LLM (the agent) | -1.17% | 3.77% | 55 | 54.3% | $9,882.57 |
+| Equal-weight buy and hold | -1.13% | 3.18% | 8 | 88.9% | $9,886.67 |
+| Momentum rule | -4.29% | 4.50% | 226 | 68.2% | $9,570.59 |
+| Timestral-only rule | -0.78% | 4.26% | 34 | 79.7% | $9,922.39 |
+| Timestral + LLM (the agent) | -0.23% | 4.85% | 58 | 81.7% | $9,976.70 |

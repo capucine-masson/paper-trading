@@ -93,6 +93,7 @@ class BacktestConfig(StrictModel):
     decision_window_days: int = Field(ge=1, le=365)
     rule_signal_threshold: float = Field(gt=0, le=1)
     momentum_bars: int = Field(ge=1, le=100)
+    cost_bps: float = Field(ge=0, le=100)
 
 
 class Config(StrictModel):

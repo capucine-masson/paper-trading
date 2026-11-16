@@ -84,7 +84,8 @@ def _get_with_retries(
 ) -> bytes:
     """Retry only transient errors (network, 429, 5xx); the key never reaches the logs."""
     delay = config.retry_delay_s
-    for attempt in range(1, config.max_attempts + 1):
+    attempt = 1
+    while True:
         try:
             response = client.get(FRED_URL, params=params)
             response.raise_for_status()
@@ -95,12 +96,12 @@ def _get_with_retries(
             reason = f"HTTP {status}"
         except httpx.TransportError as error:
             transient, reason = True, type(error).__name__
-        if not transient or attempt == config.max_attempts:
+        if not transient or attempt >= config.max_attempts:
             raise MacroError(f"{name}: FRED request failed ({reason})")
         logger.warning("transient FRED error on %s (%s), retrying in %.1fs", name, reason, delay)
         time.sleep(delay)
         delay *= 2
-    raise AssertionError("unreachable")
+        attempt += 1
 
 
 def macro_covariates(data: MacroData, bar_starts: list[datetime]) -> NDArray[np.float64]:

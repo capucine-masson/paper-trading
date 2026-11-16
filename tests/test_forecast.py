@@ -1,11 +1,14 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 
 from agent.config import load_config
 from agent.data import PriceSeries
-from agent.forecast import ForecastError, event_indicator, validate_forecast
+from agent.forecast import ForecastError, event_indicator, forecast_symbol, validate_forecast
+from agent.macro import MacroData, Observation
 
 CONFIG = load_config().forecast
 LEVELS = (0.1, 0.5, 0.9)
@@ -58,3 +61,35 @@ def test_event_before_open_marks_the_first_bar_after_it() -> None:
 def test_events_outside_the_window_are_ignored() -> None:
     result = event_indicator(BARS, [FIRST_BAR - HOUR, FIRST_BAR + 6 * HOUR])
     assert result.tolist() == [0] * 6
+
+
+class RecordingForecaster:
+    """Stands in for Timestral: records the covariates it receives and returns fixed quantiles."""
+
+    def __init__(self) -> None:
+        self.kwargs: dict[str, np.ndarray] = {}
+
+    def forecast(self, context: np.ndarray, **kwargs: np.ndarray) -> SimpleNamespace:
+        self.kwargs = kwargs
+        row = torch.tensor([98.0, 100.0, 102.0])
+        quantiles = row.repeat(CONFIG.horizon, 1)[None, None]
+        return SimpleNamespace(quantiles=quantiles, quantile_levels=LEVELS)
+
+
+def test_forecast_gets_macro_as_past_and_events_as_known_covariates() -> None:
+    steps = 400
+    start = datetime(2026, 11, 2, tzinfo=UTC)
+    stamps = [start + i * HOUR for i in range(steps)]
+    series = PriceSeries(
+        symbol="SPY", last_bar_start=stamps[-1], timestamps=stamps, values=np.full(steps, 100.0)
+    )
+    macro = MacroData(
+        series={
+            "vix": [Observation(date=date(2026, 11, 1), value=20.0)],
+            "us10y": [Observation(date=date(2026, 11, 1), value=4.0)],
+        }
+    )
+    forecaster = RecordingForecaster()
+    forecast_symbol(forecaster, series, CONFIG, macro)
+    assert forecaster.kwargs["past_covariates"].shape == (1, 2, steps)
+    assert forecaster.kwargs["known_covariates"].shape == (1, steps + CONFIG.horizon)
