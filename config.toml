@@ -1,6 +1,6 @@
 [market]
 # Allowed symbols (long only).
-symbols = ["SPY", "QQQ", "AAPL", "MSFT", "GLD"]
+symbols = ["SPY", "QQQ", "XLE", "XLF", "XLU", "TLT", "GLD", "EEM"]
 # Alpaca market data feed (iex is free; sip needs a paid plan).
 feed = "iex"
 # Calendar days of hourly history requested from Alpaca.
@@ -69,6 +69,6 @@ compare_model = "mistralai/Timestral-209M"
 compare_points_per_symbol = 40
 # Timestral-only rule: act when the expected return exceeds this share of the interval width
 # (75th percentile of the absolute signal before the decision window).
-rule_signal_threshold = 0.025
+rule_signal_threshold = 0.028
 # Number of past bars used by the momentum baseline.
 momentum_bars = 6

@@ -9,15 +9,24 @@ import type {
 } from "./types";
 
 // Development-only sample data to preview the layout (open /?demo=1). Never bundled in production.
-const SYMBOLS = ["SPY", "QQQ", "AAPL", "MSFT", "GLD"];
-const BASE_PRICES: Record<string, number> = { SPY: 750, QQQ: 675, AAPL: 355, MSFT: 524, GLD: 355 };
+const SYMBOLS = ["SPY", "QQQ", "XLE", "XLF", "XLU", "TLT", "GLD", "EEM"];
+const BASE_PRICES: Record<string, number> = {
+  SPY: 750,
+  QQQ: 675,
+  XLE: 65,
+  XLF: 59,
+  XLU: 44,
+  TLT: 79,
+  GLD: 355,
+  EEM: 61,
+};
 const CYCLES = 18;
 const HORIZON = 6;
 const HOUR_MS = 3_600_000;
 const ALLOCATED = 10_000;
 const ORDER_NOTIONAL = 110;
-const MIN_CONFIDENCE = 0.6;
-const BLOCKED_CONFIDENCE = 0.55;
+const MIN_CONFIDENCE = 0.5;
+const BLOCKED_CONFIDENCE = 0.45;
 const ACTIONS: DecisionView["action"][] = ["hold", "buy", "hold", "sell", "hold"];
 const VERDICTS: VerdictStatus[] = ["no_order", "accepted", "no_order", "blocked", "no_order"];
 
@@ -81,19 +90,22 @@ const BACKTEST: BacktestReport = {
   symbols: SYMBOLS,
   forecasts: demoForecasts(),
   horizon_bars: HORIZON,
-  history_start: "2026-05-18T12:00:00Z",
+  history_start: "2026-05-20T12:00:00Z",
   history_end: "2026-11-13T21:00:00Z",
   models: [
     {
       label: "Main model, all points",
       model: "mistralai/Timestral-28M",
-      overall: { n: 1108, mae_ratio: 1.0006, coverage: 0.788 },
+      overall: { n: 1579, mae_ratio: 0.998, coverage: 0.783 },
       per_symbol: {
         SPY: stats(0.998, 0.77),
         QQQ: stats(1.004, 0.79),
-        AAPL: stats(1.003, 0.801),
-        MSFT: stats(0.996, 0.8),
+        XLE: stats(1.003, 0.801),
+        XLF: stats(0.996, 0.8),
+        XLU: stats(1.001, 0.79),
+        TLT: stats(0.999, 0.795),
         GLD: stats(1.0096, 0.786),
+        EEM: stats(1.002, 0.782),
       },
     },
   ],
@@ -199,7 +211,7 @@ export function buildDemoData(): DashboardData {
       },
       allocated_capital: ALLOCATED,
       symbols: SYMBOLS,
-      capital_floor: 8_000,
+      capital_floor: 5_000,
       account_size: 100_083.62,
       metrics: {
         equity,

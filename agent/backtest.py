@@ -25,6 +25,7 @@ from agent.llm import (
     Decision,
     Decisions,
     LlmError,
+    build_forecast_data,
     build_portfolio_data,
     decide,
     make_client,
@@ -203,17 +204,15 @@ def forecast_points(records: list[ForecastRecord]) -> list[ForecastPoint]:
 
 
 def _decision(
-    action: Literal["buy", "sell", "hold"], rationale: str, confidence: float = RULE_CONFIDENCE
+    action: Literal["buy", "sell", "hold"], rationale: str, size_fraction: float = 1.0
 ) -> Decision:
-    return Decision(action=action, confidence=confidence, size_fraction=1.0, rationale=rationale)
+    return Decision(
+        action=action, confidence=RULE_CONFIDENCE, size_fraction=size_fraction, rationale=rationale
+    )
 
 
 def cash_rule(_: ForecastRecord) -> Decision:
     return _decision("hold", "Stay in cash.")
-
-
-def buy_and_hold_rule(_: ForecastRecord) -> Decision:
-    return _decision("buy", "Buy until the position limit is reached, never sell.")
 
 
 def momentum_rule(bars: int) -> Rule:
@@ -239,6 +238,24 @@ def timestral_rule(threshold: float) -> Rule:
     return rule
 
 
+def equal_weight_buy_and_hold(config: Config) -> Strategy:
+    """Buy each symbol once, in equal parts of the exposure limit, then hold."""
+    risk = config.risk
+    size = min(
+        1.0, risk.max_total_exposure_pct / len(config.market.symbols) / risk.max_position_pct
+    )
+
+    def strategy(group: list[ForecastRecord], portfolio: Portfolio) -> dict[str, Decision]:
+        return {
+            record.forecast.symbol: _decision("hold", "Already held.")
+            if record.forecast.symbol in portfolio.positions
+            else _decision("buy", "Buy once, in equal weight.", size)
+            for record in group
+        }
+
+    return strategy
+
+
 def per_symbol(rule: Rule) -> Strategy:
     """A baseline decides each symbol on its own, without looking at the portfolio."""
     return lambda group, _: {record.forecast.symbol: rule(record) for record in group}
@@ -247,7 +264,7 @@ def per_symbol(rule: Rule) -> Strategy:
 class LlmStrategy:
     """The real LLM decision for all symbols at once, cached so a rerun costs nothing.
 
-    The cache key holds the prompt, the time and the portfolio shown to the LLM.
+    The cache key holds the prompt, the time, and the portfolio and forecasts shown to the LLM.
     """
 
     def __init__(self, client: Mistral, config: Config, cache: Store) -> None:
@@ -263,12 +280,13 @@ class LlmStrategy:
         data = build_portfolio_data(
             portfolio.equity, self._config.risk.allocated_capital, portfolio.day_start_equity, held
         )
+        forecasts = {record.forecast.symbol: record.forecast for record in group}
+        context = data + "".join(build_forecast_data(f) for f in forecasts.values())
         moment = group[0].point.time.isoformat()
-        cycle_id = f"{self._prefix}-{moment}-{hashlib.sha256(data.encode()).hexdigest()[:8]}"
+        cycle_id = f"{self._prefix}-{moment}-{hashlib.sha256(context.encode()).hexdigest()[:8]}"
         cached = self._cache.get_step(cycle_id, CYCLE_SCOPE, "decisions")
         if cached is not None:
             return _by_symbol(Decisions.model_validate_json(cached))
-        forecasts = {record.forecast.symbol: record.forecast for record in group}
         try:
             decisions = decide(
                 self._client,
@@ -453,7 +471,7 @@ def run_backtest(
         # Pure baselines ignore the forecast, so the no-buy-against-the-forecast rule skips them.
         named: list[tuple[str, Strategy, bool]] = [
             ("Cash (never trade)", per_symbol(cash_rule), False),
-            ("Buy and hold", per_symbol(buy_and_hold_rule), False),
+            ("Equal-weight buy and hold", equal_weight_buy_and_hold(config), False),
             ("Momentum rule", per_symbol(momentum_rule(config.backtest.momentum_bars)), False),
             (
                 "Timestral-only rule",

@@ -33,10 +33,10 @@ HTTP_SERVER_ERROR = 500
 MAX_RATIONALE_LENGTH = 400
 MS_PER_SECOND = 1000
 
-# Median and 90th percentile of the absolute signal over the 797 backtest points before the decision
-# window (everything before 2026-10-16): reference points given to the LLM, not thresholds.
-SIGNAL_TYPICAL = 0.015
-SIGNAL_STRONG = 0.037
+# Median and 90th percentile of the absolute signal over the 1,138 backtest points before the
+# decision window (everything before 2026-10-16): reference points given to the LLM, not thresholds.
+SIGNAL_TYPICAL = 0.016
+SIGNAL_STRONG = 0.045
 
 FORECAST_TOOL_NAME = "get_forecast"
 FORECAST_TOOL = Tool(

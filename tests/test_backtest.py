@@ -12,8 +12,8 @@ from agent.backtest import (
     ForecastRecord,
     LlmStrategy,
     build_points,
-    buy_and_hold_rule,
     cash_rule,
+    equal_weight_buy_and_hold,
     evaluate_model,
     forecast_points,
     per_symbol,
@@ -127,8 +127,8 @@ def test_cash_never_trades(config: Config) -> None:
 
 def test_buy_and_hold_respects_limits_and_earns_in_a_rising_market(config: Config) -> None:
     records = [make_record(i, 100.0 + i, 100.0 + i + 1) for i in range(10)]
-    result = simulate("bh", per_symbol(buy_and_hold_rule), records, config, False)
-    assert result.return_pct > 0
+    result = simulate("bh", equal_weight_buy_and_hold(config), records, config, False)
+    assert result.return_pct > 0 and result.trades == 1
     assert result.average_exposure_pct <= config.risk.max_position_pct + 1.0
 
 
@@ -136,19 +136,41 @@ def test_fill_is_at_next_bar_close_not_at_decision_price(config: Config) -> None
     flat = [make_record(0, 100.0, 100.0), make_record(1, 100.0, 100.0)]
     costly = [make_record(0, 100.0, 110.0), make_record(1, 100.0, 110.0)]
     assert (
-        simulate("a", per_symbol(buy_and_hold_rule), flat, config, False).final_equity
-        > simulate("b", per_symbol(buy_and_hold_rule), costly, config, False).final_equity
+        simulate("a", equal_weight_buy_and_hold(config), flat, config, False).final_equity
+        > simulate("b", equal_weight_buy_and_hold(config), costly, config, False).final_equity
     )
 
 
 def test_halted_state_stops_trading_after_a_crash(config: Config) -> None:
     risk = config.risk.model_copy(update={"capital_floor": 9_900.0, "max_daily_loss_pct": 100.0})
     cfg = config.model_copy(update={"risk": risk})
-    calm = [make_record(0, 100.0, 100.0), make_record(1, 100.0, 100.0)]
-    crash = [make_record(2, 50.0, 50.0), make_record(3, 50.0, 50.0), make_record(4, 50.0, 50.0)]
-    before = simulate("bh", per_symbol(buy_and_hold_rule), calm, cfg, False).trades
-    after = simulate("bh", per_symbol(buy_and_hold_rule), calm + crash, cfg, False).trades
+    rising = per_symbol(timestral_rule(0.05))  # buys at every decision time
+
+    def records(*prices: float) -> list[ForecastRecord]:
+        return [make_record(i, p, p, median=p * 1.01) for i, p in enumerate(prices)]
+
+    calm = records(100.0, 100.0)
+    before = simulate("rule", rising, calm, cfg).trades
+    after = simulate("rule", rising, calm + records(*([100.0] * 2 + [50.0] * 3))[2:], cfg).trades
     assert after == before
+
+
+def test_equal_weight_buy_and_hold_buys_each_symbol_once() -> None:
+    base = load_config()
+    eight = base.model_copy(
+        update={"market": base.market.model_copy(update={"symbols": list("ABCDEFGH")})}
+    )
+    strategy = equal_weight_buy_and_hold(eight)
+    record = make_record(0, 100.0, 100.0)
+    empty = Portfolio(equity=10_000.0, day_start_equity=10_000.0, positions={})
+    held = Portfolio(
+        equity=10_000.0,
+        day_start_equity=10_000.0,
+        positions={"SPY": Position(qty=5.0, market_value=500.0)},
+    )
+    first = strategy([record], empty)["SPY"]
+    assert first.action == "buy" and first.size_fraction == pytest.approx(0.45)
+    assert strategy([record], held)["SPY"].action == "hold"
 
 
 def test_timestral_rule_acts_only_on_a_clear_signal() -> None:

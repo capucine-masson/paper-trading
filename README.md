@@ -7,7 +7,7 @@ wants, for every symbol, in one conversation. The code decides: dollars, caps an
 plain code before any order is sent. A static, read-only dashboard shows
 what the agent did and why. Paper trading only, not investment advice.
 
-- Symbols: `SPY, QQQ, AAPL, MSFT, GLD`. One cycle per hour during the US session (GitHub Actions).
+- Symbols: `SPY, QQQ, XLE, XLF, XLU, TLT, GLD, EEM` (the ETFs suggested by the brief). One cycle per hour during the US session (GitHub Actions).
 - Dashboard: <https://capucine-masson.github.io/paper-trading/> (published by the workflow after each cycle).
 - Paper only: the Alpaca URL is a constant in `agent/broker.py`, and the agent refuses to start on a non-paper account.
 
@@ -93,7 +93,7 @@ no short selling, allowed symbols only.
 | `max_total_exposure_pct` | 90 | Maximum invested share of the allocated capital | More / less invested |
 | `max_orders_per_cycle` | 5 | Maximum orders in one cycle (highest confidence first) | More / fewer trades |
 | `min_confidence` | 0.5 | Minimum LLM confidence to act | Fewer / more trades |
-| `max_uncertainty` | 0.08 | Maximum forecast interval width (over median) to buy; median 2.9% and 99th percentile 6.3% in the backtest | More / fewer buys |
+| `max_uncertainty` | 0.08 | Maximum forecast interval width (over median) to buy; median 2.3%, 99th percentile 4.3% and maximum 5.6% in the backtest, so it only binds in exceptional conditions | More / fewer buys |
 
 **No buy against the forecast.** Besides these limits, `risk.py` refuses any buy when Timestral's expected return
 over the horizon is not positive: the LLM judges freely, the code only blocks what contradicts the forecast. (The
@@ -200,8 +200,8 @@ order, the order is looked up by its `client_order_id` before any new submission
 
 ## How do we know the decisions are sound?
 
-`uv run python -m agent.backtest` replays the last 180 days of real hourly bars (Alpaca, 5 symbols,
-2026-05-20 to 2026-11-13) walk-forward: at each evaluation point (every 3 bars, 1,080 points) the
+`uv run python -m agent.backtest` replays the last 180 days of real hourly bars (Alpaca, 8 ETFs,
+2026-05-20 to 2026-11-13) walk-forward: at each evaluation point (every 3 bars, 1,579 points) the
 forecast and the decision only see bars up to that moment. Decisions go through the same `risk.py` rules
 and sizing as live, and orders are filled at the next bar close (a test checks that changing the future
 never changes a decision input). Full tables: `reports/backtest.md` and `reports/backtest.json`. The LLM
@@ -212,18 +212,18 @@ to skip parts.
 
 | Model | Points | Error vs naive (MAE ratio) | Right direction | 10%-90% coverage | Mean width | Seconds per forecast |
 | --- | --- | --- | --- | --- | --- | --- |
-| Timestral-28M, all points | 1,080 | 1.000 | 50.0% | 78.5% (target 80%) | 2.82% | 0.04 |
-| Timestral-28M, comparison subset | 200 | 1.005 | 45.5% | 79.0% | 2.80% | 0.04 |
-| Timestral-209M, comparison subset | 200 | 1.014 | 45.5% | 77.5% | 2.73% | 0.14 |
+| Timestral-28M, all points | 1,579 | 0.998 | 50.4% | 78.3% (target 80%) | 2.28% | 0.03 |
+| Timestral-28M, comparison subset | 320 | 1.009 | 50.6% | 75.6% | 2.25% | 0.03 |
+| Timestral-209M, comparison subset | 320 | 1.019 | 49.4% | 75.3% | 2.27% | 0.14 |
 
 - **The intervals are well calibrated on average, not at every date**: the 10%-90% interval contains the real
-  price 78.5% of the time over the whole period, close to the 80% target. That average hides a drift (too wide
+  price 78.3% of the time over the whole period, close to the 80% target. That average hides a drift (too wide
   from May to August, slightly too narrow since September, see "Known limits"). The agent uses the interval to
   size positions and to refuse uncertain buys (`max_uncertainty`), so treat it as approximately, not exactly,
   reliable.
-- **The median has no edge over the naive forecast** on liquid ETFs and large caps at a 6-hour horizon
+- **The median has no edge over the naive forecast** on liquid ETFs at a 6-hour horizon
   (error ratio 1.00, direction 50%). This is expected for such markets: the agent trades on a weak signal, not on a proven edge.
-- **209M is not better than 28M** on the same points (error ratio 1.014 against 1.005, same direction rate) and is
+- **209M is not better than 28M** on the same points (error ratio 1.019 against 1.009, direction 49.4% against 50.6%) and is
   about 3.5x slower on CPU, so the agent keeps 28M.
 
 **Decisions against baselines** (last 28 days, 59 decision times, same rules and sizing, $10,000 allocated)
@@ -231,54 +231,57 @@ to skip parts.
 | Strategy | Return | Max drawdown | Trades | Average exposure |
 | --- | --- | --- | --- | --- |
 | Cash (never trade) | +0.00% | 0.00% | 0 | 0.0% |
-| Buy and hold | -1.73% | 3.69% | 19 | 90.7% |
-| Momentum rule | -1.93% | 3.19% | 188 | 46.4% |
-| Timestral-only rule (no LLM) | +1.24% | 3.06% | 36 | 70.8% |
-| Timestral + LLM (the agent) | -0.95% | 1.85% | 17 | 34.6% |
+| Equal-weight buy and hold | -1.09% | 3.18% | 8 | 88.9% |
+| Momentum rule | -3.65% | 4.31% | 224 | 67.4% |
+| Timestral-only rule (no LLM) | -1.80% | 5.48% | 37 | 83.6% |
+| Timestral + LLM (the agent) | -1.17% | 3.77% | 55 | 54.3% |
+
+The equal-weight buy and hold buys each of the 8 ETFs once, in equal parts of the exposure limit, and holds. The
+other baselines and the agent go through the same risk rules and sizing.
 
 **How the LLM decides.** One conversation per cycle (two Mistral calls for all the symbols). The LLM is shown the
 portfolio (equity, cash, positions, return since the start and today) and calls the tool for each symbol; the tool
 returns the forecast and a signal computed by the code (expected return over interval width). The prompt gives it
-reference points for that signal (median 0.015, 90th percentile 0.037 of the absolute signal over the 797
+reference points for that signal (median 0.016, 90th percentile 0.045 of the absolute signal over the 1,138
 evaluation points before the decision window, up to 2026-10-16) but no threshold or formula: it judges how strong
 each forecast is, weighs the symbols against each other and against the portfolio, and gives for each symbol an
 action, a confidence, a `size_fraction` (share of the maximum position for a buy, share of the current position
 for a sell) and a rationale. The code turns the size into dollars or shares and applies the risk rules, including
-the refusal to buy against the forecast. The Timestral-only baseline acts above a signal of 0.025 (75th percentile
+the refusal to buy against the forecast. The Timestral-only baseline acts above a signal of 0.028 (75th percentile
 of the same pre-window data).
 
 Earlier versions were tried and are not retained as results: a prompt with a threshold of 0.02 read on all the
 history (including the test window, hence biased), a prompt with no threshold that made 5 trades in 28 days, a
-prompt with the threshold 0.025 as an instruction (the LLM then applied a formula, and in a simulated cycle still
+prompt with a hard threshold as an instruction (the LLM then applied a formula, and in a simulated cycle still
 bought below it), and a version that decided each symbol in its own LLM call without seeing the portfolio.
 
 The risk limits were raised a little on purpose (position 25%, exposure 90%, minimum confidence 0.5,
 `max_uncertainty` 0.08, daily loss 10%, capital floor $5,000); they were chosen from the amount of risk wanted,
 not tuned on returns.
 
-**Result and how to read it.** Over 59 conversations (283 symbol decisions, 0 failures) the LLM chose 60 buys (mean
-size 0.26, mean confidence 0.50), 13 sells (mean size 0.30) and 210 holds. The code blocked 24 of the 60 buys
-because the forecast was not positive, and 32 of the 73 buys and sells for a confidence below 0.5 (some overlap
-is possible); the agent made 17 trades and was invested 35% of the time on average. -0.95% against -1.73% for buy
-and hold and +1.24% for the Timestral-only rule is all within the noise of a 28-day window: the forecast has no
-measurable edge (direction 50%), and this is not evidence of skill. The low drawdown (1.85%) mostly reflects that the
-agent was often in cash. The claim is that the agent makes explained decisions inside risk limits, not that it
-beats the market or the rule.
+**Result and how to read it.** Over 59 conversations (441 symbol decisions, 0 failures) the LLM chose 65 buys (mean
+size 0.22, mean confidence 0.48), 63 sells (mean size 0.45) and 313 holds. None of its buys went against the
+forecast, and 57 of its 128 buys and sells had a confidence below 0.5 and were blocked by the minimum; the agent
+made 55 trades and was invested 54% of the time on average. -1.17% against -1.09% for the equal-weight buy and hold
+and -1.80% for the Timestral-only rule is all within the noise of a 28-day window: the forecast has no measurable
+edge (direction 50%), and this is not evidence of skill. The agent's drawdown (3.77%) is close to the buy and
+hold's (3.18%). The claim is that the agent makes explained decisions inside risk limits, not that it beats the
+market or the baselines.
 
 ## Known limits
 
-- **The LLM often wants to buy against the forecast** (24 of its 60 buys in the backtest), and its confidence is
-  low (mean 0.50 against a minimum of 0.5), so the code blocks many of its decisions. The limits are applied as
-  written; they were not loosened to make the agent trade more.
+- **The LLM's confidence is low** (mean 0.48 on its buys and 0.45 on its sells, against a minimum of 0.5), so the
+  code blocks many of its decisions. The limits are applied as written; they were not loosened to make the agent
+  trade more. In an earlier 5-symbol run it also bought against the forecast in 24 of 60 buys; the code blocks that.
 - **What the LLM already knows.** The LLM only receives numbers (last price, forecast, interval) with no date and
   no news, but it sees the ticker, and its training data may cover part of the backtest window: the backtest
   LLM row is not proof of skill. The live paper decisions are out-of-sample by construction. Mistral publishes no cutoff
   for `mistral-small-2603` (third-party directories say June 2025, unverified), so part of the window may be inside
   its training data; symbols were not anonymised.
-- **Universe.** The suggested ETFs XLE, XLF, XLU, TLT and EEM were replaced by AAPL and MSFT to keep a small,
-  liquid set on the free IEX feed; FRED macro drivers are not used (the forecast is univariate). The LLM
-  also sizes sells (a share of the position), and the backtest had 6 sell decisions, mostly
-  near full size (mean 0.85), so partial sells are mainly covered by tests.
+- **Universe.** The 8 ETFs suggested by the brief are used. Its FRED macro drivers (Brent, 10-year and 2-year
+  yields, DXY, VIX, high-yield spread) are not used yet: the forecast is univariate, built from each ETF's own
+  hourly closes. The LLM also sizes sells (a share of the position); the backtest had 63 sell decisions with a
+  mean size of 0.45, so partial sells are exercised.
 - **No transaction costs** in the backtest (fills at the next bar close, no spread, no fees). Alpaca charges no
   commission; its regulatory fees (SEC, FINRA TAF, on sells) are tiny and it is not documented whether paper
   accounts simulate them. At a few basis points per trade and about 20 trades of at most $2,500 in 28 days, costs are
@@ -297,7 +300,7 @@ beats the market or the rule.
 - **Alpaca calls have no explicit timeout** (`alpaca-py` does not expose one simply); retries and the job timeout
   bound the damage.
 - **The 80% range calibration drifts over time.** The 10%-90% interval was too wide from May to August (about
-  13-16% of points outside it, 20% expected) and slightly too narrow since September (about 22-26% outside). The 78.5% overall coverage above averages both periods, so the interval used to
+  17% of points outside it, 20% expected) and slightly too narrow since September (about 24% outside). The 78.3% overall coverage above averages both periods, so the interval used to
   size positions and refuse uncertain buys is not equally reliable at every date.
 - Baseline parameters (`rule_signal_threshold`, `momentum_bars`) are fixed in `config.toml`; the threshold comes
   from the data before the decision window, `momentum_bars` is not tuned.

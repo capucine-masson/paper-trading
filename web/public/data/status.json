@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T01:56:44.919573Z",
+  "generated_at": "2026-11-16T00:47:55.784128Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
@@ -13,11 +13,14 @@
   "symbols": [
     "SPY",
     "QQQ",
-    "AAPL",
-    "MSFT",
-    "GLD"
+    "XLE",
+    "XLF",
+    "XLU",
+    "TLT",
+    "GLD",
+    "EEM"
   ],
-  "capital_floor": 8000.0,
+  "capital_floor": 5000.0,
   "account_size": 100000.0,
   "metrics": {
     "equity": null,
