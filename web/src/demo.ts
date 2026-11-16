@@ -205,6 +205,8 @@ export function buildDemoData(): DashboardData {
                 cycle_id: `demo-${i}`,
                 symbol,
                 side: "buy",
+                ordered_qty: null,
+                notional: ORDER_NOTIONAL,
                 qty: Number(qty.toFixed(3)),
                 fill_price: i % 5 === 0 ? null : last + 0.12,
                 status: i % 5 === 0 ? "accepted" : "filled",

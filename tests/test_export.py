@@ -160,13 +160,44 @@ def test_csv_files_match_the_requested_columns(tmp_path: Path) -> None:
     out = tmp_path / "data"
     write_export(build_export(seeded_store(tmp_path), CONFIG, NOW), out)
     assert read_lines(out / "trades.csv") == [
-        "timestamp,symbol,side,quantity,fill_price,status",
-        "2026-11-16 15:07:30,SPY,buy,1.0,510.25,filled",
+        "timestamp_utc,cycle_id,symbol,side,ordered_qty,notional,filled_qty,fill_price,status",
+        "2026-11-16 15:07:30,c2,SPY,buy,,,1.0,510.25,filled",
     ]
-    assert read_lines(out / "equity.csv")[0] == "timestamp,equity,buy_and_hold"
+    equity = read_lines(out / "equity.csv")
+    assert equity[0] == "timestamp_utc,cycle_id,equity,pnl,exposure,cash,buy_and_hold"
+    assert equity[2].endswith(",c2,9900.0,-100.0,1000.0,8900.0,")
     decisions = read_lines(out / "decisions.csv")
-    assert decisions[0] == "timestamp,symbol,action,risk_verdict,risk_reason,llm_reasoning"
+    assert decisions[0] == (
+        "timestamp_utc,cycle_id,symbol,action,confidence,size_fraction,"
+        "risk_verdict,risk_reason,llm_reasoning"
+    )
     assert decisions[1].endswith("'= Median above price.")  # formula neutralized for Excel
+    assert ",c1,SPY,buy,0.8,0.5,accepted," in decisions[1]
+
+
+def test_unfilled_order_keeps_its_requested_quantity_and_rounds_numbers(tmp_path: Path) -> None:
+    store = Store(tmp_path / "j.db")
+    seed_cycle(store, "c1", 10_000.123456, 500.0)
+    store.save_step(
+        "c1",
+        "SPY",
+        "order",
+        json.dumps(
+            {
+                "order_id": "o1",
+                "client_order_id": "c1-SPY-sell",
+                "symbol": "SPY",
+                "side": "sell",
+                "status": "new",
+                "qty": 6.3236087684,
+                "filled_qty": 0.0,
+            }
+        ),
+    )
+    out = tmp_path / "data"
+    write_export(build_export(store, CONFIG, NOW), out)
+    assert read_lines(out / "trades.csv")[1].endswith(",c1,SPY,sell,6.323609,,0.0,,new")
+    assert ",10000.12," in read_lines(out / "equity.csv")[1]
     assert json.loads((out / "decisions.json").read_text())[0]["symbol"] == "SPY"
 
 

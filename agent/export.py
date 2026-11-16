@@ -40,6 +40,9 @@ BACKTEST_FILE = "backtest.json"
 CSV_ENCODING = "utf-8-sig"
 CSV_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 FORMULA_PREFIXES = ("=", "+", "-", "@")
+USD_DECIMALS = 2
+PRICE_DECIMALS = 4
+QTY_DECIMALS = 6
 
 
 class EquityPoint(BaseModel):
@@ -64,6 +67,8 @@ class TradeView(BaseModel):
     cycle_id: str
     symbol: str
     side: str
+    ordered_qty: float | None
+    notional: float | None
     qty: float | None
     fill_price: float | None
     status: str
@@ -197,7 +202,9 @@ def _trade(row: StepRow) -> TradeView:
         cycle_id=row.cycle_id,
         symbol=row.symbol,
         side=record.side,
-        qty=record.filled_qty if record.filled_qty is not None else record.qty,
+        ordered_qty=record.qty,
+        notional=record.notional,
+        qty=record.filled_qty,
         fill_price=record.filled_avg_price,
         status=record.status,
     )
@@ -357,17 +364,53 @@ def write_export(export: Export, out_dir: Path) -> None:
     (out_dir / "decisions.json").write_bytes(payload)
     _write_csv(
         out_dir / "trades.csv",
-        ["timestamp", "symbol", "side", "quantity", "fill_price", "status"],
-        ([_time(t.t), t.symbol, t.side, t.qty, t.fill_price, t.status] for t in export.trades),
+        [
+            "timestamp_utc",
+            "cycle_id",
+            "symbol",
+            "side",
+            "ordered_qty",
+            "notional",
+            "filled_qty",
+            "fill_price",
+            "status",
+        ],
+        (
+            [
+                _time(t.t),
+                t.cycle_id,
+                t.symbol,
+                t.side,
+                _round(t.ordered_qty, QTY_DECIMALS),
+                _round(t.notional, USD_DECIMALS),
+                _round(t.qty, QTY_DECIMALS),
+                _round(t.fill_price, PRICE_DECIMALS),
+                t.status,
+            ]
+            for t in export.trades
+        ),
     )
     _write_csv(
         out_dir / "decisions.csv",
-        ["timestamp", "symbol", "action", "risk_verdict", "risk_reason", "llm_reasoning"],
+        [
+            "timestamp_utc",
+            "cycle_id",
+            "symbol",
+            "action",
+            "confidence",
+            "size_fraction",
+            "risk_verdict",
+            "risk_reason",
+            "llm_reasoning",
+        ],
         (
             [
                 _time(d.t),
+                d.cycle_id,
                 d.symbol,
                 d.action,
+                d.confidence,
+                d.size_fraction,
                 d.verdict,
                 _text(d.risk_reason),
                 _text(d.rationale),
@@ -375,10 +418,22 @@ def write_export(export: Export, out_dir: Path) -> None:
             for d in export.decisions
         ),
     )
+    allocated = export.status.allocated_capital
     _write_csv(
         out_dir / "equity.csv",
-        ["timestamp", "equity", "buy_and_hold"],
-        ([_time(p.t), p.equity, p.buy_and_hold] for p in export.portfolio.points),
+        ["timestamp_utc", "cycle_id", "equity", "pnl", "exposure", "cash", "buy_and_hold"],
+        (
+            [
+                _time(p.t),
+                p.cycle_id,
+                _round(p.equity, USD_DECIMALS),
+                _round(p.equity - allocated, USD_DECIMALS),
+                _round(p.exposure, USD_DECIMALS),
+                _round(p.equity - p.exposure, USD_DECIMALS),
+                _round(p.buy_and_hold, USD_DECIMALS),
+            ]
+            for p in export.portfolio.points
+        ),
     )
 
 
@@ -392,6 +447,10 @@ def copy_backtest(source: Path, out_dir: Path) -> bool:
 
 def _time(moment: datetime) -> str:
     return moment.astimezone(UTC).strftime(CSV_TIME_FORMAT)
+
+
+def _round(value: float | None, decimals: int) -> float | None:
+    return None if value is None else round(value, decimals)
 
 
 def _text(value: str | None) -> str:
