@@ -5,6 +5,8 @@ on:
     # Hourly during the US session, minute offset from :00. The cron is in UTC and fixed: the US market
     # opens at 14:30 UTC in winter (EST) and 13:30 UTC in summer (EDT). 15:07 is the first slot with a
     # completed hourly bar in winter. In summer, change it to "7 14-19 * * 1-5".
+    # Fallback only: GitHub may delay or drop scheduled runs, so the main trigger is an external cron
+    # calling workflow_dispatch (see README, "Limits").
     # Market open/closed always comes from the Alpaca clock, never from the cron.
     - cron: "7 15-20 * * 1-5"
   workflow_dispatch:
