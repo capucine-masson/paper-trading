@@ -47,6 +47,8 @@ and the order. Every step is stored in `journal.db` (committed on purpose: it is
 runs, including on GitHub Actions). Simulated cycles are marked `sim-` and never appear on the
 dashboard.
 
+Settings (symbols, horizon, risk limits) live in `config.toml`. The emergency stop is `enabled = false` there.
+
 ## 4. See the results
 
 ```bash
@@ -141,5 +143,3 @@ Market open or closed is always decided by the Alpaca clock in code, never by th
 A failed cycle is resumed in place with the same cycle id: journaled steps (LLM output, orders) are read back,
 never repeated. To resume by hand, use the workflow inputs `cycle_id` (the cycle to resume) and `resume`
 (clears the halted state), or locally `uv run python -m agent.run --execute --cycle-id <id> --resume`.
-
-Settings (symbols, horizon, risk limits) live in `config.toml`. The emergency stop is `enabled = false` there.

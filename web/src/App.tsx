@@ -28,6 +28,12 @@ export function App() {
     () => (data === null ? [] : [...new Set(data.decisions.map((d) => d.symbol))].sort()),
     [data],
   );
+
+  useEffect(() => {
+    if (data !== null && view.symbol !== ALL_SYMBOLS && !symbols.includes(view.symbol)) {
+      updateView({ symbol: ALL_SYMBOLS });
+    }
+  }, [data, symbols, view.symbol, updateView]);
   const fitScreen = (view.tab === "overview" || view.tab === "quality") && data !== null;
 
   return (

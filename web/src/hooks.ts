@@ -36,12 +36,10 @@ export function useTheme(): [Theme, () => void] {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
   const toggle = useCallback(() => {
-    setTheme((current) => {
-      const next: Theme = current === "dark" ? "light" : "dark";
-      storeTheme(next);
-      return next;
-    });
-  }, []);
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    storeTheme(next);
+  }, [theme]);
   return [theme, toggle];
 }
 
@@ -58,24 +56,27 @@ function readUrl(): ViewState {
   return {
     tab: TABS.some((t) => t.id === tab) ? (tab as Tab) : "overview",
     period: PERIODS.includes(period as Period) ? (period as Period) : "all",
-    symbol: ALL_SYMBOLS,
+    symbol: params.get("symbol") ?? ALL_SYMBOLS,
   };
+}
+
+function writeUrl(state: ViewState): void {
+  const params = new URLSearchParams(window.location.search);
+  const setOrDrop = (key: string, value: string, fallback: string) =>
+    value === fallback ? params.delete(key) : params.set(key, value);
+  setOrDrop("tab", state.tab, "overview");
+  setOrDrop("period", state.period, "all");
+  setOrDrop("symbol", state.symbol, ALL_SYMBOLS);
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
 }
 
 export function useViewState(): [ViewState, (next: Partial<ViewState>) => void] {
   const [state, setState] = useState<ViewState>(readUrl);
-  const update = useCallback((next: Partial<ViewState>) => {
-    setState((current) => {
-      const merged = { ...current, ...next };
-      const params = new URLSearchParams(window.location.search);
-      const setOrDrop = (key: string, value: string, fallback: string) =>
-        value === fallback ? params.delete(key) : params.set(key, value);
-      setOrDrop("tab", merged.tab, "overview");
-      setOrDrop("period", merged.period, "all");
-      const query = params.toString();
-      window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
-      return merged;
-    });
-  }, []);
+  useEffect(() => writeUrl(state), [state]);
+  const update = useCallback(
+    (next: Partial<ViewState>) => setState((current) => ({ ...current, ...next })),
+    [],
+  );
   return [state, update];
 }

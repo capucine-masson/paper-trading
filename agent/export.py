@@ -3,7 +3,7 @@
 import csv
 import logging
 import shutil
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from statistics import fmean
@@ -40,7 +40,7 @@ BACKTEST_FILE = "backtest.json"
 # Excel reads UTF-8 correctly only with a byte order mark.
 CSV_ENCODING = "utf-8-sig"
 CSV_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-FORMULA_PREFIXES = ("=", "+", "-", "@")
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 USD_DECIMALS = 2
 PRICE_DECIMALS = 4
 RATIO_DECIMALS = 3
@@ -85,7 +85,7 @@ class DecisionView(BaseModel):
     t: datetime
     cycle_id: str
     symbol: str
-    action: str
+    action: Literal["buy", "sell", "hold"]
     signal_strength: float | None
     size_fraction: float
     rationale: str
@@ -367,79 +367,84 @@ def write_export(export: Export, out_dir: Path) -> None:
         (out_dir / name).write_text(model.model_dump_json(indent=2), encoding="utf-8")
     payload = TypeAdapter(list[DecisionView]).dump_json(export.decisions)
     (out_dir / "decisions.json").write_bytes(payload)
-    _write_csv(
-        out_dir / "trades.csv",
+    _write_trades_csv(out_dir / "trades.csv", export.trades)
+    _write_decisions_csv(out_dir / "decisions.csv", export.decisions)
+    _write_equity_csv(out_dir / "equity.csv", export.portfolio.points, export.status)
+
+
+def _write_trades_csv(path: Path, trades: list[TradeView]) -> None:
+    header = [
+        "timestamp_utc",
+        "cycle_id",
+        "symbol",
+        "side",
+        "ordered_qty",
+        "notional",
+        "filled_qty",
+        "fill_price",
+        "status",
+    ]
+    rows = (
         [
-            "timestamp_utc",
-            "cycle_id",
-            "symbol",
-            "side",
-            "ordered_qty",
-            "notional",
-            "filled_qty",
-            "fill_price",
-            "status",
-        ],
-        (
-            [
-                _time(t.t),
-                t.cycle_id,
-                t.symbol,
-                t.side,
-                _round(t.ordered_qty, QTY_DECIMALS),
-                _round(t.notional, USD_DECIMALS),
-                _round(t.qty, QTY_DECIMALS),
-                _round(t.fill_price, PRICE_DECIMALS),
-                t.status,
-            ]
-            for t in export.trades
-        ),
+            _time(t.t),
+            t.cycle_id,
+            t.symbol,
+            t.side,
+            _round(t.ordered_qty, QTY_DECIMALS),
+            _round(t.notional, USD_DECIMALS),
+            _round(t.qty, QTY_DECIMALS),
+            _round(t.fill_price, PRICE_DECIMALS),
+            t.status,
+        ]
+        for t in trades
     )
-    _write_csv(
-        out_dir / "decisions.csv",
+    _write_csv(path, header, rows)
+
+
+def _write_decisions_csv(path: Path, decisions: list[DecisionView]) -> None:
+    header = [
+        "timestamp_utc",
+        "cycle_id",
+        "symbol",
+        "action",
+        "signal_strength",
+        "size_fraction",
+        "risk_verdict",
+        "risk_reason",
+        "llm_reasoning",
+    ]
+    rows = (
         [
-            "timestamp_utc",
-            "cycle_id",
-            "symbol",
-            "action",
-            "signal_strength",
-            "size_fraction",
-            "risk_verdict",
-            "risk_reason",
-            "llm_reasoning",
-        ],
-        (
-            [
-                _time(d.t),
-                d.cycle_id,
-                d.symbol,
-                d.action,
-                _round(d.signal_strength, RATIO_DECIMALS),
-                d.size_fraction,
-                d.verdict,
-                _text(d.risk_reason),
-                _text(d.rationale),
-            ]
-            for d in export.decisions
-        ),
+            _time(d.t),
+            d.cycle_id,
+            d.symbol,
+            d.action,
+            _round(d.signal_strength, RATIO_DECIMALS),
+            d.size_fraction,
+            d.verdict,
+            _text(d.risk_reason),
+            _text(d.rationale),
+        ]
+        for d in decisions
     )
-    allocated = export.status.allocated_capital
-    _write_csv(
-        out_dir / "equity.csv",
-        ["timestamp_utc", "cycle_id", "equity", "pnl", "exposure", "cash", "buy_and_hold"],
-        (
-            [
-                _time(p.t),
-                p.cycle_id,
-                _round(p.equity, USD_DECIMALS),
-                _round(p.equity - allocated, USD_DECIMALS),
-                _round(p.exposure, USD_DECIMALS),
-                _round(p.equity - p.exposure, USD_DECIMALS),
-                _round(p.buy_and_hold, USD_DECIMALS),
-            ]
-            for p in export.portfolio.points
-        ),
+    _write_csv(path, header, rows)
+
+
+def _write_equity_csv(path: Path, points: list[EquityPoint], status: Status) -> None:
+    header = ["timestamp_utc", "cycle_id", "equity", "pnl", "exposure", "cash", "buy_and_hold"]
+    rows = (
+        [
+            _time(p.t),
+            p.cycle_id,
+            _round(p.equity, USD_DECIMALS),
+            _round(p.equity - status.allocated_capital, USD_DECIMALS),
+            _round(p.exposure, USD_DECIMALS),
+            _round(p.equity - p.exposure, USD_DECIMALS),
+            _round(p.buy_and_hold, USD_DECIMALS),
+        ]
+        for p in points
     )
+    _write_csv(path, header, rows)
 
 
 def copy_backtest(source: Path, out_dir: Path) -> bool:
@@ -465,7 +470,7 @@ def _text(value: str | None) -> str:
     return f"'{value}" if value.startswith(FORMULA_PREFIXES) else value
 
 
-def _write_csv(path: Path, header: list[str], rows: Iterable[list[object]]) -> None:
+def _write_csv(path: Path, header: list[str], rows: Iterable[Sequence[object]]) -> None:
     with path.open("w", encoding=CSV_ENCODING, newline="") as file:
         writer = csv.writer(file)
         writer.writerow(header)

@@ -10,7 +10,7 @@ Live dashboard: <https://capucine-masson.github.io/paper-trading/>
 ## Three things to know
 
 1. **Honest calibration:** the forecast has no measurable edge at this horizon, and we say so. Its 10-90% interval
-   covers 74% of outcomes instead of 80%, so it is somewhat too narrow ([backtest](#how-do-we-know-the-decisions-are-sound)).
+   covers 72.5% of outcomes instead of 80%, so it is somewhat too narrow ([backtest](#how-do-we-know-the-decisions-are-sound)).
 2. **Uncertainty drives the size:** a wider forecast interval means a smaller buy, and a weak signal means no buy.
 3. **Guardrails live in code:** the LLM proposes an action and a share of the maximum position, never an amount or a
    price. The code can veto it and enforces hard limits that nothing can bypass.
@@ -19,40 +19,46 @@ Live dashboard: <https://capucine-masson.github.io/paper-trading/>
 
 See **[GETTING_STARTED.md](GETTING_STARTED.md)**.
 
-## Features
+## Code map
 
-| Feature | How it works |
+| File | Role |
 | --- | --- |
-| Probabilistic forecasts | Mistral calls `forecast(symbol)` as a tool and gets a median, a 10-90% interval and a signal strength. Its size is a share of the maximum position, shrunk by the interval width. |
-| Explained decisions | Every decision stores the LLM rationale, the forecast, the risk verdict and the order. The dashboard shows them. |
-| Autonomous and scheduled | GitHub Actions runs a cycle every hour of the US session on an Alpaca paper account and publishes the dashboard to GitHub Pages. |
-| No look-ahead | Completed bars only, walk-forward backtest that starts after both models were released ([details](#how-do-we-know-the-decisions-are-sound)). |
-| Baselines | Equal-weight and same-exposure buy and hold, plus a Timestral-only rule with no LLM, all with the same costs. |
-| Uncertainty-aware sizing | A wider interval means a smaller buy; too wide or too weak a signal means no buy. |
-| Risk and costs | Hard limits in code, 5 bps simulated cost, a veto the LLM cannot bypass. |
-| Future covariates | Scheduled FOMC/CPI dates are a known-future covariate for Timestral. News (GDELT) is not used ([why](#limits)). |
+| `agent/data.py` | Hourly prices from Alpaca |
+| `agent/macro.py` | Macro figures from FRED |
+| `agent/forecast.py` | Timestral forecast |
+| `agent/llm.py` | Prompts and Mistral call |
+| `agent/risk.py` | Veto, sizing, limits (pure code) |
+| `agent/broker.py` | Alpaca (the only file that talks to it) |
+| `agent/cycle.py` | One cycle, in resumable steps |
+| `agent/store.py` | SQLite journal |
+| `agent/backtest.py` | Backtest report |
+| `agent/export.py` | JSON for the dashboard |
+| `web/` | Static dashboard |
+| `tests/` | `pytest`, no network |
 
 ## Deep dive: how one decision is made
 
+The numbered blocks match the numbered steps below.
+
 ```mermaid
 flowchart TD
-    S([Hourly cycle]) --> C{Alpaca clock:<br/>market open?}
-    C -- no --> X([Skip, no decision])
-    C -- yes --> H{Equity above<br/>$8,000 floor?}
-    H -- no --> HX([Halted: no buy, manual resume])
-    H -- yes --> D[Data: Alpaca hourly bars, completed only<br/>+ FRED drivers + FOMC/CPI dates<br/>freshness and gap checks]
-    D --> T[[Timestral tool call per symbol<br/>6h median + 10-90% interval<br/>validated, signal strength 0-1]]
-    T -->|invalid forecast| N([No decision for that symbol])
-    T --> L[Mistral LLM reads forecasts + portfolio<br/>buy / sell / hold, size share, rationale]
-    L --> R{risk.py, strongest signal first}
-    R -->|hold, or sell with no position| V([No order, reason journaled])
-    R -->|sell| SO[Sell the share asked, long only]
-    R -->|buy| G{Forecast supports it?<br/>return above 0, strength 50% or more,<br/>interval width 8% or less, daily loss ok}
+    S([Every hour]) --> C{Market open?}
+    C -- no --> X([Stop])
+    C -- yes --> H{Account above $8,000?}
+    H -- no --> HX([Halted])
+    H -- yes --> D["<b>1. DATA</b><br/>Prices and macro"]
+    D --> T["<b>2. FORECAST</b><br/>Next 6 hours"]
+    T -->|broken forecast| N([Skip this ETF])
+    T --> L["<b>3. LLM</b><br/>Buy, sell or hold"]
+    L --> R{"<b>4. RISK CHECK</b><br/>Allowed?"}
+    R -->|hold| V([No order])
+    R -->|sell| SO[Sell]
+    R -->|buy| G{Forecast<br/>supports it?}
     G -- no --> V
-    G -- yes --> Z[Dollars = 30% cap x min LLM share, 1 - width/8%<br/>cut to position and exposure room<br/>skip below $100]
+    G -- yes --> Z[Size the buy]
     SO --> O
-    Z --> O[Alpaca paper order<br/>client_order_id = cycle-symbol-side]
-    O --> J[(Journal + dashboard)]
+    Z --> O["<b>5. ORDER</b><br/>Alpaca paper"]
+    O --> J[(Journal)]
     V --> J
 ```
 
@@ -91,8 +97,16 @@ symbol does not stop the others.
 | Wide interval, small buy | Timestral's interval is the only uncertainty we have; using it to size is the most direct way to act on it. |
 | Long only, no short | Fewer ways to lose more than invested; simpler to explain to a client. |
 | 6-hour horizon, hourly cycle | Less noise than 1 hour, and the forecast stays fresh. |
+| Timestral-28M, not the 209M | Cheap and fast (111 MB, 0.18 s per forecast). The 209M is 8x slower for no real gain (below). |
 | Mistral Small 4 | Cheap and fast for a structured task; the decision is constrained by the code anyway. |
 | Static dashboard, SQLite journal committed by the workflow | No server to run or secure; the journal survives the ephemeral CI machine. |
+
+Timestral-28M against the biggest model (209M, 837 MB) on the same 436 forecasts. The 5M and 123M were not tested.
+
+| Model | Error vs "price stays" | Right direction | 10-90% coverage | Seconds per forecast |
+| --- | --- | --- | --- | --- |
+| **28M (used)** | 0.999 | 51.2% | 72.5% | 0.18 |
+| 209M | 1.010 | 50.2% | 76.8% | 1.51 |
 
 ## How do we know the decisions are sound?
 
@@ -103,8 +117,8 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | --- | --- |
 | Look-ahead? | Only completed bars are used; a daily macro value is visible from the next day 00:00 UTC; the backtest is walk-forward. Tests: `test_data`, `test_macro`, `test_backtest`. |
 | Who decides? | The LLM calls Timestral as a tool, then picks `buy / sell / hold`, a size and writes the rationale. The code never decides for it: it computes the numbers and can veto a decision (below). |
-| Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. The code also computes a **signal strength** (0 to 1: the expected return over the interval width, against a strong past signal, `signal_strong` in `config.toml`); a buy needs at least 0.5. It is a measure of how strong the forecast is, not a probability, and not asked of the LLM, whose own confidence is not reliable. |
-| Risk? | Hard limits in code: 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
+| Uncertainty? | Sized by the interval width, gated by the signal strength (steps 2 and 4 above). Signal strength measures how strong the forecast is, not a probability, and is not asked of the LLM, whose own confidence is not reliable. |
+| Risk? | Hard limits in code (step 4 above), a $8,000 capital floor and an emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
 | Explanations? | Each decision stores its rationale, the forecast, the market data given to Timestral and whether a FOMC/CPI release falls in the forecast window (recorded by the code, not written by the LLM, and not shown to the LLM), the risk verdict and the order, visible in the dashboard. |
 
 **Backtest** (`uv run python -m agent.backtest`, walk-forward from 2026-10-16, the day after Timestral's release on 2026-10-15; details in `reports/backtest.md`):
@@ -125,15 +139,6 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 At the same exposure, the agent (-1.79%) does the same as buy and hold (-1.94%) and the Timestral-only rule (-2.90%): no measurable edge, and these few weeks are noise, not skill. The dashboard's
 live "Buy & hold" line holds the same average exposure as the agent, so it is not flattered by cash.
 
-**Why Timestral-28M?** It is the cheap choice: 111 MB, 0.18 s per forecast on CPU, light to cache on GitHub Actions. We compared it with the biggest model, 209M (837 MB), on the same 436 forecasts:
-
-| Model | Error vs "price stays" | Right direction | 10-90% coverage | Seconds per forecast |
-| --- | --- | --- | --- | --- |
-| **28M (used)** | 0.999 | 51.2% | 72.5% | 0.18 |
-| 209M | 1.010 | 50.2% | 76.8% | 1.51 |
-
-The 209M is not more accurate, only a bit better calibrated, and about 8x slower, so we keep the 28M. The 5M and 123M were not tested.
-
 ## Limits
 
 - **LLM and Timestral knowledge:** Mistral Small 4 (`mistral-small-2603`) was released on 2026-03-15 and Timestral on
@@ -149,9 +154,3 @@ The 209M is not more accurate, only a bit better calibrated, and about 8x slower
   (setup in [GETTING_STARTED.md](GETTING_STARTED.md#deploy-optional)); the GitHub `schedule` stays as a fallback and
   a duplicate run places no second order. Its token expires and must be renewed. Market open/closed comes from
   the Alpaca clock.
-
-## Code map
-
-`agent/`: `data` and `macro` (inputs), `forecast` (Timestral), `llm` (prompts, tool call), `risk` (veto, sizing, limits),
-`broker` (Alpaca, the only module that talks to it), `cycle` and `store` (resumable steps, journal),
-`backtest`, `export`. `web/`: static dashboard. `tests/`: `pytest`, no network.

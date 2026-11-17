@@ -84,7 +84,7 @@ def llm_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
         served = [symbol for symbol in symbols if tool(symbol) is not None]
         return Decisions(decisions=[SymbolDecision(symbol=s, decision=decision) for s in served])
 
-    monkeypatch.setattr(Cycle, "_get_inputs", lambda self: None)
+    monkeypatch.setattr(Cycle, "_ensure_inputs", lambda self: None)
     monkeypatch.setattr(Cycle, "_forecast", fake_forecast)
     monkeypatch.setattr(cycle_module, "decide", fake_decide)
     return calls

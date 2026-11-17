@@ -1,7 +1,7 @@
 import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import cast
 
 import httpx
 import pytest
@@ -56,10 +56,13 @@ def tool_call(symbol: str, name: str = FORECAST_TOOL_NAME, call_id: str = "c") -
     return ToolCall(id=call_id, function=FunctionCall(name=name, arguments=arguments))
 
 
+Outcome = Decisions | Exception | None
+
+
 class FakeChat:
     """`complete` answers with the given tool calls, `parse` with the given outcomes in order."""
 
-    def __init__(self, outcomes: list[Any], calls: list[ToolCall]) -> None:
+    def __init__(self, outcomes: list[Outcome], calls: list[ToolCall]) -> None:
         self.outcomes = outcomes
         self.calls = calls
         self.parses = 0
@@ -79,7 +82,7 @@ class FakeChat:
 
 
 def run(
-    outcomes: list[Any],
+    outcomes: list[Outcome],
     calls: list[ToolCall] | None = None,
     available: tuple[str, ...] = ("SPY", "QQQ"),
 ) -> tuple[Decisions, FakeChat]:
@@ -167,7 +170,7 @@ def test_no_valid_tool_call_gives_no_decision(calls: list[ToolCall]) -> None:
         {"action": "buy", "size_fraction": 0.5, "rationale": ""},
     ],
 )
-def test_decision_schema_rejects_absurd_output(payload: dict[str, Any]) -> None:
+def test_decision_schema_rejects_absurd_output(payload: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         Decision.model_validate(payload)
 

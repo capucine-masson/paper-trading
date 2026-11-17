@@ -34,33 +34,32 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   return (
     <div className="page-section">
       <div className="decision-wrap">
-      <Signpost />
-      <div className="card decision-list">
-        <div className={`decision-columns${openCycle === null ? " is-collapsed" : ""}`}>
-          <select
-            aria-label="Symbol"
-            title="The ETF the decision is about."
-            value={symbol}
-            onChange={(e) => onSymbol(e.target.value)}
-          >
-            <option value={ALL_SYMBOLS}>All symbols</option>
-            {symbols.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <span aria-hidden="true" title="What the AI proposes: buy, sell or hold.">Action</span>
-          <span aria-hidden="true" title="Price when the decision was made.">Price</span>
-          <span aria-hidden="true" title="What happened: an order was placed, blocked by a rule, or nothing was done.">
-            Result
-          </span>
-        </div>
-        {latest.length === 0 ? (
-          <Empty message="No decision in this view." />
-        ) : (
-          <>
-            {latest.map((cycle, index) => (
+        <Signpost />
+        <div className="card decision-list">
+          <div className={`decision-columns${openCycle === null ? " is-collapsed" : ""}`}>
+            <select
+              aria-label="Symbol"
+              title="The ETF the decision is about."
+              value={symbol}
+              onChange={(e) => onSymbol(e.target.value)}
+            >
+              <option value={ALL_SYMBOLS}>All symbols</option>
+              {symbols.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <span aria-hidden="true" title="What the AI proposes: buy, sell or hold.">Action</span>
+            <span aria-hidden="true" title="Price when the decision was made.">Price</span>
+            <span aria-hidden="true" title="What happened: an order was placed, blocked by a rule, or nothing was done.">
+              Result
+            </span>
+          </div>
+          {latest.length === 0 ? (
+            <Empty message="No decision in this view." />
+          ) : (
+            latest.map((cycle, index) => (
               <Fragment key={cycle[0].cycle_id}>
                 {(index === 0 || formatDay(latest[index - 1][0].t) !== formatDay(cycle[0].t)) && (
                   <div className="day-label">{formatDay(cycle[0].t)}</div>
@@ -68,15 +67,12 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
                 <CycleGroup
                   decisions={cycle}
                   open={cycle[0].cycle_id === openCycle}
-                  onToggle={(isOpen) =>
-                    setOpenCycle((current) => (isOpen ? cycle[0].cycle_id : current === cycle[0].cycle_id ? null : current))
-                  }
+                  onToggle={(isOpen) => setOpenCycle((current) => toggled(current, cycle[0].cycle_id, isOpen))}
                 />
               </Fragment>
-            ))}
-          </>
-        )}
-      </div>
+            ))
+          )}
+        </div>
       </div>
       {cycles.length > MAX_CARDS && (
         <p className="muted">
@@ -95,6 +91,12 @@ function groupByCycle(decisions: DecisionView[]): DecisionView[][] {
     else group.push(d);
   }
   return [...cycles.values()];
+}
+
+/** The single open item of an accordion after `id` was opened or closed. */
+function toggled(current: string | null, id: string, isOpen: boolean): string | null {
+  if (isOpen) return id;
+  return current === id ? null : current;
 }
 
 function plural(count: number, noun: string): string {
@@ -126,7 +128,7 @@ function CycleGroup({ decisions, open, onToggle }: CycleGroupProps) {
       key={d.symbol}
       decision={d}
       open={d.symbol === openSymbol}
-      onToggle={(isOpen) => setOpenSymbol((current) => (isOpen ? d.symbol : current === d.symbol ? null : current))}
+      onToggle={(isOpen) => setOpenSymbol((current) => toggled(current, d.symbol, isOpen))}
     />
   );
   return (

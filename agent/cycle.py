@@ -50,7 +50,7 @@ STATUS_ERROR: CycleStatus = "error"
 STATUS_SKIPPED: CycleStatus = "skipped"
 BASELINE_KEY = "baseline_equity"
 DAY_START_KEY = "day_start_equity:"
-FINAL_ORDER_STATUSES = {"filled", "canceled", "expired", "rejected"}
+FINAL_ORDER_STATUSES = frozenset({"filled", "canceled", "expired", "rejected"})
 ERROR_STEP = "error"
 RECOVERABLE_ERRORS = (DataError, ForecastError, BrokerError, MacroError)
 
@@ -191,7 +191,7 @@ class Cycle:
                 logger.error("cycle %s: HALTED: %s", self.cycle_id, halted)
         return Portfolio(equity=equity, day_start_equity=day_start, positions=positions), halted
 
-    def _get_inputs(self) -> CycleInputs:
+    def _ensure_inputs(self) -> CycleInputs:
         if self._inputs is None:
             now = datetime.now(UTC)
             start = now - timedelta(days=self.config.market.history_days)
@@ -206,7 +206,7 @@ class Cycle:
         return self._inputs
 
     def _forecast(self, symbol: str) -> PriceForecast:
-        inputs = self._get_inputs()
+        inputs = self._ensure_inputs()
         market = self.config.market
         series = build_series(
             symbol, inputs.bars, self.config.forecast.context_length, inputs.now, market
@@ -229,7 +229,7 @@ class Cycle:
     def _decide(self, portfolio: Portfolio) -> Decisions:
         """One LLM conversation for all symbols, read back from the journal when already done."""
         if self.store.get_step(self.cycle_id, CYCLE_SCOPE, STEP_DECISIONS) is None:
-            self._get_inputs()
+            self._ensure_inputs()  # fail before the LLM call if inputs are missing
         data = build_portfolio_data(
             portfolio.equity,
             self.config.risk.allocated_capital,
@@ -259,14 +259,13 @@ class Cycle:
             message = self._record_error(CYCLE_SCOPE, str(error))
             return {s: SymbolOutcome(error=self._journaled_error(s) or message) for s in symbols}
         decided = decisions.by_symbol()
-        return {
-            symbol: SymbolOutcome(forecast=self._forecast_step(symbol), decision=decided[symbol])
-            if symbol in decided
-            else SymbolOutcome(
-                error=self._journaled_error(symbol) or "no forecast requested by the LLM"
-            )
-            for symbol in symbols
-        }
+        return {symbol: self._outcome(symbol, decided.get(symbol)) for symbol in symbols}
+
+    def _outcome(self, symbol: str, decision: Decision | None) -> SymbolOutcome:
+        if decision is None:
+            error = self._journaled_error(symbol) or "no forecast requested by the LLM"
+            return SymbolOutcome(error=error)
+        return SymbolOutcome(forecast=self._forecast_step(symbol), decision=decision)
 
     def _apply_risk(
         self, outcomes: dict[str, SymbolOutcome], portfolio: Portfolio, halted: str | None
