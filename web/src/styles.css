@@ -21,8 +21,10 @@
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgb(19 23 34 / 6%);
   --topbar-h: 48px;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --control-h: 28px;
+  --font: "Arial", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk", "Arial", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -76,14 +78,18 @@ body {
 
 h2 {
   margin: 0;
+  font-family: var(--font-heading);
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
 h3 {
   margin: 0 0 var(--space-2);
+  font-family: var(--font-heading);
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
 .muted {
@@ -130,34 +136,47 @@ h3 {
 .brand {
   width: auto;
   height: 36px;
+  transition: transform 0.5s ease;
+}
+
+.brand:hover {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand {
+    transition: none;
+  }
 }
 
 .tabs {
   display: flex;
-  gap: var(--space-1);
   height: 100%;
   overflow-x: auto;
+  border-right: 1px solid var(--border);
 }
 
 .tab {
   font: inherit;
-  color: var(--muted);
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
   background: none;
   border: 0;
+  border-left: 1px solid var(--border);
   border-bottom: 2px solid transparent;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-5);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .tab:hover {
-  color: var(--text);
+  background: var(--bg);
 }
 
 .tab[aria-selected="true"] {
-  color: var(--text);
   border-bottom-color: var(--accent);
-  font-weight: 600;
 }
 
 .topbar-right {
@@ -360,7 +379,8 @@ select:hover {
 
 .kpi-label {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -406,7 +426,8 @@ select:hover {
 .chart-card .field select {
   width: 9rem;
   font-size: 0.8rem;
-  padding: 4px var(--space-3);
+  height: var(--control-h);
+  padding: 0 var(--space-3);
 }
 
 .legend {
@@ -468,6 +489,8 @@ select:hover {
 .segmented {
   margin-left: auto;
   display: inline-flex;
+  height: var(--control-h);
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -479,7 +502,7 @@ select:hover {
   color: var(--muted);
   background: none;
   border: 0;
-  padding: 4px var(--space-3);
+  padding: 0 var(--space-3);
   cursor: pointer;
 }
 
@@ -594,6 +617,8 @@ select:hover {
   align-items: baseline;
   gap: var(--space-3);
   text-align: left;
+  font-family: var(--font);
+  font-size: 0.8rem;
   font-weight: 400;
   letter-spacing: normal;
 }
@@ -623,7 +648,8 @@ select:hover {
 
 .outlook thead th {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -715,14 +741,19 @@ select:hover {
 .positions {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: none;
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-1);
+  gap: var(--space-2);
+}
+
+.positions::-webkit-scrollbar {
+  display: none;
 }
 
 .positions > li {
@@ -738,6 +769,13 @@ select:hover {
   grid-template-columns: 1fr auto 48px;
   gap: var(--space-2);
   font-size: 0.8rem;
+  line-height: 20px;
+}
+
+.position-row strong {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
 }
 
 .meter {
@@ -828,7 +866,8 @@ select:hover {
 
 .decision-columns {
   color: var(--muted);
-  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border);
@@ -1122,7 +1161,8 @@ select:hover {
 .outcome-label {
   white-space: nowrap;
   color: var(--muted);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
