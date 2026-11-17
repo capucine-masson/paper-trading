@@ -11,7 +11,7 @@ import {
 } from "../format";
 import { ALL_SYMBOLS, type DecisionView, type Metrics, type Period, type PortfolioData, type PositionView, type Status } from "../types";
 import { Cat } from "./Cat";
-import { EquityChart, type OrderMark } from "./EquityChart";
+import { buildSeries, EquityChart, type OrderMark } from "./EquityChart";
 import { Outlook } from "./Outlook";
 
 const PERIOD_LABELS: { value: Period; label: string }[] = [
@@ -37,6 +37,7 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
   const points = inPeriod(portfolio.points, period, status.generated_at);
   const orders = useMemo(() => ordersByCycle(forSymbol(decisions, symbol)), [decisions, symbol]);
   const isAll = symbol === ALL_SYMBOLS;
+  const tracksAgent = buildSeries(points, symbol).some((s) => s.reference !== null);
   return (
     <div className="overview">
       <aside className="side">
@@ -47,12 +48,17 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
       <section className="card chart-card">
         <Cat />
         <div className="card-head">
-          <h2>{isAll ? "Portfolio value" : `${symbol} price`}</h2>
+          <h2>{isAll ? "Portfolio value" : `${symbol} ${tracksAgent ? "position" : "price"}`}</h2>
           <span className="legend">
-            {isAll && (
+            {!isAll && !tracksAgent && (
+              <>
+                <i className="swatch swatch-reference" /> Price (never bought)
+              </>
+            )}
+            {tracksAgent && (
               <>
                 <i className="swatch swatch-equity" /> Agent
-                <i className="swatch swatch-reference" /> Buy &amp; hold (same exposure)
+                <i className="swatch swatch-reference" /> Buy &amp; hold{isAll ? " (same exposure)" : ""}
               </>
             )}
             <i className="dot dot-buy" /> Buy
@@ -242,7 +248,9 @@ function RunInfo({ status }: { status: Status }) {
       ) : (
         <>
           Last run {formatDateTime(cycle.started_at)}{" "}
-          <span className={cycle.status === "error" ? "down" : undefined}>{cycle.status ?? "running"}</span>
+          <span className={cycle.status === "error" ? "down" : undefined}>
+            {cycle.status === "skipped" ? "· market closed, no orders" : (cycle.status ?? "running")}
+          </span>
         </>
       )}
     </span>

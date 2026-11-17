@@ -1,7 +1,6 @@
-import { formatPercent, formatSignedPercent, formatUsd } from "../format";
+import { formatSignedPercent, formatUsd } from "../format";
 import type { ForecastPath } from "../types";
 
-const NOT_AVAILABLE = "n/a";
 const VIEW_WIDTH = 400;
 const VIEW_HEIGHT = 110;
 const PADDING_RATIO = 0.1;
@@ -13,11 +12,10 @@ const toPath = (xs: number[], ys: number[]): string =>
 interface Props {
   forecast: ForecastPath;
   price: number;
-  signalStrength: number | null;
 }
 
 /** Median and 10%-90% band, anchored at the price known when the forecast was made. */
-export function FanChart({ forecast, price, signalStrength }: Props) {
+export function FanChart({ forecast, price }: Props) {
   const median = [price, ...forecast.median];
   const lower = [price, ...forecast.lower];
   const upper = [price, ...forecast.upper];
@@ -66,9 +64,6 @@ export function FanChart({ forecast, price, signalStrength }: Props) {
       <figcaption className="fan-caption">
         <span className="fan-now">
           <span>Now {formatUsd(price)}</span>
-          <strong>
-            Signal strength {signalStrength === null ? NOT_AVAILABLE : formatPercent(signalStrength)}
-          </strong>
         </span>
       </figcaption>
     </figure>

@@ -187,30 +187,31 @@ function DecisionRow({ decision: d, open, onToggle }: DecisionRowProps) {
       <div className="decision-body">
         <div className="decision-chart">
           {d.forecast !== null && d.price !== null && (
-            <FanChart forecast={d.forecast} price={d.price} signalStrength={d.signal_strength} />
+            <FanChart forecast={d.forecast} price={d.price} />
           )}
+          <TimestralInputs decision={d} />
         </div>
         <div className="decision-text">
           <p className="rationale">{d.rationale}</p>
           {d.forecast !== null && (
             <>
-              <DetailLine label={`Expected move (${d.forecast.median.length}h)`}>
+              <DetailLine label={`Expected move (${d.forecast.median.length}h)`} hint={HINTS.expectedMove}>
                 <Expected decision={d} />
-                <span className="input-note"> Median price change expected by Timestral.</span>
               </DetailLine>
-              <DetailLine label="Range (80%)">
+              <DetailLine label="Signal strength" hint={HINTS.signal}>
+                {d.signal_strength === null ? NOT_AVAILABLE : formatPercent(d.signal_strength)}
+              </DetailLine>
+              <DetailLine label="Range (80%)" hint={HINTS.range}>
                 {formatPercentOne(rangeWidth(d.forecast))}
-                <span className="input-note"> Width of the likely prices: wider means less certain.</span>
               </DetailLine>
             </>
           )}
-          <DetailLine label="Sizing">{sizing(d)}</DetailLine>
-          <DetailLine label="Already owned">
+          <DetailLine label="Sizing" hint={HINTS.sizing}>{sizing(d)}</DetailLine>
+          <DetailLine label="Already owned" hint={HINTS.owned}>
             {d.position_qty === 0 ? "None" : formatUsd(d.position_value)}
           </DetailLine>
-          <TimestralInputs decision={d} />
           {d.risk_reason !== null && d.verdict !== "no_order" && (
-            <DetailLine label="Risk check">{riskNote(d)}</DetailLine>
+            <DetailLine label="Risk check" hint={HINTS.risk}>{riskNote(d)}</DetailLine>
           )}
         </div>
       </div>
@@ -218,10 +219,31 @@ function DecisionRow({ decision: d, open, onToggle }: DecisionRowProps) {
   );
 }
 
-function DetailLine({ label, children }: { label: string; children: ReactNode }) {
+const HINTS = {
+  expectedMove: "How much Timestral thinks the price will move over this period.",
+  signal: "How clear the forecast is, from 0% (nothing clear) to 100% (very clear). Computed by our code from the Timestral forecast.",
+  range: "The gap between a good and a bad scenario. The wider it is, the less sure Timestral is.",
+  sizing: "How big a trade the LLM asks for.",
+  owned: "What we already hold of this ETF.",
+  market: "Oil, interest rates and market fear, given to Timestral as context.",
+  release: "Whether a Fed or inflation announcement falls in this period. Timestral is told in advance.",
+  risk: "Our safety rules. They can block a trade the LLM proposed.",
+} as const;
+
+function DetailLine({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
   return (
     <div className="outcome">
-      <span className="outcome-label">{label}</span>
+      <span className="outcome-label">
+        <span className="hint" tabIndex={0}>
+          {label}
+          <span className="hint-icon" aria-hidden="true">
+            i
+          </span>
+          <span className="hint-tip" role="tooltip">
+            {hint}
+          </span>
+        </span>
+      </span>
       <span>{children}</span>
     </div>
   );
@@ -244,13 +266,11 @@ function TimestralInputs({ decision: d }: { decision: DecisionView }) {
   const upcoming = d.next_event === null ? "" : formatDateTime(d.next_event);
   return (
     <>
-      <DetailLine label="Market data">
+      <DetailLine label="Market data" hint={HINTS.market}>
         {market.map(({ label, value }) => `${label} ${value}`).join(" · ")}
-        <span className="input-note"> Latest daily values given to Timestral, the same for every symbol.</span>
       </DetailLine>
-      <DetailLine label={`Release in ${d.forecast.median.length}h`}>
+      <DetailLine label={`Release in ${d.forecast.median.length}h`} hint={HINTS.release}>
         {d.event_in_horizon ? `Yes, ${upcoming}` : `No${upcoming === "" ? "" : `, next one ${upcoming}`}`}
-        <span className="input-note"> Timestral is told in advance of Fed rate decisions (FOMC) and inflation reports (CPI).</span>
       </DetailLine>
     </>
   );

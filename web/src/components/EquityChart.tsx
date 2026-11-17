@@ -32,6 +32,31 @@ interface Props {
 interface SeriesPoint {
   point: EquityPoint;
   value: number;
+  reference: number | null;
+}
+
+/**
+ * "All": portfolio value against the buy and hold benchmark.
+ * A symbol: the agent's position value against the same capital held since its first buy;
+ * before any buy there is nothing to compare, so the plain price is drawn.
+ */
+export function buildSeries(points: EquityPoint[], symbol: string): SeriesPoint[] {
+  if (symbol === ALL_SYMBOLS) {
+    return points.map((point) => ({ point, value: point.equity, reference: point.buy_and_hold }));
+  }
+  const priced = points.flatMap((point) => {
+    const price = point.prices[symbol];
+    return price === undefined ? [] : [{ point, price, qty: point.positions[symbol] ?? 0 }];
+  });
+  const first = priced.findIndex((p) => p.qty > 0);
+  const entry = priced[first];
+  if (entry === undefined) {
+    return priced.map(({ point, price }) => ({ point, value: price, reference: null }));
+  }
+  const capital = entry.qty * entry.price;
+  return priced
+    .slice(first)
+    .map(({ point, price, qty }) => ({ point, value: qty * price, reference: (capital * price) / entry.price }));
 }
 
 const linePath = (xs: number[], ys: number[]): string =>
@@ -56,22 +81,20 @@ function markLabel(mark: OrderMark, withQuantity: boolean): string {
 export function EquityChart({ points, symbol, startValue, capitalFloor, orders }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const isAll = symbol === ALL_SYMBOLS;
-  const series: SeriesPoint[] = points.flatMap((point) => {
-    const value = isAll ? point.equity : point.prices[symbol];
-    return value === undefined ? [] : [{ point, value }];
-  });
+  const series = buildSeries(points, symbol);
+  const tracksAgent = series.some((s) => s.reference !== null);
   if (series.length < MIN_POINTS) {
     return <Empty message="Not enough data yet to draw a curve." />;
   }
   const last = series.length - 1;
   const xFraction = (i: number) => i / last;
 
-  const referenced = isAll ? series.flatMap((s, i) => (s.point.buy_and_hold === null ? [] : [i])) : [];
+  const referenced = series.flatMap((s, i) => (s.reference === null ? [] : [i]));
   const lowest = Math.min(...series.map((s) => s.value));
   const floorIsNear = isAll && lowest - capitalFloor <= FLOOR_PROXIMITY * (startValue - capitalFloor);
   const values = [
     ...series.map((s) => s.value),
-    ...referenced.map((i) => series[i]?.point.buy_and_hold ?? startValue),
+    ...referenced.map((i) => series[i]?.reference ?? startValue),
     ...(isAll ? [startValue] : []),
     ...(floorIsNear ? [capitalFloor] : []),
   ];
@@ -101,7 +124,11 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
         role="img"
-        aria-label={isAll ? "Portfolio value at each cycle, with the order markers" : `${symbol} price at each cycle`}
+        aria-label={
+          isAll
+            ? "Portfolio value at each cycle, with the order markers"
+            : `${symbol} ${tracksAgent ? "position value" : "price"} at each cycle`
+        }
       >
         <svg viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`} preserveAspectRatio="none">
           {GRID_FRACTIONS.map((f) => (
@@ -115,12 +142,15 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
             <path
               d={linePath(
                 referenced.map((i) => xs[i] ?? 0),
-                referenced.map((i) => y(series[i]?.point.buy_and_hold ?? startValue)),
+                referenced.map((i) => y(series[i]?.reference ?? startValue)),
               )}
               className="line-reference"
             />
           )}
-          <path d={linePath(xs, series.map((s) => y(s.value)))} className="line-equity" />
+          <path
+            d={linePath(xs, series.map((s) => y(s.value)))}
+            className={isAll || tracksAgent ? "line-equity" : "line-reference"}
+          />
         </svg>
         {!nearStart(high) && <span className="axis axis-top">{formatUsd(high)}</span>}
         {!nearStart(low) && <span className="axis axis-bottom">{formatUsd(low)}</span>}
@@ -152,11 +182,9 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
             <div className="tooltip" style={tooltipSide}>
               <strong>{formatDateTime(active.point.t)}</strong>
               <span>
-                {isAll ? "Agent" : symbol} {formatUsd(active.value)}
+                {tracksAgent ? "Agent" : symbol} {formatUsd(active.value)}
               </span>
-              {isAll && active.point.buy_and_hold !== null && (
-                <span>Buy &amp; hold {formatUsd(active.point.buy_and_hold)}</span>
-              )}
+              {active.reference !== null && <span>Buy &amp; hold {formatUsd(active.reference)}</span>}
               {activeMarks.map((m) => (
                 <span key={markLabel(m, true)}>Order: {markLabel(m, !isAll)}</span>
               ))}
