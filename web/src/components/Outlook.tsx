@@ -10,18 +10,15 @@ export function Outlook({ decisions, symbols }: { decisions: DecisionView[]; sym
   const horizon = (first?.forecast?.median.length ?? 0) * FORECAST_STEP_HOURS;
   return (
     <section className="card outlook-card">
-      <div className="card-head">
-        <h2>Outlook</h2>
-        <span className="muted">
-          {first === undefined
-            ? "No forecast yet"
-            : `Latest forecast, next ${horizon}h`}
-        </span>
-      </div>
       <table className="outlook">
         <thead>
           <tr>
-            <th scope="col" />
+            <th scope="col" className="outlook-title">
+              <h2>Forecast</h2>
+              <span className="muted">
+                {first === undefined ? "No forecast yet" : `Next ${horizon} hours`}
+              </span>
+            </th>
             {symbols.map((symbol) => (
               <th key={symbol} scope="col">
                 {symbol}
@@ -31,13 +28,17 @@ export function Outlook({ decisions, symbols }: { decisions: DecisionView[]; sym
         </thead>
         <tbody>
           <tr>
-            <th scope="row" title="Median forecast price change over the horizon">Expected return</th>
+            <th scope="row">
+              Expected move <span className="row-hint">median price change</span>
+            </th>
             {symbols.map((symbol) => (
               <OutlookCell key={symbol} decision={latest.get(symbol)} kind="move" />
             ))}
           </tr>
           <tr>
-            <th scope="row" title="Width of the 80% range as a share of the price: wider means less certain">Uncertainty (80% range)</th>
+            <th scope="row">
+              Range <span className="row-hint">width of the likely prices (80%): wider = less certain</span>
+            </th>
             {symbols.map((symbol) => (
               <OutlookCell key={symbol} decision={latest.get(symbol)} kind="width" />
             ))}

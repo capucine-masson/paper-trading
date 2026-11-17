@@ -82,6 +82,7 @@ live "Buy & hold" line holds the same average exposure as the agent, so it is no
   2026-10-15 (Mistral model cards). The backtest starts on 2026-10-16, after both, so neither model can have seen it.
   Timestral's training data is not published, which is why nothing before its release is evaluated.
 - **Short evidence:** about 4 weeks of decisions, one market regime.
+- **Context length:** 400 hourly bars. We compared 200, 400 and 800 on the same 470 forecasts: 400 was the best on error and direction and faster than 800, but the gaps are within the noise. It is a reasonable choice, not a proven optimum.
 - **No news covariates:** the optional news bonus (GDELT) is not done. Timestral already gets FRED drivers as past
   covariates and scheduled FOMC/CPI dates as known-future covariates; news has no known future value.
 - **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross and "Est. costs" applies the same 5 bps to the filled amounts.

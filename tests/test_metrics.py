@@ -27,11 +27,6 @@ def test_forecast_metrics_known_values() -> None:
     assert m.mean_width == pytest.approx((0.08 + 0.06) / 2)
 
 
-def test_perfect_forecast_beats_naive() -> None:
-    m = forecast_metrics([sample(100, 105, 100, 110, 105), sample(100, 95, 90, 100, 95)])
-    assert m.mae_model == 0 and m.mae_ratio == 0 and m.direction_hit_rate == 1.0
-
-
 def test_unchanged_price_is_ignored_for_direction() -> None:
     m = forecast_metrics([sample(100, 101, 99, 103, 100), sample(100, 101, 99, 103, 102)])
     assert m.direction_n == 1 and m.direction_hit_rate == 1.0

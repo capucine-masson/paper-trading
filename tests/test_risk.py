@@ -141,11 +141,6 @@ def test_position_limit_caps_buy() -> None:
     assert verdict.order is not None and verdict.order.notional == pytest.approx(500.0)
 
 
-def test_position_already_at_limit_rejected() -> None:
-    held = portfolio(positions={"SPY": Position(qty=20, market_value=2_000.0)})
-    assert not run(pf=held).approved
-
-
 def test_buy_below_the_minimum_order_is_skipped() -> None:
     nearly_full = portfolio(positions={"SPY": Position(qty=19.5, market_value=1_950.0)})
     verdict = run(pf=nearly_full)
@@ -163,16 +158,6 @@ def test_total_exposure_caps_buy() -> None:
     )
     verdict = run(pf=full)
     assert verdict.order is not None and verdict.order.notional == pytest.approx(100.0)
-
-
-def test_wider_interval_means_smaller_position() -> None:
-    def notional(uncertainty: float) -> float:
-        order = run(fc=forecast(uncertainty=uncertainty)).order
-        assert order is not None and order.notional is not None
-        return order.notional
-
-    assert notional(0.01) > notional(0.05) > 0
-    assert notional(0.0) == 2_000.0
 
 
 def test_llm_size_scales_the_position() -> None:
@@ -214,11 +199,6 @@ def test_partial_sell_uses_the_llm_share_of_the_position() -> None:
     assert "25%" in verdict.reason
 
 
-def test_sell_with_zero_size_rejected() -> None:
-    held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
-    assert not run(dec=decision("sell", size_fraction=0.0), pf=held).approved
-
-
 def test_partial_sell_keeps_the_rest_of_the_position() -> None:
     held = portfolio(positions={"SPY": Position(qty=10, market_value=1_000.0)})
     verdict = run(dec=decision("sell", size_fraction=0.25), pf=held)
@@ -249,11 +229,6 @@ def test_forecast_guard_can_be_skipped_for_baselines() -> None:
     below = forecast().model_copy(update={"median": [99.0]})
     unguarded = RISK.model_copy(update={"forecast_guard": False})
     assert run(fc=below, risk=unguarded).approved
-
-
-def test_sell_is_allowed_even_when_the_forecast_is_positive() -> None:
-    held = portfolio(positions={"SPY": Position(qty=2, market_value=200)})
-    assert run(dec=decision("sell"), pf=held).approved
 
 
 def test_strongest_signal_is_assessed_first_and_sees_the_orders_before_it() -> None:

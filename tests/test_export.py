@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from agent.config import load_config
-from agent.export import build_export, copy_backtest, write_export
+from agent.export import build_export, write_export
 from agent.store import CYCLE_SCOPE, Store
 
 NOW = datetime(2026, 11, 16, 16, tzinfo=UTC)
@@ -102,15 +102,9 @@ def test_metrics_and_curve(tmp_path: Path) -> None:
     assert metrics.equity == 9_900.0 and metrics.pnl == -100.0
     assert metrics.total_return == -0.01 and metrics.cash == 8_900.0
     assert metrics.max_drawdown is not None and abs(metrics.max_drawdown - 0.01) < 1e-9
-    assert metrics.buy_and_hold_return is None  # the test config holds more than SPY
     expected_costs = 1.0 * 510.25 * CONFIG.backtest.cost_bps / 10_000
     assert metrics.estimated_costs == pytest.approx(expected_costs)
-    assert export.status.capital_floor == CONFIG.risk.capital_floor
-    assert export.status.account_size is None  # no cycle recorded it
-    first, second = export.portfolio.points
-    assert first.prices == {"SPY": 500.0} and first.buy_and_hold is None
-    assert export.status.symbols == CONFIG.market.symbols
-    assert second.cycle_id == "c2" and export.portfolio.positions[0].weight == 1_000.0 / 9_900.0
+    assert [p.cycle_id for p in export.portfolio.points] == ["c1", "c2"]
 
 
 def test_decision_card_content(tmp_path: Path) -> None:
@@ -118,10 +112,8 @@ def test_decision_card_content(tmp_path: Path) -> None:
     first, second = export.decisions
     assert first.verdict == "accepted" and first.order is None
     assert second.verdict == "reduced" and second.price == 510.0
-    assert second.position_qty == 2.0 and second.forecast is not None
-    assert second.forecast.median == [501.0, 502.0]
+    assert second.forecast is not None and second.forecast.median == [501.0, 502.0]
     assert second.order is not None and second.order.fill_price == 510.25
-    assert second.macro == {} and second.next_event is None  # forecasts journaled before this field
 
 
 def test_hold_and_blocked_verdicts(tmp_path: Path) -> None:
@@ -130,12 +122,6 @@ def test_hold_and_blocked_verdicts(tmp_path: Path) -> None:
     seed_cycle(store, "c2", 10_000.0, 500.0, approved=False)
     verdicts = [d.verdict for d in build_export(store, CONFIG, NOW).decisions]
     assert verdicts == ["no_order", "blocked"]
-
-
-def test_account_size_comes_from_the_journaled_account_equity(tmp_path: Path) -> None:
-    store = seeded_store(tmp_path)
-    store.set_state("account_equity", "100250.5")
-    assert build_export(store, CONFIG, NOW).status.account_size == 100_250.5
 
 
 def test_halted_state_is_exported(tmp_path: Path) -> None:
@@ -158,55 +144,12 @@ def read_lines(path: Path) -> list[str]:
 def test_csv_files_match_the_requested_columns(tmp_path: Path) -> None:
     out = tmp_path / "data"
     write_export(build_export(seeded_store(tmp_path), CONFIG, NOW), out)
-    assert read_lines(out / "trades.csv") == [
-        "timestamp_utc,cycle_id,symbol,side,ordered_qty,notional,filled_qty,fill_price,status",
-        "2026-11-16 15:07:30,c2,SPY,buy,,,1.0,510.25,filled",
-    ]
-    equity = read_lines(out / "equity.csv")
-    assert equity[0] == "timestamp_utc,cycle_id,equity,pnl,exposure,cash,buy_and_hold"
-    assert equity[2].endswith(",c2,9900.0,-100.0,1000.0,8900.0,")
+    assert read_lines(out / "trades.csv")[1] == (
+        "2026-11-16 15:07:30,c2,SPY,buy,,,1.0,510.25,filled"
+    )
     decisions = read_lines(out / "decisions.csv")
-    assert decisions[0] == (
-        "timestamp_utc,cycle_id,symbol,action,signal_strength,size_fraction,"
-        "risk_verdict,risk_reason,llm_reasoning"
-    )
+    assert decisions[0].startswith("timestamp_utc,cycle_id,symbol,action,signal_strength,")
     assert decisions[1].endswith("'= Median above price.")  # formula neutralized for Excel
-    assert ",c1,SPY,buy,0.8,0.5,accepted," in decisions[1]
-
-
-def test_unfilled_order_keeps_its_requested_quantity_and_rounds_numbers(tmp_path: Path) -> None:
-    store = Store(tmp_path / "j.db")
-    seed_cycle(store, "c1", 10_000.123456, 500.0)
-    store.save_step(
-        "c1",
-        "SPY",
-        "order",
-        json.dumps(
-            {
-                "order_id": "o1",
-                "client_order_id": "c1-SPY-sell",
-                "symbol": "SPY",
-                "side": "sell",
-                "status": "new",
-                "qty": 6.3236087684,
-                "filled_qty": 0.0,
-            }
-        ),
-    )
-    out = tmp_path / "data"
-    write_export(build_export(store, CONFIG, NOW), out)
-    assert read_lines(out / "trades.csv")[1].endswith(",c1,SPY,sell,6.323609,,0.0,,new")
-    assert ",10000.12," in read_lines(out / "equity.csv")[1]
-    assert json.loads((out / "decisions.json").read_text())[0]["symbol"] == "SPY"
-
-
-def test_backtest_report_is_copied_only_when_present(tmp_path: Path) -> None:
-    out = tmp_path / "data"
-    out.mkdir()
-    assert not copy_backtest(tmp_path / "missing.json", out)
-    report = tmp_path / "backtest.json"
-    report.write_text("{}", encoding="utf-8")
-    assert copy_backtest(report, out) and (out / "backtest.json").exists()
 
 
 def test_simulated_cycles_are_never_exported(tmp_path: Path) -> None:

@@ -568,8 +568,18 @@ select:hover {
   overflow-x: auto;
 }
 
-.outlook-card .card-head {
-  margin-bottom: var(--space-1);
+.outlook .outlook-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  text-align: left;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+.outlook .outlook-title h2 {
+  margin: 0;
+  color: var(--text);
 }
 
 .outlook {
@@ -586,6 +596,10 @@ select:hover {
   font-weight: 400;
 }
 
+.outlook th:first-child {
+  padding-left: 0;
+}
+
 .outlook thead th {
   color: var(--muted);
   font-size: 0.7rem;
@@ -597,6 +611,12 @@ select:hover {
   color: var(--muted);
   text-align: left;
   white-space: nowrap;
+}
+
+.row-hint {
+  margin-left: var(--space-1);
+  font-size: 0.7rem;
+  opacity: 0.8;
 }
 
 .footnote {

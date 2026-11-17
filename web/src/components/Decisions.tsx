@@ -52,11 +52,11 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
             <div className="decision-columns" aria-hidden="true">
               <span title="The ETF the decision is about.">Symbol</span>
               <span title="What the AI proposes: buy, sell or hold.">Action</span>
-              <span title="How much the price is expected to change, according to Timestral.">
-                Expected return ({horizon}h)
+              <span title="Median price change expected by Timestral.">
+                Expected move ({horizon}h)
               </span>
-              <span className="col-range" title="How unsure the forecast is: a wider range means less certainty.">
-                Uncertainty (80% range)
+              <span className="col-range" title="Width of the likely prices (80%): wider means less certain.">
+                Range (80%)
               </span>
               <span title="Price when the decision was made.">Price</span>
               <span title="What happened: an order was placed, blocked by a rule, or nothing was done.">
