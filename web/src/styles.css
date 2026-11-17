@@ -847,8 +847,13 @@ select:hover {
 .cycle-pills {
   grid-column: 6;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: 2px;
+}
+
+.cycle-pills .pill {
+  padding: 1px 5px;
+  font-size: 0.62rem;
+  white-space: nowrap;
 }
 
 .decision-row {
@@ -917,6 +922,11 @@ select:hover {
 .pill-sell {
   background: var(--down-soft);
   color: var(--down);
+}
+
+.pill-blocked {
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 .fan {

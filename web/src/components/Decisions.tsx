@@ -86,6 +86,9 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+/** A blocked decision is only a proposal: it gets an orange pill instead of the green or red one. */
+const pillClass = (d: DecisionView): string => `pill pill-${d.verdict === "blocked" ? "blocked" : d.action}`;
+
 function CycleGroup({ decisions, defaultOpen }: { decisions: DecisionView[]; defaultOpen: boolean }) {
   const orders = decisions.filter((d) => d.order !== null).length;
   const blocked = decisions.filter((d) => d.verdict === "blocked").length;
@@ -98,8 +101,9 @@ function CycleGroup({ decisions, defaultOpen }: { decisions: DecisionView[]; def
         </span>
         <span className="cycle-pills">
           {decisions.map((d) => (
-            <span key={d.symbol} className={`pill pill-${d.action}`}>
+            <span key={d.symbol} className={pillClass(d)}>
               {d.symbol} {d.action}
+              {d.verdict === "blocked" ? " blocked" : ""}
             </span>
           ))}
         </span>
@@ -117,7 +121,7 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
       <summary className="decision-summary">
         <strong>{d.symbol}</strong>
         <span>
-          <span className={`pill pill-${d.action}`}>{d.action}</span>
+          <span className={pillClass(d)}>{d.action}</span>
         </span>
         <Expected decision={d} />
         <span className="col-range">{d.forecast === null ? NOT_AVAILABLE : formatPercentOne(rangeWidth(d.forecast))}</span>
