@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-16T23:43:05.598843Z",
+  "generated_at": "2026-11-17T00:22:23.083695Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
@@ -20,13 +20,13 @@
     "GLD",
     "EEM"
   ],
-  "capital_floor": 5000.0,
+  "capital_floor": 8000.0,
   "account_size": 99980.6,
   "metrics": {
     "equity": 9980.600000000006,
     "pnl": -19.39999999999418,
     "total_return": -0.0019399999999994179,
-    "buy_and_hold_return": -0.004363331113671709,
+    "buy_and_hold_return": -0.0007991400996548714,
     "max_drawdown": 0.0020547637021730873,
     "exposure": 2491.47291,
     "cash": 7489.127090000005,

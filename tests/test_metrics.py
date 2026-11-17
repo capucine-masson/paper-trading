@@ -49,14 +49,20 @@ def test_max_drawdown() -> None:
 
 def test_buy_and_hold_is_bought_once_and_never_rebalanced() -> None:
     prices = [{"A": 100.0, "B": 50.0}, {"A": 110.0, "B": 50.0}, {"A": 110.0, "B": 60.0}]
-    curve = buy_and_hold_curve(prices, ["A", "B"], 1_000.0)
+    curve = buy_and_hold_curve(prices, ["A", "B"], 1_000.0, 1.0)
     # 5 units of A and 10 units of B, bought at the first cycle
     assert curve == pytest.approx([1_000.0, 1_050.0, 1_150.0])
 
 
 def test_buy_and_hold_waits_for_every_symbol_and_never_fills_a_gap() -> None:
     prices = [{"A": 100.0}, {"A": 100.0, "B": 50.0}, {"A": 100.0}, {"A": 120.0, "B": 50.0}]
-    curve = buy_and_hold_curve(prices, ["A", "B"], 1_000.0)
+    curve = buy_and_hold_curve(prices, ["A", "B"], 1_000.0, 1.0)
     assert curve[0] is None and curve[2] is None
     assert curve[1] == pytest.approx(1_000.0)  # starts at the first cycle with every price
     assert curve[3] == pytest.approx(1_100.0)
+
+
+def test_buy_and_hold_keeps_the_uninvested_share_in_cash() -> None:
+    prices = [{"A": 100.0}, {"A": 120.0}]
+    curve = buy_and_hold_curve(prices, ["A"], 1_000.0, 0.25)
+    assert curve == pytest.approx([1_000.0, 1_050.0])  # 250 invested gains 20%, 750 in cash

@@ -31,13 +31,13 @@ export function Outlook({ decisions, symbols }: { decisions: DecisionView[]; sym
         </thead>
         <tbody>
           <tr>
-            <th scope="row">Expected move</th>
+            <th scope="row" title="Median forecast price change over the horizon">Expected return</th>
             {symbols.map((symbol) => (
               <OutlookCell key={symbol} decision={latest.get(symbol)} kind="move" />
             ))}
           </tr>
           <tr>
-            <th scope="row">80% range width</th>
+            <th scope="row" title="Width of the 80% range as a share of the price: wider means less certain">Uncertainty (80% range)</th>
             {symbols.map((symbol) => (
               <OutlookCell key={symbol} decision={latest.get(symbol)} kind="width" />
             ))}

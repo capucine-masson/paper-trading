@@ -52,8 +52,8 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
             <div className="decision-columns" aria-hidden="true">
               <span>Symbol</span>
               <span>Action</span>
-              <span>Expected ({horizon}h)</span>
-              <span className="col-range">Range (80%)</span>
+              <span>Expected return ({horizon}h)</span>
+              <span className="col-range">Uncertainty (80% range)</span>
               <span>Price</span>
               <span>Result</span>
             </div>

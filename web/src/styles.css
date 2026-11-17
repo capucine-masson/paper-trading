@@ -379,7 +379,7 @@ select:hover {
 }
 
 .chart-card .card-head h2 {
-  min-width: 10rem;
+  min-width: 8rem;
 }
 
 .chart-card .field select {
@@ -394,6 +394,10 @@ select:hover {
 .chart-card .swatch,
 .chart-card .dot {
   margin: 0 var(--space-1) 0 var(--space-3);
+}
+
+.chart-card .legend > :first-child {
+  margin-left: 0;
 }
 
 .chart-card .legend {
@@ -432,6 +436,10 @@ select:hover {
 
 .dot-buy {
   background: var(--up);
+}
+
+.dot-mixed {
+  background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%);
 }
 
 .dot-sell {
@@ -532,7 +540,6 @@ select:hover {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--accent);
   border: 2px solid var(--surface);
   transform: translate(-50%, -50%);
 }
@@ -543,6 +550,10 @@ select:hover {
 
 .mark-sell {
   background: var(--down);
+}
+
+.mark-mixed {
+  background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%);
 }
 
 .overview-footer {

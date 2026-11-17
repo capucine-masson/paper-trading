@@ -56,6 +56,9 @@ from agent.store import CYCLE_SCOPE, STEP_DECISIONS, Store
 logger = logging.getLogger(__name__)
 
 LLM_CACHE_PATH = REPORTS_DIR / "llm_cache.db"
+AGENT_NAME = "Timestral + LLM (the agent)"
+SAME_EXPOSURE_NAME = "Buy and hold (same exposure as agent)"
+SAME_EXPOSURE_POSITION = 2  # right after the full-exposure buy and hold in the report
 PROGRESS_EVERY = 100
 RULE_CONFIDENCE = 1.0
 HASH_LENGTH = 8
@@ -250,12 +253,9 @@ def timestral_rule(threshold: float) -> Rule:
     return rule
 
 
-def equal_weight_buy_and_hold(config: Config) -> Strategy:
-    """Buy each symbol once, in equal parts of the exposure limit, then hold."""
-    risk = config.risk
-    size = min(
-        1.0, risk.max_total_exposure_pct / len(config.market.symbols) / risk.max_position_pct
-    )
+def equal_weight_buy_and_hold(config: Config, exposure_pct: float) -> Strategy:
+    """Buy each symbol once, in equal parts of the given total exposure, then hold."""
+    size = min(1.0, exposure_pct / len(config.market.symbols) / config.risk.max_position_pct)
 
     def strategy(group: list[ForecastRecord], portfolio: Portfolio) -> dict[str, Decision]:
         return {
@@ -510,29 +510,30 @@ def named_strategies(config: Config, llm: LlmStrategy) -> list[NamedStrategy]:
     backtest = config.backtest
     return [
         NamedStrategy("Cash (never trade)", per_symbol(cash_rule), False),
-        NamedStrategy("Equal-weight buy and hold", equal_weight_buy_and_hold(config), False),
+        NamedStrategy(
+            "Equal-weight buy and hold",
+            equal_weight_buy_and_hold(config, config.risk.max_total_exposure_pct),
+            False,
+        ),
         NamedStrategy("Momentum rule", per_symbol(momentum_rule(backtest.momentum_bars)), False),
         NamedStrategy(
             "Timestral-only rule", per_symbol(timestral_rule(backtest.rule_signal_threshold)), True
         ),
-        NamedStrategy("Timestral + LLM (the agent)", llm, True),
+        NamedStrategy(AGENT_NAME, llm, True),
     ]
 
 
 def run_backtest(
     config: Config, bars: list[Bar], macro: MacroData, llm_client: Mistral | None
 ) -> BacktestReport:
-    points = build_points(bars, config)
+    points = [p for p in build_points(bars, config) if p.time >= config.backtest.start]
     logger.info("%d evaluation points", len(points))
     records = run_forecasts(points, load_model(config.forecast), config, macro)
     if not records:
         raise BacktestError("no forecast could be produced: nothing to evaluate")
     models = [evaluate_model(config.forecast.model, records)]
     stamps = [b.timestamp for b in bars]
-    window_start = max(r.point.time for r in records) - timedelta(
-        days=config.backtest.decision_window_days
-    )
-    window = [r for r in records if r.point.time >= window_start]
+    window_start = min(r.point.time for r in records)
     strategies: list[StrategyResult] = []
     llm_failures = 0
     if llm_client is not None:
@@ -541,9 +542,20 @@ def run_backtest(
         try:
             llm = LlmStrategy(llm_client, config, cache)
             strategies = [
-                simulate(item.name, item.strategy, window, config, item.uses_forecast)
+                simulate(item.name, item.strategy, records, config, item.uses_forecast)
                 for item in named_strategies(config, llm)
             ]
+            agent = next(s for s in strategies if s.name == AGENT_NAME)
+            strategies.insert(
+                SAME_EXPOSURE_POSITION,
+                simulate(
+                    SAME_EXPOSURE_NAME,
+                    equal_weight_buy_and_hold(config, agent.average_exposure_pct),
+                    records,
+                    config,
+                    uses_forecast=False,
+                ),
+            )
             llm_failures = llm.failures
         finally:
             cache.close()
@@ -557,7 +569,7 @@ def run_backtest(
         models=models,
         forecasts=forecast_points(records),
         decision_start=window_start if strategies else None,
-        decision_times=len({r.point.time for r in window}),
+        decision_times=len({r.point.time for r in records}),
         llm_failures=llm_failures,
         strategies=strategies,
     )

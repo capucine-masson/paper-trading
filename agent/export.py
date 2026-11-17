@@ -6,6 +6,7 @@ import shutil
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
+from statistics import fmean
 from typing import Literal
 
 from pydantic import BaseModel, TypeAdapter
@@ -225,7 +226,13 @@ def _equity_points(
         }
         for row in rows
     ]
-    reference = buy_and_hold_curve(prices, config.market.symbols, config.risk.allocated_capital)
+    exposures = [s.exposure / s.equity for s in (snapshots[row.cycle_id] for row in rows)]
+    reference = buy_and_hold_curve(
+        prices,
+        config.market.symbols,
+        config.risk.allocated_capital,
+        fmean(exposures) if exposures else 0.0,
+    )
     points = []
     for row, cycle_prices, held in zip(rows, prices, reference, strict=True):
         snap = snapshots[row.cycle_id]

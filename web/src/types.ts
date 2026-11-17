@@ -118,6 +118,7 @@ export interface StrategyResult {
   name: string;
   return_pct: number;
   max_drawdown_pct: number;
+  average_exposure_pct: number;
 }
 
 export interface BacktestReport {

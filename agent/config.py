@@ -74,6 +74,7 @@ class RiskConfig(StrictModel):
     max_daily_loss_pct: float = Field(gt=0, le=100)
     max_position_pct: float = Field(gt=0, le=100)
     max_total_exposure_pct: float = Field(gt=0, le=100)
+    min_order_pct: float = Field(gt=0, le=100)
     max_orders_per_cycle: int = Field(ge=1, le=50)
     min_confidence: float = Field(ge=0, le=1)
     max_uncertainty: float = Field(gt=0, le=1)
@@ -97,7 +98,7 @@ class BrokerConfig(StrictModel):
 class BacktestConfig(StrictModel):
     history_days: int = Field(ge=30, le=730)
     stride_bars: int = Field(ge=1, le=100)
-    decision_window_days: int = Field(ge=1, le=365)
+    start: AwareDatetime
     rule_signal_threshold: float = Field(gt=0, le=1)
     momentum_bars: int = Field(ge=1, le=100)
     cost_bps: float = Field(ge=0, le=100)

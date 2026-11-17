@@ -39,7 +39,7 @@ const linePath = (xs: number[], ys: number[]): string =>
 
 function markClass(marks: OrderMark[]): string {
   const actions = new Set(marks.map((m) => m.action));
-  if (actions.size > 1) return "mark";
+  if (actions.size > 1) return "mark mark-mixed";
   return actions.has("buy") ? "mark mark-buy" : "mark mark-sell";
 }
 

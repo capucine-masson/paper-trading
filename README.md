@@ -38,32 +38,37 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | --- | --- |
 | Look-ahead? | Only completed bars are used; a daily macro value is visible from the next day 00:00 UTC; the backtest is walk-forward. Tests: `test_data`, `test_macro`, `test_backtest`. |
 | Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. |
-| Risk? | Hard limits in code: 25% max per position, 90% max exposure, 10% max daily loss, $5,000 capital floor, emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
+| Risk? | Hard limits in code: 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
 | Explanations? | Each decision stores its rationale, a one-sentence macro context written by the LLM from the readings it is shown (no causes beyond them), the forecast, the risk verdict and the order, visible in the dashboard. |
 
-**Backtest** (`uv run python -m agent.backtest`, 180 days of hourly bars, walk-forward, details in `reports/backtest.md`):
+**Backtest** (`uv run python -m agent.backtest`, walk-forward from 2026-10-16, the day after Timestral's release on 2026-10-15; details in `reports/backtest.md`):
 
 | Forecast quality | Result |
 | --- | --- |
-| Error vs "price stays" forecast | 0.998 (no gain) |
-| Right direction | 51.0% |
-| 10-90% interval coverage | 79.4% (target 80%): the uncertainty is reliable |
+| Error vs "price stays" forecast | 0.992 (no real gain) |
+| Right direction | 53.0% (50% is chance) |
+| 10-90% interval coverage | 74.0% (target 80%): the intervals are somewhat too narrow, and calibrated would not mean profitable |
 
-| Last 28 days, same rules for all, 5 bps cost per order | Return | Max drawdown |
-| --- | --- | --- |
-| Cash | +0.00% | 0.00% |
-| Equal-weight buy and hold | -1.13% | 3.18% |
-| Momentum rule | -4.29% | 4.50% |
-| Timestral-only rule (no LLM) | -0.78% | 4.26% |
-| **Timestral + LLM (the agent)** | **-0.23%** | 4.85% |
+| From 2026-10-16, same rules for all, 5 bps cost per order | Return | Max drawdown | Average exposure |
+| --- | --- | --- | --- |
+| Cash | +0.00% | 0.00% | 0.0% |
+| Equal-weight buy and hold (full exposure cap) | -1.97% | 2.82% | 78.7% |
+| Buy and hold (same exposure as agent) | -1.75% | 2.50% | 69.7% |
+| Momentum rule | -6.05% | 6.19% | 66.9% |
+| Timestral-only rule (no LLM) | -0.55% | 4.13% | 70.3% |
+| **Timestral + LLM (the agent)** | **-1.22%** | 3.95% | 70.8% |
 
-These differences are noise over 28 days, not skill.
+At the same exposure, the agent (-1.22%) is 0.5 point above buy and hold (-1.75%), but below cash and the Timestral-only rule, and these few weeks are noise, not skill. The dashboard's
+live "Buy & hold" line holds the same average exposure as the agent, so it is not flattered by cash.
 
 ## Limits
 
-- **LLM knowledge:** it sees tickers and its training data may overlap the backtest, so the backtest is not proof
-  of skill. Live paper decisions are out-of-sample.
-- **Short evidence:** 28 decision days, one market regime.
+- **LLM and Timestral knowledge:** Mistral Small 4 (`mistral-small-2603`) was released on 2026-03-15 and Timestral on
+  2026-10-15 (Mistral model cards). The backtest starts on 2026-10-16, after both, so neither model can have seen it.
+  Timestral's training data is not published, which is why nothing before its release is evaluated.
+- **Short evidence:** about 4 weeks of decisions, one market regime.
+- **No news covariates:** the optional news bonus (GDELT) is not done. Timestral already gets FRED drivers as past
+  covariates and scheduled FOMC/CPI dates as known-future covariates; news has no known future value.
 - **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross and "Est. costs" applies the same 5 bps to the filled amounts.
 - **Data:** free IEX feed; the dollar driver is the Fed broad index `DTWEXBGS` (free substitute for DXY).
 - **Scheduling:** GitHub may delay or skip a scheduled run, so an external cron calls the workflow every hour

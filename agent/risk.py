@@ -9,7 +9,6 @@ from agent.config import PERCENT, RiskConfig
 from agent.forecast import PriceForecast
 from agent.llm import Decision
 
-MIN_ORDER_NOTIONAL = 1.0
 QTY_DECIMALS = 6
 
 
@@ -149,8 +148,12 @@ def _buy(
         exposure_cap - portfolio.exposure,
     )
     notional = round(max(min(wanted, room), 0.0), 2)
-    if notional < MIN_ORDER_NOTIONAL:
-        return _rejected(f"no room to buy {symbol} within position and exposure limits")
+    min_order = risk.min_order_pct / PERCENT * risk.allocated_capital
+    if notional < min_order:
+        return _rejected(
+            f"buy of ${notional:,.2f} is below the ${min_order:,.2f} minimum order "
+            "(position and exposure limits leave little room)"
+        )
     reduced = notional < round(wanted, 2)
     reason = f"buy ${notional:,.2f}"
     if reduced:

@@ -12,6 +12,7 @@ from agent.backtest import (
     EvalPoint,
     ForecastRecord,
     LlmStrategy,
+    Strategy,
     build_points,
     cash_rule,
     equal_weight_buy_and_hold,
@@ -129,19 +130,34 @@ def test_cash_never_trades(config: Config) -> None:
     assert result.trades == 0 and result.return_pct == 0 and result.average_exposure_pct == 0
 
 
+def full_buy_and_hold(config: Config) -> Strategy:
+    return equal_weight_buy_and_hold(config, config.risk.max_total_exposure_pct)
+
+
 def test_buy_and_hold_respects_limits_and_earns_in_a_rising_market(config: Config) -> None:
     records = [make_record(i, 100.0 + i, 100.0 + i + 1) for i in range(10)]
-    result = simulate("bh", equal_weight_buy_and_hold(config), records, config, False)
+    result = simulate("bh", full_buy_and_hold(config), records, config, False)
     assert result.return_pct > 0 and result.trades == 1
     assert result.average_exposure_pct <= config.risk.max_position_pct + 1.0
+
+
+def test_buy_and_hold_exposure_scales_with_the_requested_share(config: Config) -> None:
+    records = [make_record(i, 100.0, 100.0) for i in range(4)]
+
+    def exposure(share: float) -> float:
+        strategy = equal_weight_buy_and_hold(config, share)
+        return simulate("bh", strategy, records, config, False).average_exposure_pct
+
+    assert exposure(6.0) > 0
+    assert exposure(12.0) == pytest.approx(2 * exposure(6.0))
 
 
 def test_fill_is_at_next_bar_close_not_at_decision_price(config: Config) -> None:
     flat = [make_record(0, 100.0, 100.0), make_record(1, 100.0, 100.0)]
     costly = [make_record(0, 100.0, 110.0), make_record(1, 100.0, 110.0)]
     assert (
-        simulate("a", equal_weight_buy_and_hold(config), flat, config, False).final_equity
-        > simulate("b", equal_weight_buy_and_hold(config), costly, config, False).final_equity
+        simulate("a", full_buy_and_hold(config), flat, config, False).final_equity
+        > simulate("b", full_buy_and_hold(config), costly, config, False).final_equity
     )
 
 
@@ -164,7 +180,7 @@ def test_equal_weight_buy_and_hold_buys_each_symbol_once() -> None:
     eight = base.model_copy(
         update={"market": base.market.model_copy(update={"symbols": list("ABCDEFGH")})}
     )
-    strategy = equal_weight_buy_and_hold(eight)
+    strategy = equal_weight_buy_and_hold(eight, eight.risk.max_total_exposure_pct)
     record = make_record(0, 100.0, 100.0)
     empty = Portfolio(equity=10_000.0, day_start_equity=10_000.0, positions={})
     held = Portfolio(
@@ -173,7 +189,7 @@ def test_equal_weight_buy_and_hold_buys_each_symbol_once() -> None:
         positions={"SPY": Position(qty=5.0, market_value=500.0)},
     )
     first = strategy([record], empty)["SPY"]
-    assert first.action == "buy" and first.size_fraction == pytest.approx(0.45)
+    assert first.action == "buy" and first.size_fraction == pytest.approx(1 / 3)
     assert strategy([record], held)["SPY"].action == "hold"
 
 
@@ -226,9 +242,8 @@ def test_cost_lowers_final_equity_and_zero_cost_changes_nothing(config: Config) 
     records = [make_record(i, 100.0, 100.0) for i in range(5)]
     no_cost = config.backtest.model_copy(update={"cost_bps": 0})
     free = config.model_copy(update={"backtest": no_cost})
-    bh = equal_weight_buy_and_hold
-    gross = simulate("bh", bh(free), records, free, False).final_equity
-    net = simulate("bh", bh(config), records, config, False).final_equity
+    gross = simulate("bh", full_buy_and_hold(free), records, free, False).final_equity
+    net = simulate("bh", full_buy_and_hold(config), records, config, False).final_equity
     assert gross == free.risk.allocated_capital
     assert net < gross
 

@@ -58,12 +58,15 @@ def max_drawdown(equity: list[float]) -> float:
 
 
 def buy_and_hold_curve(
-    prices: list[dict[str, float]], symbols: list[str], capital: float
+    prices: list[dict[str, float]], symbols: list[str], capital: float, invested_share: float
 ) -> list[float | None]:
     """Equal-weight reference: bought once at the first cycle where every symbol has a price.
 
-    Fractional quantities, no rebalancing, no costs. A cycle missing a price stays empty.
+    Only `invested_share` of the capital is invested, the rest stays in cash, so the reference
+    carries the same exposure as the agent. Fractional quantities, no rebalancing, no costs.
+    A cycle missing a price stays empty.
     """
+    cash = capital * (1 - invested_share)
     units: dict[str, float] | None = None
     curve: list[float | None] = []
     for cycle_prices in prices:
@@ -71,6 +74,6 @@ def buy_and_hold_curve(
             curve.append(None)
             continue
         if units is None:
-            units = {s: capital / len(symbols) / cycle_prices[s] for s in symbols}
-        curve.append(sum(units[s] * cycle_prices[s] for s in symbols))
+            units = {s: capital * invested_share / len(symbols) / cycle_prices[s] for s in symbols}
+        curve.append(cash + sum(units[s] * cycle_prices[s] for s in symbols))
     return curve

@@ -75,13 +75,13 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
       <div className="quality-body">
         <div className="quality-side">
           <section className="card quality-summary">
-            <p className={`summary-line ${hitRateTone(coverage)}`}>
-              The 80% range held the real price {formatPercentOne(coverage)} of the time
-              {hitRateTone(coverage) === "up" ? ": reliable." : ": not fully reliable."}
+            <p className={`summary-line ${hitRateTone(coverage) === "up" ? "flat" : "down"}`}>
+              The 80% range held the real price {formatPercentOne(coverage)} of the time (target 80%)
+              {hitRateTone(coverage) === "up" ? ": well calibrated." : ": poorly calibrated."}
             </p>
             <AccuracySentence ratio={ratio} />
             {direction !== null && (
-              <p className="summary-line flat">The direction was right {formatPercentOne(direction)} of the time.</p>
+              <p className="summary-line flat">The direction was right {formatPercentOne(direction)} of the time (50% is chance): calibrated is not the same as profitable.</p>
             )}
           </section>
           <section className="card quality-details">
@@ -91,6 +91,7 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
                   <th scope="col">Strategy</th>
                   <th scope="col">Return</th>
                   <th scope="col">Max drawdown</th>
+                  <th scope="col">Avg exposure</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,6 +137,7 @@ function StrategyRow({ strategy }: { strategy: StrategyResult }) {
       <th scope="row">{strategy.name}</th>
       <td className={returnTone(value) === "flat" ? undefined : returnTone(value)}>{formatSignedPercentTwo(value)}</td>
       <td>{formatPercentTwo(strategy.max_drawdown_pct / PERCENT_SCALE)}</td>
+      <td>{formatPercentOne(strategy.average_exposure_pct / PERCENT_SCALE)}</td>
     </tr>
   );
 }

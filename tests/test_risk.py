@@ -23,6 +23,7 @@ RISK = RiskConfig(
     max_daily_loss_pct=5.0,
     max_position_pct=20.0,
     max_total_exposure_pct=80.0,
+    min_order_pct=1.0,
     max_orders_per_cycle=2,
     min_confidence=0.6,
     max_uncertainty=0.06,
@@ -131,6 +132,12 @@ def test_position_limit_caps_buy() -> None:
 def test_position_already_at_limit_rejected() -> None:
     held = portfolio(positions={"SPY": Position(qty=20, market_value=2_000.0)})
     assert not run(pf=held).approved
+
+
+def test_buy_below_the_minimum_order_is_skipped() -> None:
+    nearly_full = portfolio(positions={"SPY": Position(qty=19.5, market_value=1_950.0)})
+    verdict = run(pf=nearly_full)
+    assert not verdict.approved and "minimum order" in verdict.reason
 
 
 def test_total_exposure_caps_buy() -> None:

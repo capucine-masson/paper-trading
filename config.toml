@@ -66,13 +66,15 @@ enabled = true
 # Capital in USD allocated to the agent; all limits are computed on it.
 allocated_capital = 10000.0
 # Agent equity in USD below which the agent halts (sticky, manual resume).
-capital_floor = 5000.0
+capital_floor = 8000.0
 # Maximum daily loss as a percentage of allocated capital; beyond it, no more buys that day.
 max_daily_loss_pct = 10.0
 # Maximum size of one position as a percentage of allocated capital.
-max_position_pct = 25.0
+max_position_pct = 30.0
 # Maximum total exposure as a percentage of allocated capital.
-max_total_exposure_pct = 90.0
+max_total_exposure_pct = 80.0
+# Minimum size of a buy order as a percentage of allocated capital (smaller orders are skipped).
+min_order_pct = 1.0
 # Maximum number of orders per cycle.
 max_orders_per_cycle = 5
 # Minimum LLM confidence to act.
@@ -95,8 +97,9 @@ retry_delay_s = 2.0
 history_days = 180
 # Number of hourly bars between two evaluation points.
 stride_bars = 3
-# Calendar days (most recent) replayed with the LLM and the baselines.
-decision_window_days = 28
+# First evaluation time (UTC): forecast quality and decisions are both replayed from here, after
+# the release of Timestral (2026-10-15).
+start = 2026-10-16T00:00:00Z
 # Timestral-only rule: act when the expected return exceeds this share of the interval width
 # (75th percentile of the absolute signal before the decision window).
 rule_signal_threshold = 0.047
