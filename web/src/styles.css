@@ -449,11 +449,11 @@ select:hover {
 
 @keyframes flower-sway {
   0%,
-  57.5%,
+  45%,
   100% {
     transform: rotate(0deg);
   }
-  37.5% {
+  30% {
     transform: rotate(14deg);
   }
 }
@@ -918,6 +918,10 @@ select:hover {
   border-bottom: 1px solid var(--border);
 }
 
+.decision-columns.is-collapsed > :not(:first-child) {
+  visibility: hidden;
+}
+
 .cycle-group {
   border-bottom: 1px solid var(--border);
 }
@@ -936,6 +940,20 @@ select:hover {
   list-style: none;
   font-weight: 600;
   background: var(--bg);
+}
+
+.cycle-summary:hover {
+  background: color-mix(in srgb, var(--border) 45%, var(--bg));
+}
+
+.day-label {
+  padding: var(--space-2) var(--space-4);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
 }
 
 .cycle-summary::-webkit-details-marker {

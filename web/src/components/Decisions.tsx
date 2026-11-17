@@ -1,12 +1,14 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { forSymbol } from "../filters";
 import { expectedMove, formatMacro, rangeWidth } from "../forecast";
 import {
   formatDateTime,
+  formatDay,
   formatPercent,
   formatPercentOne,
   formatShares,
   formatSignedPercent,
+  formatTime,
   formatUsd,
 } from "../format";
 import { ALL_SYMBOLS, type DecisionView } from "../types";
@@ -27,8 +29,7 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   const shown = forSymbol(decisions, symbol);
   const cycles = groupByCycle([...shown].reverse());
   const latest = cycles.slice(0, MAX_CARDS);
-  const [chosenCycle, setChosenCycle] = useState<string | null | undefined>(undefined);
-  const openCycle = chosenCycle === undefined ? latest[0]?.[0].cycle_id : chosenCycle;
+  const [openCycle, setOpenCycle] = useState<string | null>(null);
   return (
     <div className="page-section">
       <div className="section-head">
@@ -48,7 +49,7 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
       ) : (
         <>
           <div className="card decision-list">
-            <div className="decision-columns" aria-hidden="true">
+            <div className={`decision-columns${openCycle === null ? " is-collapsed" : ""}`} aria-hidden="true">
               <span title="The ETF the decision is about.">Symbol</span>
               <span title="What the AI proposes: buy, sell or hold.">Action</span>
               <span title="Price when the decision was made.">Price</span>
@@ -56,15 +57,19 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
                 Result
               </span>
             </div>
-            {latest.map((cycle) => (
-              <CycleGroup
-                key={cycle[0].cycle_id}
-                decisions={cycle}
-                open={cycle[0].cycle_id === openCycle}
-                onToggle={(isOpen) =>
-                  setChosenCycle((current) => (isOpen ? cycle[0].cycle_id : current === cycle[0].cycle_id ? null : current))
-                }
-              />
+            {latest.map((cycle, index) => (
+              <Fragment key={cycle[0].cycle_id}>
+                {(index === 0 || formatDay(latest[index - 1][0].t) !== formatDay(cycle[0].t)) && (
+                  <div className="day-label">{formatDay(cycle[0].t)}</div>
+                )}
+                <CycleGroup
+                  decisions={cycle}
+                  open={cycle[0].cycle_id === openCycle}
+                  onToggle={(isOpen) =>
+                    setOpenCycle((current) => (isOpen ? cycle[0].cycle_id : current === cycle[0].cycle_id ? null : current))
+                  }
+                />
+              </Fragment>
             ))}
           </div>
           {cycles.length > MAX_CARDS && (
@@ -118,9 +123,9 @@ function CycleGroup({ decisions, open, onToggle }: CycleGroupProps) {
   return (
     <details className="cycle-group" open={open} onToggle={(e) => onToggle(e.currentTarget.open)}>
       <summary className="cycle-summary">
-        <time dateTime={decisions[0].t}>{formatDateTime(decisions[0].t)}</time>
+        <time dateTime={decisions[0].t}>{formatTime(decisions[0].t)}</time>
         <span className="muted">
-          {plural(decisions.length, "decision")} · {plural(orders, "order")} · {blocked} blocked
+          {orders === 0 && blocked === 0 ? "Hold" : `${plural(orders, "order")} · ${blocked} blocked`}
         </span>
         <span className="cycle-pills">
           {events.map((d) => (

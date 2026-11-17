@@ -37,9 +37,17 @@ const date = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
 });
 
+const time = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 
 export const formatDay = (iso: string): string => day.format(new Date(iso));
+export const formatTime = (iso: string): string => `${time.format(new Date(iso))} UTC`;
 export const formatUsd = (value: number): string => usd.format(value);
 export const formatShares = (value: number): string => shares.format(value);
 export const formatSignedUsd = (value: number): string =>
