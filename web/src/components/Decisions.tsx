@@ -32,9 +32,14 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   const [openCycle, setOpenCycle] = useState<string | null>(null);
   return (
     <div className="page-section">
-      <div className="section-head">
-        <label className="field">
-          <select aria-label="Symbol" value={symbol} onChange={(e) => onSymbol(e.target.value)}>
+      <div className="card decision-list">
+        <div className={`decision-columns${openCycle === null ? " is-collapsed" : ""}`}>
+          <select
+            aria-label="Symbol"
+            title="The ETF the decision is about."
+            value={symbol}
+            onChange={(e) => onSymbol(e.target.value)}
+          >
             <option value={ALL_SYMBOLS}>All symbols</option>
             {symbols.map((name) => (
               <option key={name} value={name}>
@@ -42,21 +47,16 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
               </option>
             ))}
           </select>
-        </label>
-      </div>
-      {latest.length === 0 ? (
-        <Empty message="No decision in this view." />
-      ) : (
-        <>
-          <div className="card decision-list">
-            <div className={`decision-columns${openCycle === null ? " is-collapsed" : ""}`} aria-hidden="true">
-              <span title="The ETF the decision is about.">Symbol</span>
-              <span title="What the AI proposes: buy, sell or hold.">Action</span>
-              <span title="Price when the decision was made.">Price</span>
-              <span title="What happened: an order was placed, blocked by a rule, or nothing was done.">
-                Result
-              </span>
-            </div>
+          <span aria-hidden="true" title="What the AI proposes: buy, sell or hold.">Action</span>
+          <span aria-hidden="true" title="Price when the decision was made.">Price</span>
+          <span aria-hidden="true" title="What happened: an order was placed, blocked by a rule, or nothing was done.">
+            Result
+          </span>
+        </div>
+        {latest.length === 0 ? (
+          <Empty message="No decision in this view." />
+        ) : (
+          <>
             {latest.map((cycle, index) => (
               <Fragment key={cycle[0].cycle_id}>
                 {(index === 0 || formatDay(latest[index - 1][0].t) !== formatDay(cycle[0].t)) && (
@@ -71,13 +71,13 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
                 />
               </Fragment>
             ))}
-          </div>
-          {cycles.length > MAX_CARDS && (
-            <p className="muted">
-              Showing the latest {MAX_CARDS} of {cycles.length} cycles. The decisions CSV holds all of them.
-            </p>
-          )}
-        </>
+          </>
+        )}
+      </div>
+      {cycles.length > MAX_CARDS && (
+        <p className="muted">
+          Showing the latest {MAX_CARDS} of {cycles.length} cycles. The decisions CSV holds all of them.
+        </p>
       )}
     </div>
   );

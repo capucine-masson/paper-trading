@@ -1,4 +1,5 @@
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const usdRounded = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const percent = new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 });
 const percentTwoDecimals = new Intl.NumberFormat("en-US", {
   style: "percent",
@@ -49,6 +50,7 @@ const day = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "short", 
 export const formatDay = (iso: string): string => day.format(new Date(iso));
 export const formatTime = (iso: string): string => `${time.format(new Date(iso))} UTC`;
 export const formatUsd = (value: number): string => usd.format(value);
+export const formatUsdRounded = (value: number): string => usdRounded.format(value);
 export const formatShares = (value: number): string => shares.format(value);
 export const formatSignedUsd = (value: number): string =>
   `${value > 0 ? "+" : ""}${usd.format(value)}`;
@@ -60,4 +62,5 @@ export const formatSignedPercent = (value: number): string => signedPercent.form
 export const formatDrawdown = (value: number): string =>
   value === 0 ? percent.format(0) : `-${percent.format(value)}`;
 export const formatDateTime = (iso: string): string => `${dateTime.format(new Date(iso))} UTC`;
+export const formatAxisTime = (iso: string): string => dateTime.format(new Date(iso));
 export const formatDate = (iso: string): string => date.format(new Date(iso));

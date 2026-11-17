@@ -565,6 +565,47 @@ select:hover {
   flex-direction: column;
 }
 
+.chart-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  grid-template-rows: 1fr auto;
+  column-gap: var(--space-2);
+}
+
+.y-axis {
+  position: relative;
+  min-width: 4.5rem;
+}
+
+.tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.tick small {
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tick-start {
+  font-weight: 600;
+}
+
+.tick-floor {
+  color: var(--down);
+}
+
 .plot {
   position: relative;
   flex: 1;
@@ -609,17 +650,6 @@ select:hover {
   stroke: var(--down);
   stroke-width: 1;
   stroke-dasharray: 5 4;
-}
-
-.axis-right {
-  left: auto;
-  width: max-content;
-  right: var(--space-1);
-  transform: translateY(-100%);
-}
-
-.axis-floor {
-  color: var(--down);
 }
 
 .volume-group {
@@ -763,11 +793,40 @@ select:hover {
 }
 
 .chart-caption {
+  grid-column: 2;
+  position: relative;
   display: flex;
   justify-content: space-between;
   margin-top: var(--space-1);
   color: var(--muted);
   font-size: 0.75rem;
+}
+
+.chart-caption span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chart-caption span::before {
+  content: "";
+  width: 1px;
+  height: 4px;
+  background: var(--muted);
+}
+
+.chart-caption span:nth-child(1) {
+  align-items: flex-start;
+}
+
+.chart-caption .caption-middle {
+  position: absolute;
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+.chart-caption span:nth-child(3) {
+  align-items: flex-end;
 }
 
 .positions-card {
@@ -918,6 +977,29 @@ select:hover {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--border);
+}
+
+.decision-columns select {
+  width: fit-content;
+  max-width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-1) 0 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--accent);
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+
+.decision-columns select option {
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: var(--font);
+  font-size: 0.85rem;
 }
 
 .decision-columns.is-collapsed > :not(:first-child) {
@@ -1545,6 +1627,10 @@ select:hover {
   }
 
   .decision-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .decision-columns > span {
     display: none;
   }
 
