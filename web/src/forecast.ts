@@ -4,12 +4,12 @@ const level = (value: number): string => value.toFixed(2);
 const percentLevel = (value: number): string => `${level(value)}%`;
 
 const MACRO_FORMATS: Record<string, { label: string; format: (value: number) => string }> = {
-  brent: { label: "Brent", format: (value) => `$${level(value)}` },
-  us10y: { label: "US 10Y", format: percentLevel },
-  us2y: { label: "US 2Y", format: percentLevel },
-  dollar: { label: "Dollar", format: level },
-  vix: { label: "VIX", format: level },
-  hy_spread: { label: "HY spread", format: percentLevel },
+  brent: { label: "oil (Brent)", format: (value) => `$${level(value)}` },
+  us10y: { label: "US 10-year yield", format: percentLevel },
+  us2y: { label: "US 2-year yield", format: percentLevel },
+  dollar: { label: "US dollar index", format: level },
+  vix: { label: "market fear (VIX)", format: level },
+  hy_spread: { label: "credit stress (high-yield spread)", format: percentLevel },
 };
 
 export function formatMacro(name: string, value: number): string {

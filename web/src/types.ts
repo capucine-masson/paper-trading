@@ -77,10 +77,9 @@ export interface DecisionView {
   cycle_id: string;
   symbol: string;
   action: "buy" | "sell" | "hold";
-  confidence: number;
+  signal_strength: number | null;
   size_fraction: number;
   rationale: string;
-  context: string;
   price: number | null;
   position_qty: number;
   position_value: number;

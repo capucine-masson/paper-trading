@@ -95,6 +95,7 @@ def make_record(
         lower=[price * 0.99],
         upper=[price * 1.01],
         uncertainty=uncertainty,
+        signal_strength=1.0,
     )
     return ForecastRecord(EvalPoint(moment, series, actual=price, fill_price=fill), forecast, 0.0)
 
@@ -207,7 +208,7 @@ def test_llm_decisions_are_cached_by_time_and_portfolio(
 
     def fake_decide(*args: object) -> Decisions:
         calls.append("llm")
-        decision = Decision(action="buy", confidence=0.9, size_fraction=1.0, rationale="test")
+        decision = Decision(action="buy", size_fraction=1.0, rationale="test")
         return Decisions(decisions=[SymbolDecision(symbol="SPY", decision=decision)])
 
     monkeypatch.setattr(bt, "decide", fake_decide)

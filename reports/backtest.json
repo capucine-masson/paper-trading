@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-17T00:15:08.820895Z",
+  "generated_at": "2026-11-17T01:21:35.064294Z",
   "symbols": [
     "SPY",
     "QQQ",
@@ -17,7 +17,7 @@
   "models": [
     {
       "model": "mistralai/Timestral-28M",
-      "seconds_per_forecast": 0.2385925855915067,
+      "seconds_per_forecast": 0.2548596221505494,
       "overall": {
         "n": 465,
         "mae_model": 2.6785026573263195,
@@ -4321,19 +4321,19 @@
     },
     {
       "name": "Buy and hold (same exposure as agent)",
-      "final_equity": 9825.218810846562,
-      "return_pct": -1.7478118915343788,
-      "max_drawdown_pct": 2.4988673881933385,
+      "final_equity": 9833.664854374863,
+      "return_pct": -1.6633514562513718,
+      "max_drawdown_pct": 2.3783630162850242,
       "trades": 8,
-      "average_exposure_pct": 69.65549064544238
+      "average_exposure_pct": 66.28949165650013
     },
     {
       "name": "Momentum rule",
-      "final_equity": 9395.447598724315,
-      "return_pct": -6.045524012756854,
-      "max_drawdown_pct": 6.192796362255891,
-      "trades": 239,
-      "average_exposure_pct": 66.9410216371428
+      "final_equity": 9556.94436349201,
+      "return_pct": -4.430556365079896,
+      "max_drawdown_pct": 4.5803601539589875,
+      "trades": 217,
+      "average_exposure_pct": 62.979410259191404
     },
     {
       "name": "Timestral-only rule",
@@ -4345,11 +4345,11 @@
     },
     {
       "name": "Timestral + LLM (the agent)",
-      "final_equity": 9877.757816474299,
-      "return_pct": -1.2224218352570149,
-      "max_drawdown_pct": 3.950264334222527,
-      "trades": 33,
-      "average_exposure_pct": 70.83922183686849
+      "final_equity": 9824.599932211286,
+      "return_pct": -1.7540006778871464,
+      "max_drawdown_pct": 4.796366675561884,
+      "trades": 62,
+      "average_exposure_pct": 67.41572581422567
     }
   ]
 }

@@ -47,13 +47,13 @@ def seed_cycle(
                 "last_bar_start": "2026-11-16T15:00:00+00:00",
                 "last_price": spy_price,
                 "uncertainty": 0.024,
+                "signal_strength": 0.8,
                 **HORIZON_PATH,
             }
         ),
     )
     decision = {
         "action": action,
-        "confidence": 0.8,
         "size_fraction": 0.5,
         "rationale": "= Median above price.",
     }
@@ -121,7 +121,6 @@ def test_decision_card_content(tmp_path: Path) -> None:
     assert second.position_qty == 2.0 and second.forecast is not None
     assert second.forecast.median == [501.0, 502.0]
     assert second.order is not None and second.order.fill_price == 510.25
-    assert second.context == ""  # decisions journaled before this field have no context
     assert second.macro == {} and second.next_event is None  # forecasts journaled before this field
 
 
@@ -168,7 +167,7 @@ def test_csv_files_match_the_requested_columns(tmp_path: Path) -> None:
     assert equity[2].endswith(",c2,9900.0,-100.0,1000.0,8900.0,")
     decisions = read_lines(out / "decisions.csv")
     assert decisions[0] == (
-        "timestamp_utc,cycle_id,symbol,action,confidence,size_fraction,"
+        "timestamp_utc,cycle_id,symbol,action,signal_strength,size_fraction,"
         "risk_verdict,risk_reason,llm_reasoning"
     )
     assert decisions[1].endswith("'= Median above price.")  # formula neutralized for Excel

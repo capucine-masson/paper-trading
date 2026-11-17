@@ -44,6 +44,7 @@ class ForecastConfig(StrictModel):
     model: str = Field(min_length=3, max_length=100)
     context_length: int = Field(ge=64, le=4000)
     horizon: int = Field(ge=1, le=96)
+    signal_strong: float = Field(gt=0)
     max_attempts: int = Field(ge=1, le=10)
     retry_delay_s: float = Field(gt=0, le=60)
     event_times: list[AwareDatetime] = Field(max_length=200)
@@ -63,8 +64,6 @@ class LlmConfig(StrictModel):
     timeout_s: int = Field(ge=1, le=300)
     max_attempts: int = Field(ge=1, le=10)
     retry_delay_s: float = Field(gt=0, le=60)
-    signal_typical: float = Field(gt=0)
-    signal_strong: float = Field(gt=0)
 
 
 class RiskConfig(StrictModel):
@@ -76,7 +75,7 @@ class RiskConfig(StrictModel):
     max_total_exposure_pct: float = Field(gt=0, le=100)
     min_order_pct: float = Field(gt=0, le=100)
     max_orders_per_cycle: int = Field(ge=1, le=50)
-    min_confidence: float = Field(ge=0, le=1)
+    min_signal_strength: float = Field(ge=0, le=1)
     max_uncertainty: float = Field(gt=0, le=1)
     forecast_guard: bool
 

@@ -38,6 +38,7 @@ class PriceForecast(BaseModel):
     uncertainty: float
     macro: dict[str, float] = {}
     next_event: datetime | None = None
+    signal_strength: float | None = None  # unset in forecasts journaled before this field
 
     @property
     def expected_return(self) -> float:
@@ -104,6 +105,7 @@ def forecast_symbol(
         update={
             "macro": latest_macro(macro, drivers),
             "next_event": next_event(series.last_bar_start, config.event_times),
+            "signal_strength": min(1.0, abs(forecast.signal) / config.signal_strong),
         }
     )
 

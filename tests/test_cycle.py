@@ -68,13 +68,14 @@ def llm_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
             lower=[99.0],
             upper=[103.0],
             uncertainty=0.02,
+            signal_strength=1.0,
         )
 
     def fake_decide(
         client: object, symbols: list[str], data: str, tool: ForecastTool, *rest: object
     ) -> Decisions:
         calls.append("llm")
-        decision = Decision(action="buy", confidence=0.9, size_fraction=1.0, rationale="test")
+        decision = Decision(action="buy", size_fraction=1.0, rationale="test")
         served = [symbol for symbol in symbols if tool(symbol) is not None]
         return Decisions(decisions=[SymbolDecision(symbol=s, decision=decision) for s in served])
 

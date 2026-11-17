@@ -17,6 +17,10 @@ model = "mistralai/Timestral-28M"
 context_length = 400
 # Forecast horizon in hourly steps.
 horizon = 6
+# Signal (expected return over interval width) that counts as strong: the 90th percentile of the
+# absolute signal over the backtest points before the decision window. Signal strength is the
+# absolute signal divided by this value, capped at 1.
+signal_strong = 0.079
 # Attempts to download the model weights on transient errors (network, 429, 5xx).
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).
@@ -55,10 +59,6 @@ timeout_s = 30
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).
 retry_delay_s = 2.0
-# Median of the absolute signal over the backtest points before the decision window (shown to the LLM).
-signal_typical = 0.026
-# 90th percentile of the same signal: a strong signal (shown to the LLM).
-signal_strong = 0.079
 
 [risk]
 # Emergency stop: false blocks every order.
@@ -77,11 +77,11 @@ max_total_exposure_pct = 80.0
 min_order_pct = 1.0
 # Maximum number of orders per cycle.
 max_orders_per_cycle = 5
-# Minimum LLM confidence to act.
-min_confidence = 0.5
+# Minimum signal strength (0 to 1, computed from the forecast) to buy.
+min_signal_strength = 0.5
 # Maximum forecast uncertainty (interval width over median) to buy.
 max_uncertainty = 0.08
-# Block a buy when the forecast expects no gain.
+# Block a buy when the forecast expects no gain or the signal is weak.
 forecast_guard = true
 
 [broker]

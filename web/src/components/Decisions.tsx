@@ -50,12 +50,18 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
         <>
           <div className="card decision-list">
             <div className="decision-columns" aria-hidden="true">
-              <span>Symbol</span>
-              <span>Action</span>
-              <span>Expected return ({horizon}h)</span>
-              <span className="col-range">Uncertainty (80% range)</span>
-              <span>Price</span>
-              <span>Result</span>
+              <span title="The ETF the decision is about.">Symbol</span>
+              <span title="What the AI proposes: buy, sell or hold.">Action</span>
+              <span title="How much the price is expected to change, according to Timestral.">
+                Expected return ({horizon}h)
+              </span>
+              <span className="col-range" title="How unsure the forecast is: a wider range means less certainty.">
+                Uncertainty (80% range)
+              </span>
+              <span title="Price when the decision was made.">Price</span>
+              <span title="What happened: an order was placed, blocked by a rule, or nothing was done.">
+                Result
+              </span>
             </div>
             {latest.map((cycle, index) => (
               <CycleGroup key={cycle[0].cycle_id} decisions={cycle} defaultOpen={index === 0} />
@@ -135,10 +141,10 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
         <div className="decision-text">
           <p className="rationale">{d.rationale}</p>
           <DetailLine label="Sizing">{sizing(d)}</DetailLine>
-          <DetailLine label="Held before">
-            {d.position_qty === 0 ? "Nothing" : `${d.position_qty} sh, ${formatUsd(d.position_value)}`}
+          <DetailLine label="Already owned">
+            {d.position_qty === 0 ? "None" : formatUsd(d.position_value)}
           </DetailLine>
-          <DetailLine label="Context">{d.context === "" ? contextSentence(d) : d.context}</DetailLine>
+          <DetailLine label="Also used">{contextSentence(d)}</DetailLine>
           {d.risk_reason !== null && d.verdict !== "no_order" && (
             <DetailLine label="Risk check">{riskNote(d)}</DetailLine>
           )}
@@ -163,19 +169,20 @@ function riskNote(d: DecisionView): string {
 
 function sizing(d: DecisionView): string {
   if (d.forecast === null) return "No forecast.";
-  const range = `Range ${formatPercentOne(rangeWidth(d.forecast))} · confidence ${formatPercent(d.confidence)}`;
+  const strength = d.signal_strength === null ? NOT_AVAILABLE : formatPercent(d.signal_strength);
+  const range = `Range ${formatPercentOne(rangeWidth(d.forecast))} · signal strength ${strength}`;
   return d.action === "buy" ? `${range} → asks for ${formatPercent(d.size_fraction)} of the maximum position` : range;
 }
 
 function contextSentence(d: DecisionView): string {
   const drivers = Object.entries(d.macro).map(([name, value]) => formatMacro(name, value));
   const parts = [
-    ...(drivers.length === 0 ? [] : [`macro data (${drivers.join(", ")})`]),
-    ...(d.next_event === null ? [] : [`a macro release scheduled on ${formatDateTime(d.next_event)}`]),
+    ...(drivers.length === 0 ? [] : [`Besides the price, Timestral also used: ${drivers.join(", ")}.`]),
+    ...(d.next_event === null
+      ? []
+      : [`Next scheduled event (Fed decision or inflation report): ${formatDateTime(d.next_event)}.`]),
   ];
-  return parts.length === 0
-    ? "No macro data was recorded for this decision."
-    : `Besides the price, Timestral also used ${parts.join(" and ")}.`;
+  return parts.length === 0 ? "No macro data was recorded for this decision." : parts.join(" ");
 }
 
 function Expected({ decision: d }: { decision: DecisionView }) {

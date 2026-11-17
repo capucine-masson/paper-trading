@@ -7,6 +7,14 @@ investment advice.
 
 Live dashboard: <https://capucine-masson.github.io/paper-trading/>
 
+## Three things to know
+
+1. **Honest calibration:** the forecast has no measurable edge at this horizon, and we say so. Its 10-90% interval
+   covers 74% of outcomes instead of 80%, so it is somewhat too narrow ([backtest](#how-do-we-know-the-decisions-are-sound)).
+2. **Uncertainty drives the size:** a wider forecast interval means a smaller buy, and a weak signal means no buy.
+3. **Guardrails live in code:** the LLM proposes an action and a share of the maximum position, never an amount or a
+   price. The code can veto it and enforces hard limits that nothing can bypass.
+
 ## Launch
 
 See **[GETTING_STARTED.md](GETTING_STARTED.md)**.
@@ -17,17 +25,20 @@ See **[GETTING_STARTED.md](GETTING_STARTED.md)**.
 flowchart LR
     A[Alpaca hourly bars] --> T
     F[FRED macro drivers + FOMC/CPI dates] --> T
-    T{{Timestral<br/>median + 10-90% interval}} -->|tool call| L[Mistral LLM<br/>action, size, rationale]
-    L --> R[risk.py<br/>limits + sizing]
+    T{{Timestral<br/>median + 10-90% interval<br/>+ signal strength}} -->|tool call| L[Mistral LLM<br/>action, size, rationale]
+    L -->|proposal| R[risk.py<br/>veto, dollar sizing, limits]
     R -->|approved| O[Alpaca paper order]
     T & L & R & O --> J[(journal + dashboard)]
 ```
 
-Every hour of the US session: Timestral forecasts the next 6 hours of each ETF (using the ETF's own prices plus
-Brent, 10y and 2y yields, dollar index, VIX, high-yield spread and scheduled FOMC/CPI dates). The LLM reads the
-forecasts and the portfolio and gives each symbol an action, a size and a short rationale. `risk.py` converts the
-size to dollars and applies the limits. Approved orders go to Alpaca; everything is journaled and shown on the
-dashboard.
+Every hour of the US session:
+
+1. **Timestral** forecasts the next 6 hours of each ETF (its own prices plus Brent, 10y and 2y yields, dollar
+   index, VIX, high-yield spread and scheduled FOMC/CPI dates). The code adds a signal strength (0 to 1).
+2. **The LLM** calls Timestral as a tool, reads the forecasts, the signal strength and the portfolio, and gives each
+   symbol an action (`buy / sell / hold`), a size (share of the maximum position) and a short rationale.
+3. **`risk.py`** may veto a buy, then converts the size to dollars (reduced when the interval is wide) within the limits.
+4. **Approved orders** go to Alpaca. Everything is journaled and shown on the dashboard.
 
 ## How do we know the decisions are sound?
 
@@ -37,9 +48,10 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | Question | Answer |
 | --- | --- |
 | Look-ahead? | Only completed bars are used; a daily macro value is visible from the next day 00:00 UTC; the backtest is walk-forward. Tests: `test_data`, `test_macro`, `test_backtest`. |
-| Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. |
-| Risk? | Hard limits in code: 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
-| Explanations? | Each decision stores its rationale, a one-sentence macro context written by the LLM from the readings it is shown (no causes beyond them), the forecast, the risk verdict and the order, visible in the dashboard. |
+| Who decides? | The LLM calls Timestral as a tool, then picks `buy / sell / hold`, a size and writes the rationale. The code never decides for it: it computes the numbers and can veto a decision (below). |
+| Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. The code also computes a **signal strength** (0 to 1: the expected return over the interval width, against a strong past signal, `signal_strong` in `config.toml`); a buy needs at least 0.5. It is a measure of how strong the forecast is, not a probability, and not asked of the LLM, whose own confidence is not reliable. |
+| Risk? | Hard limits in code (our own choices, not from the brief): 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
+| Explanations? | Each decision stores its rationale, the forecast and the macro data Timestral used (built by the code, not written by the LLM), the risk verdict and the order, visible in the dashboard. |
 
 **Backtest** (`uv run python -m agent.backtest`, walk-forward from 2026-10-16, the day after Timestral's release on 2026-10-15; details in `reports/backtest.md`):
 
@@ -53,12 +65,12 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | --- | --- | --- | --- |
 | Cash | +0.00% | 0.00% | 0.0% |
 | Equal-weight buy and hold (full exposure cap) | -1.97% | 2.82% | 78.7% |
-| Buy and hold (same exposure as agent) | -1.75% | 2.50% | 69.7% |
-| Momentum rule | -6.05% | 6.19% | 66.9% |
+| Buy and hold (same exposure as agent) | -1.66% | 2.38% | 66.3% |
+| Momentum rule | -4.43% | 4.58% | 63.0% |
 | Timestral-only rule (no LLM) | -0.55% | 4.13% | 70.3% |
-| **Timestral + LLM (the agent)** | **-1.22%** | 3.95% | 70.8% |
+| **Timestral + LLM (the agent)** | **-1.75%** | 4.80% | 67.4% |
 
-At the same exposure, the agent (-1.22%) is 0.5 point above buy and hold (-1.75%), but below cash and the Timestral-only rule, and these few weeks are noise, not skill. The dashboard's
+At the same exposure, the agent (-1.75%) does the same as buy and hold (-1.66%) and is below cash and the Timestral-only rule: no measurable edge, and these few weeks are noise, not skill. The dashboard's
 live "Buy & hold" line holds the same average exposure as the agent, so it is not flattered by cash.
 
 ## Limits
@@ -78,6 +90,6 @@ live "Buy & hold" line holds the same average exposure as the agent, so it is no
 
 ## Code map
 
-`agent/`: `data` and `macro` (inputs), `forecast` (Timestral), `llm` (prompts, tool call), `risk` (limits),
+`agent/`: `data` and `macro` (inputs), `forecast` (Timestral), `llm` (prompts, tool call), `risk` (veto, sizing, limits),
 `broker` (Alpaca, the only module that talks to it), `cycle` and `store` (resumable steps, journal),
 `backtest`, `export`. `web/`: static dashboard. `tests/`: `pytest`, no network.

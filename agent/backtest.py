@@ -60,7 +60,6 @@ AGENT_NAME = "Timestral + LLM (the agent)"
 SAME_EXPOSURE_NAME = "Buy and hold (same exposure as agent)"
 SAME_EXPOSURE_POSITION = 2  # right after the full-exposure buy and hold in the report
 PROGRESS_EVERY = 100
-RULE_CONFIDENCE = 1.0
 HASH_LENGTH = 8
 
 
@@ -221,9 +220,7 @@ def forecast_points(records: list[ForecastRecord]) -> list[ForecastPoint]:
 def _decision(
     action: Literal["buy", "sell", "hold"], rationale: str, size_fraction: float = 1.0
 ) -> Decision:
-    return Decision(
-        action=action, confidence=RULE_CONFIDENCE, size_fraction=size_fraction, rationale=rationale
-    )
+    return Decision(action=action, size_fraction=size_fraction, rationale=rationale)
 
 
 def cash_rule(_: ForecastRecord) -> Decision:
@@ -288,7 +285,7 @@ class LlmStrategy:
         self._config = config
         self._cache = cache
         llm = config.llm
-        fingerprint = f"{build_system_prompt(llm)}|{llm.model}|{llm.temperature}"
+        fingerprint = f"{build_system_prompt()}|{llm.model}|{llm.temperature}"
         self._prefix = "bt-" + _short_hash(fingerprint)
         self.failures = 0
 

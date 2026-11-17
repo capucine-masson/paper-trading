@@ -44,6 +44,7 @@ FORMULA_PREFIXES = ("=", "+", "-", "@")
 USD_DECIMALS = 2
 PRICE_DECIMALS = 4
 QTY_DECIMALS = 6
+RATIO_DECIMALS = 3
 
 
 class EquityPoint(BaseModel):
@@ -86,10 +87,9 @@ class DecisionView(BaseModel):
     cycle_id: str
     symbol: str
     action: str
-    confidence: float
+    signal_strength: float | None
     size_fraction: float
     rationale: str
-    context: str
     price: float | None
     position_qty: float
     position_value: float
@@ -347,10 +347,9 @@ def _decision_view(
         cycle_id=row.cycle_id,
         symbol=item.symbol,
         action=decision.action,
-        confidence=decision.confidence,
+        signal_strength=forecast.signal_strength if forecast else None,
         size_fraction=decision.size_fraction,
         rationale=decision.rationale,
-        context=decision.context,
         price=forecast.last_price if forecast else None,
         position_qty=held.qty if held else 0.0,
         position_value=held.market_value if held else 0.0,
@@ -404,7 +403,7 @@ def write_export(export: Export, out_dir: Path) -> None:
             "cycle_id",
             "symbol",
             "action",
-            "confidence",
+            "signal_strength",
             "size_fraction",
             "risk_verdict",
             "risk_reason",
@@ -416,7 +415,7 @@ def write_export(export: Export, out_dir: Path) -> None:
                 d.cycle_id,
                 d.symbol,
                 d.action,
-                d.confidence,
+                _round(d.signal_strength, RATIO_DECIMALS),
                 d.size_fraction,
                 d.verdict,
                 _text(d.risk_reason),

@@ -1,4 +1,4 @@
-import { formatUsd } from "../format";
+import { formatSignedPercent, formatUsd } from "../format";
 import type { ForecastPath } from "../types";
 
 const VIEW_WIDTH = 400;
@@ -26,9 +26,12 @@ export function FanChart({ forecast, price }: Props) {
   const backwards = toPath([...xs].reverse(), [...lower].reverse().map(y)).replace(/^M/, "L");
   const band = `${toPath(xs, upper.map(y))} ${backwards} Z`;
   const last = median.length - 1;
+  const change = (value: number | undefined): number => (value ?? price) / price - 1;
   return (
     <figure className="fan">
-      <figcaption className="fan-title">Timestral forecast: median line and 80% range</figcaption>
+      <figcaption className="fan-title">
+        Timestral forecast. Blue line: median. Shaded area: 80% range. The AI reads the +{last * BAR_HOURS}h end point.
+      </figcaption>
       <svg
         viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
         preserveAspectRatio="none"
@@ -42,8 +45,8 @@ export function FanChart({ forecast, price }: Props) {
       <figcaption className="fan-caption">
         <span>Now {formatUsd(price)}</span>
         <span>
-          +{last * BAR_HOURS}h: 10% {formatUsd(lower[last] ?? price)} / median {formatUsd(median[last] ?? price)} / 90%{" "}
-          {formatUsd(upper[last] ?? price)}
+          At +{last * BAR_HOURS}h: median {formatSignedPercent(change(median[last]))}, likely between{" "}
+          {formatSignedPercent(change(lower[last]))} and {formatSignedPercent(change(upper[last]))}
         </span>
       </figcaption>
     </figure>

@@ -104,6 +104,18 @@ def test_forecast_gets_macro_as_past_and_events_as_known_covariates() -> None:
     assert forecast.next_event is not None and forecast.next_event > stamps[-1]
 
 
+def test_signal_strength_is_the_signal_over_the_strong_signal_capped_at_one() -> None:
+    steps = 400
+    stamps = [datetime(2026, 11, 2, tzinfo=UTC) + i * HOUR for i in range(steps)]
+    series = PriceSeries(
+        symbol="SPY", last_bar_start=stamps[-1], timestamps=stamps, values=np.full(steps, 100.0)
+    )
+    macro = MacroData(series={"vix": [Observation(date=date(2026, 11, 1), value=20.0)]})
+    forecast = forecast_symbol(RecordingForecaster(), series, CONFIG, macro)
+    expected = min(1.0, abs(forecast.signal) / CONFIG.signal_strong)
+    assert forecast.signal_strength == pytest.approx(expected)
+
+
 def test_next_event_is_the_first_release_after_the_last_bar() -> None:
     early, late = FIRST_BAR + HOUR, FIRST_BAR + 3 * HOUR
     assert next_event(FIRST_BAR, [late, early, FIRST_BAR - HOUR]) == early

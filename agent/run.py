@@ -126,8 +126,9 @@ def _format(symbol: str, outcome: SymbolOutcome) -> str:
     if decision is None:
         lines.append(f"  no decision ({outcome.error})")
         return "\n".join(lines)
+    strength = "n/a" if forecast.signal_strength is None else f"{forecast.signal_strength:.0%}"
     lines.append(
-        f"  LLM: {decision.action.upper()} (confidence {decision.confidence:.2f}, "
+        f"  LLM: {decision.action.upper()} (signal strength {strength}, "
         f"size {decision.size_fraction:.0%}): {decision.rationale}"
     )
     verdict = outcome.verdict

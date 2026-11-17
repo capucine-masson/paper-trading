@@ -89,8 +89,6 @@ def evaluate(
         return _rejected(f"{symbol} is not an allowed symbol")
     if decision.action == "hold":
         return _rejected("hold: no order")
-    if decision.confidence < risk.min_confidence:
-        return _rejected(f"confidence {decision.confidence:.0%} below {risk.min_confidence:.0%}")
     if orders_approved >= risk.max_orders_per_cycle:
         return _rejected(f"maximum of {risk.max_orders_per_cycle} orders per cycle reached")
     if decision.action == "sell":
@@ -118,6 +116,23 @@ def _sell(decision: Decision, symbol: str, portfolio: Portfolio) -> Verdict:
     return Verdict(approved=True, reason=f"sell {share}", order=order)
 
 
+def _forecast_objection(forecast: PriceForecast, risk: RiskConfig) -> str | None:
+    """Why the forecast does not support a buy; baselines that ignore the forecast skip it."""
+    if not risk.forecast_guard:
+        return None
+    if forecast.expected_return <= 0:
+        return (
+            f"expected return {forecast.expected_return:+.2%} is not positive: "
+            "no buy against the forecast"
+        )
+    strength = forecast.signal_strength
+    if strength is None:
+        return "signal strength unavailable: no buy"
+    if strength < risk.min_signal_strength:
+        return f"signal strength {strength:.0%} below {risk.min_signal_strength:.0%}: no buy"
+    return None
+
+
 def _buy(
     decision: Decision,
     forecast: PriceForecast,
@@ -127,11 +142,9 @@ def _buy(
     symbol = forecast.symbol
     if decision.size_fraction == 0:
         return _rejected("buy with a size of zero: no order")
-    if risk.forecast_guard and forecast.expected_return <= 0:
-        return _rejected(
-            f"expected return {forecast.expected_return:+.2%} is not positive: "
-            "no buy against the forecast"
-        )
+    objection = _forecast_objection(forecast, risk)
+    if objection is not None:
+        return _rejected(objection)
     if forecast.uncertainty > risk.max_uncertainty:
         return _rejected(f"uncertainty {forecast.uncertainty:.2%} above {risk.max_uncertainty:.2%}")
     max_daily_loss = risk.max_daily_loss_pct / PERCENT * risk.allocated_capital
@@ -173,11 +186,11 @@ def evaluate_ranked(
     portfolio: Portfolio,
     assess: Callable[[Decision, PriceForecast, int], Verdict],
 ) -> Iterator[tuple[str, Verdict]]:
-    """Assess the most confident decisions first; each approved order is applied to the portfolio
+    """Assess the strongest signals first; each approved order is applied to the portfolio
     before the next one, so later decisions see the exposure and the order count it leaves."""
     approved = 0
     for symbol, decision, forecast in sorted(
-        candidates, key=lambda candidate: candidate.decision.confidence, reverse=True
+        candidates, key=lambda candidate: candidate.forecast.signal_strength or 0.0, reverse=True
     ):
         verdict = assess(decision, forecast, approved)
         if verdict.order is not None:

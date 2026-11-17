@@ -25,8 +25,8 @@ const HORIZON = 6;
 const HOUR_MS = 3_600_000;
 const ALLOCATED = 10_000;
 const ORDER_NOTIONAL = 110;
-const MIN_CONFIDENCE = 0.5;
-const BLOCKED_CONFIDENCE = 0.45;
+const MIN_STRENGTH = 0.5;
+const BLOCKED_STRENGTH = 0.45;
 const ACTIONS: DecisionView["action"][] = ["hold", "buy", "hold", "sell", "hold"];
 const VERDICTS: VerdictStatus[] = ["no_order", "accepted", "no_order", "blocked", "no_order"];
 
@@ -53,7 +53,6 @@ const stats = (mae_ratio: number, coverage: number): ForecastMetrics => ({
 
 const DEMO_MACRO = { brent: 82.1, us10y: 4.21, us2y: 4.55, dollar: 121.3, vix: 16.4, hy_spread: 3.05 };
 const DEMO_NEXT_EVENT = "2026-12-09T19:00:00Z";
-const DEMO_CONTEXT = "The VIX is low and yields are stable, so no strong macro pressure is visible before the next release.";
 const DEMO_COST_BPS = 5;
 const BPS_PER_UNIT = 10_000;
 const DEMO_FORECASTS = 130;
@@ -167,7 +166,7 @@ export function buildDemoData(): DashboardData {
       const action = ACTIONS[(i + s) % ACTIONS.length] ?? "hold";
       const verdict = VERDICTS[(i + s) % VERDICTS.length] ?? "no_order";
       const reduced = verdict === "accepted" && i % 4 === 0;
-      const confidence = verdict === "blocked" ? BLOCKED_CONFIDENCE : MIN_CONFIDENCE + 0.05 * ((i + s) % 6);
+      const strength = verdict === "blocked" ? BLOCKED_STRENGTH : MIN_STRENGTH + 0.05 * ((i + s) % 6);
       const heldQty = held[symbol] ?? 0;
       const qty = ORDER_NOTIONAL / last;
       if (verdict === "accepted") cycleOrders.push({ symbol, qty });
@@ -176,9 +175,8 @@ export function buildDemoData(): DashboardData {
         cycle_id: `demo-${i}`,
         symbol,
         action,
-        confidence,
+        signal_strength: strength,
         size_fraction: action === "buy" ? 0.5 : 0,
-        context: DEMO_CONTEXT,
         rationale: demoRationale(symbol, action, (drift * HORIZON) / last, (2 * spread * Math.sqrt(HORIZON)) / last),
         price: last,
         position_qty: Number(heldQty.toFixed(3)),
@@ -195,7 +193,7 @@ export function buildDemoData(): DashboardData {
           verdict === "no_order"
             ? "hold: no order"
             : verdict === "blocked"
-              ? `confidence ${Math.round(confidence * 100)}% below ${Math.round(MIN_CONFIDENCE * 100)}%`
+              ? `signal strength ${Math.round(strength * 100)}% below ${Math.round(MIN_STRENGTH * 100)}%: no buy`
               : reduced
                 ? `buy $${ORDER_NOTIONAL}.00, reduced from $200.00 by position/exposure limits`
                 : `buy $${ORDER_NOTIONAL}.00`,

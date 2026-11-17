@@ -25,14 +25,16 @@ RISK = RiskConfig(
     max_total_exposure_pct=80.0,
     min_order_pct=1.0,
     max_orders_per_cycle=2,
-    min_confidence=0.6,
+    min_signal_strength=0.5,
     max_uncertainty=0.06,
     forecast_guard=True,
 )
 SYMBOLS = ["SPY", "QQQ"]
 
 
-def forecast(symbol: str = "SPY", uncertainty: float = 0.0) -> PriceForecast:
+def forecast(
+    symbol: str = "SPY", uncertainty: float = 0.0, strength: float = 1.0
+) -> PriceForecast:
     return PriceForecast(
         symbol=symbol,
         model="m",
@@ -42,14 +44,14 @@ def forecast(symbol: str = "SPY", uncertainty: float = 0.0) -> PriceForecast:
         lower=[99.0],
         upper=[103.0],
         uncertainty=uncertainty,
+        signal_strength=strength,
     )
 
 
-def decision(action: str = "buy", confidence: float = 0.9, size_fraction: float = 1.0) -> Decision:
+def decision(action: str = "buy", size_fraction: float = 1.0) -> Decision:
     return Decision.model_validate(
         {
             "action": action,
-            "confidence": confidence,
             "size_fraction": size_fraction,
             "rationale": "t",
         }
@@ -96,9 +98,19 @@ def test_hold_places_no_order() -> None:
     assert not run(dec=decision("hold")).approved
 
 
-def test_low_confidence_rejected() -> None:
-    assert not run(dec=decision(confidence=0.59)).approved
-    assert run(dec=decision(confidence=0.6)).approved
+def test_weak_signal_blocks_a_buy_but_not_a_sell() -> None:
+    weak = forecast(strength=0.49)
+    blocked = run(fc=weak)
+    assert not blocked.approved and "signal strength 49% below 50%" in blocked.reason
+    assert run(fc=forecast(strength=0.5)).approved
+    held = portfolio(positions={"SPY": Position(qty=2, market_value=200)})
+    assert run(dec=decision("sell"), fc=weak, pf=held).approved
+
+
+def test_unknown_signal_strength_blocks_a_buy() -> None:
+    unknown = forecast().model_copy(update={"signal_strength": None})
+    verdict = run(fc=unknown)
+    assert not verdict.approved and "unavailable" in verdict.reason
 
 
 def test_max_orders_per_cycle() -> None:
@@ -244,11 +256,11 @@ def test_sell_is_allowed_even_when_the_forecast_is_positive() -> None:
     assert run(dec=decision("sell"), pf=held).approved
 
 
-def test_most_confident_decision_is_assessed_first_and_sees_the_orders_before_it() -> None:
+def test_strongest_signal_is_assessed_first_and_sees_the_orders_before_it() -> None:
     pf = portfolio()
     candidates = [
-        Candidate("SPY", decision(confidence=0.7), forecast("SPY")),
-        Candidate("QQQ", decision(confidence=0.9), forecast("QQQ")),
+        Candidate("SPY", decision(), forecast("SPY", strength=0.7)),
+        Candidate("QQQ", decision(), forecast("QQQ", strength=0.9)),
     ]
     seen: list[tuple[str, int]] = []
 

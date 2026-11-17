@@ -28,12 +28,10 @@ CONFIG = LlmConfig(
     timeout_s=5,
     max_attempts=2,
     retry_delay_s=0.001,
-    signal_typical=0.026,
-    signal_strong=0.079,
 )
 SYMBOLS = ["SPY", "QQQ"]
 GOOD = Decision(
-    action="buy", confidence=0.7, size_fraction=0.5, rationale="The expected move is positive."
+    action="buy", size_fraction=0.5, rationale="The expected move is positive."
 )
 
 
@@ -47,6 +45,7 @@ def forecast(symbol: str) -> PriceForecast:
         lower=[99.0],
         upper=[103.0],
         uncertainty=0.04,
+        signal_strength=0.4,
     )
 
 
@@ -164,11 +163,10 @@ def test_no_valid_tool_call_gives_no_decision(calls: list[ToolCall]) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        {"action": "short", "confidence": 0.5, "size_fraction": 0.5, "rationale": "x"},
-        {"action": "buy", "confidence": 1.5, "size_fraction": 0.5, "rationale": "x"},
-        {"action": "buy", "confidence": 0.5, "size_fraction": 1.5, "rationale": "x"},
-        {"action": "buy", "confidence": 0.5, "rationale": "x"},
-        {"action": "buy", "confidence": 0.5, "size_fraction": 0.5, "rationale": ""},
+        {"action": "short", "size_fraction": 0.5, "rationale": "x"},
+        {"action": "buy", "size_fraction": 1.5, "rationale": "x"},
+        {"action": "buy", "rationale": "x"},
+        {"action": "buy", "size_fraction": 0.5, "rationale": ""},
     ],
 )
 def test_decision_schema_rejects_absurd_output(payload: dict[str, Any]) -> None:
@@ -176,10 +174,10 @@ def test_decision_schema_rejects_absurd_output(payload: dict[str, Any]) -> None:
         Decision.model_validate(payload)
 
 
-def test_forecast_data_has_the_computed_return_the_signal_and_delimiters() -> None:
+def test_forecast_data_has_the_computed_return_the_signal_strength_and_delimiters() -> None:
     data = build_forecast_data(forecast("SPY"))
     assert "<forecast_data>" in data and "expected_return_median: +1.0000%" in data
-    assert "signal_expected_return_over_interval_width: +0.250" in data
+    assert "signal_strength_0_to_1: 0.40" in data
 
 
 def test_forecast_data_shows_the_macro_readings_and_the_next_release() -> None:
@@ -190,13 +188,6 @@ def test_forecast_data_shows_the_macro_readings_and_the_next_release() -> None:
     assert "macro_vix: 16.40" in data
     assert "next_scheduled_macro_release_utc: 2026-12-09T19:00:00+00:00" in data
     assert "macro_" not in build_forecast_data(forecast("SPY"))
-
-
-def test_decision_context_is_optional_and_bounded() -> None:
-    base = {"action": "hold", "confidence": 0.5, "size_fraction": 0, "rationale": "x"}
-    assert Decision.model_validate(base).context == ""
-    with pytest.raises(ValidationError):
-        Decision.model_validate({**base, "context": "x" * 1_000})
 
 
 def test_portfolio_data_gives_cash_positions_and_results() -> None:
