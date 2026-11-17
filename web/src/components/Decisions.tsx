@@ -123,12 +123,16 @@ function CycleGroup({ decisions, open, onToggle }: CycleGroupProps) {
           {plural(decisions.length, "decision")} · {plural(orders, "order")} · {blocked} blocked
         </span>
         <span className="cycle-pills">
-          {decisions.map((d) => (
-            <span key={d.symbol} className={pillClass(d)}>
-              {d.symbol} {d.action}
-              {d.verdict === "blocked" ? " blocked" : ""}
+          {events.map((d) => (
+            <span key={d.symbol} className={pillClass(d)} title={`${d.symbol} ${d.action}${d.verdict === "blocked" ? " blocked" : ""}`}>
+              {d.symbol} {d.verdict === "blocked" ? "blocked" : d.action}
             </span>
           ))}
+          {quiet.length > 0 && (
+            <span className="muted cycle-quiet">
+              {events.length > 0 ? `+${quiet.length}` : quiet.length} no trade
+            </span>
+          )}
         </span>
       </summary>
       {events.map(renderRow)}

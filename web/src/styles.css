@@ -977,10 +977,13 @@ select:hover {
   min-width: 0;
 }
 
+.cycle-quiet {
+  align-self: center;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
 .cycle-pills .pill {
-  padding: 1px 5px;
-  font-size: 0.6rem;
-  letter-spacing: 0;
   white-space: nowrap;
 }
 
