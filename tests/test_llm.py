@@ -180,14 +180,12 @@ def test_forecast_data_has_the_computed_return_the_signal_strength_and_delimiter
     assert "signal_strength_0_to_1: 0.40" in data
 
 
-def test_forecast_data_shows_the_macro_readings_and_the_next_release() -> None:
+def test_forecast_data_leaves_out_what_timestral_already_used() -> None:
     release = datetime(2026, 12, 9, 19, tzinfo=UTC)
     data = build_forecast_data(
         forecast("SPY").model_copy(update={"macro": {"vix": 16.4}, "next_event": release})
     )
-    assert "macro_vix: 16.40" in data
-    assert "next_scheduled_macro_release_utc: 2026-12-09T19:00:00+00:00" in data
-    assert "macro_" not in build_forecast_data(forecast("SPY"))
+    assert "macro" not in data and "release" not in data
 
 
 def test_portfolio_data_gives_cash_positions_and_results() -> None:

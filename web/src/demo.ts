@@ -188,6 +188,7 @@ export function buildDemoData(): DashboardData {
         },
         macro: DEMO_MACRO,
         next_event: DEMO_NEXT_EVENT,
+        event_in_horizon: false,
         verdict: reduced ? "reduced" : verdict,
         risk_reason:
           verdict === "no_order"

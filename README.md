@@ -34,9 +34,12 @@ flowchart LR
 Every hour of the US session:
 
 1. **Timestral** forecasts the next 6 hours of each ETF (its own prices plus Brent, 10y and 2y yields, dollar
-   index, VIX, high-yield spread and scheduled FOMC/CPI dates). The code adds a signal strength (0 to 1).
-2. **The LLM** calls Timestral as a tool, reads the forecasts, the signal strength and the portfolio, and gives each
-   symbol an action (`buy / sell / hold`), a size (share of the maximum position) and a short rationale.
+   index, VIX, high-yield spread and scheduled FOMC/CPI dates). These drivers are the same for every symbol: the
+   daily values are past covariates, the release dates a known-future covariate (1 on the hour of a release, else 0).
+   The code adds a signal strength (0 to 1).
+2. **The LLM** calls Timestral as a tool, reads the forecast (expected return, interval, signal strength) and the
+   portfolio, and gives each symbol an action (`buy / sell / hold`), a size (share of the maximum position) and a
+   short rationale. It does not see the macro drivers: Timestral already used them, so the LLM would count them twice.
 3. **`risk.py`** may veto a buy, then converts the size to dollars (reduced when the interval is wide) within the limits.
 4. **Approved orders** go to Alpaca. Everything is journaled and shown on the dashboard.
 
@@ -51,7 +54,7 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | Who decides? | The LLM calls Timestral as a tool, then picks `buy / sell / hold`, a size and writes the rationale. The code never decides for it: it computes the numbers and can veto a decision (below). |
 | Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. The code also computes a **signal strength** (0 to 1: the expected return over the interval width, against a strong past signal, `signal_strong` in `config.toml`); a buy needs at least 0.5. It is a measure of how strong the forecast is, not a probability, and not asked of the LLM, whose own confidence is not reliable. |
 | Risk? | Hard limits in code (our own choices, not from the brief): 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
-| Explanations? | Each decision stores its rationale, the forecast and the macro data Timestral used (built by the code, not written by the LLM), the risk verdict and the order, visible in the dashboard. |
+| Explanations? | Each decision stores its rationale, the forecast, the market data given to Timestral and whether a FOMC/CPI release falls in the forecast window (recorded by the code, not written by the LLM, and not shown to the LLM), the risk verdict and the order, visible in the dashboard. |
 
 **Backtest** (`uv run python -m agent.backtest`, walk-forward from 2026-10-16, the day after Timestral's release on 2026-10-15; details in `reports/backtest.md`):
 

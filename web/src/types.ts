@@ -86,6 +86,7 @@ export interface DecisionView {
   forecast: ForecastPath | null;
   macro: Record<string, number>;
   next_event: string | null;
+  event_in_horizon: boolean;
   verdict: VerdictStatus;
   risk_reason: string | null;
   order: TradeView | null;

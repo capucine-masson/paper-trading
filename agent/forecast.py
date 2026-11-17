@@ -46,6 +46,14 @@ class PriceForecast(BaseModel):
         return self.median[-1] / self.last_price - 1
 
     @property
+    def event_in_horizon(self) -> bool:
+        """Whether a scheduled release lands on one of the forecast bars (known covariate = 1)."""
+        if self.next_event is None:
+            return False
+        first_bar = self.last_bar_start + BAR_PERIOD
+        return first_bar <= self.next_event < first_bar + len(self.median) * BAR_PERIOD
+
+    @property
     def signal(self) -> float:
         """Expected return at the horizon divided by the interval width: a unitless conviction."""
         return self.expected_return / self.uncertainty

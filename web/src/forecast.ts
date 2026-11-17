@@ -4,17 +4,19 @@ const level = (value: number): string => value.toFixed(2);
 const percentLevel = (value: number): string => `${level(value)}%`;
 
 const MACRO_FORMATS: Record<string, { label: string; format: (value: number) => string }> = {
-  brent: { label: "oil (Brent)", format: (value) => `$${level(value)}` },
+  brent: { label: "Brent oil", format: (value) => `$${level(value)}` },
   us10y: { label: "US 10-year yield", format: percentLevel },
   us2y: { label: "US 2-year yield", format: percentLevel },
   dollar: { label: "US dollar index", format: level },
-  vix: { label: "market fear (VIX)", format: level },
-  hy_spread: { label: "credit stress (high-yield spread)", format: percentLevel },
+  vix: { label: "VIX (market fear)", format: level },
+  hy_spread: { label: "High-yield spread (credit stress)", format: percentLevel },
 };
 
-export function formatMacro(name: string, value: number): string {
+export function formatMacro(name: string, value: number): { label: string; value: string } {
   const known = MACRO_FORMATS[name];
-  return known === undefined ? `${name} ${level(value)}` : `${known.label} ${known.format(value)}`;
+  return known === undefined
+    ? { label: name, value: level(value) }
+    : { label: known.label, value: known.format(value) };
 }
 
 /** Median move over the forecast horizon, relative to the last price. */

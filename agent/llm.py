@@ -60,9 +60,6 @@ The data includes a signal strength from 0 to 1, computed by the code: the expec
 by the width of the forecast interval, compared with a strong past signal (1 is a strong signal).
 It is usually modest, so do not wait for a move larger than the interval. The code only allows buys
 whose signal strength is high enough.
-The data may also include the latest daily macro readings (macro_*: Brent in dollars, yields and
-the high-yield spread in percent, VIX and the dollar as index levels) and the next scheduled macro
-release. Timestral already used them as covariates.
 Then give one decision for every symbol you forecast: buy, sell (only if the portfolio holds the
 symbol) or hold. Judge how strong each forecast is, weigh the symbols against each other and against
 what the portfolio already holds, and size each decision accordingly. Holding cash is fine.
@@ -138,12 +135,6 @@ def build_portfolio_data(
 
 def build_forecast_data(forecast: PriceForecast) -> str:
     last = forecast.last_price
-    macro = "".join(f"macro_{name}: {value:.2f}\n" for name, value in forecast.macro.items())
-    release = (
-        ""
-        if forecast.next_event is None
-        else f"next_scheduled_macro_release_utc: {forecast.next_event.isoformat()}\n"
-    )
     strength = "n/a" if forecast.signal_strength is None else f"{forecast.signal_strength:.2f}"
     return (
         f"Symbol: {forecast.symbol}\n"
@@ -154,7 +145,6 @@ def build_forecast_data(forecast: PriceForecast) -> str:
         f"expected_return_upper_90pct: {forecast.upper[-1] / last - 1:+.4%}\n"
         f"uncertainty_interval_width_over_median: {forecast.uncertainty:.4%}\n"
         f"signal_strength_0_to_1: {strength}\n"
-        f"{macro}{release}"
         "</forecast_data>"
     )
 

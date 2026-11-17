@@ -55,6 +55,18 @@ def test_flat_interval_is_rejected() -> None:
         validate_forecast(SERIES, CONFIG, quantiles([100.0, 100.0, 100.0]), LEVELS)
 
 
+def test_event_in_horizon_only_when_a_release_lands_on_a_forecast_bar() -> None:
+    forecast = validate_forecast(SERIES, CONFIG, quantiles([98.0, 100.0, 102.0]), LEVELS)
+    first_bar = SERIES.last_bar_start + HOUR
+    horizon_end = first_bar + CONFIG.horizon * HOUR
+    assert not forecast.event_in_horizon
+    inside = forecast.model_copy(update={"next_event": first_bar + HOUR})
+    assert inside.event_in_horizon
+    before = forecast.model_copy(update={"next_event": first_bar - timedelta(minutes=1)})
+    after = forecast.model_copy(update={"next_event": horizon_end})
+    assert not before.event_in_horizon and not after.event_in_horizon
+
+
 def test_event_marks_the_bar_that_contains_it() -> None:
     result = event_indicator(BARS, [FIRST_BAR + 2 * HOUR + timedelta(minutes=30)])
     assert result.tolist() == [0, 0, 1, 0, 0, 0]

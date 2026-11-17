@@ -136,7 +136,9 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
       </summary>
       <div className="decision-body">
         <div className="decision-chart">
-          {d.forecast !== null && d.price !== null && <FanChart forecast={d.forecast} price={d.price} />}
+          {d.forecast !== null && d.price !== null && (
+            <FanChart forecast={d.forecast} price={d.price} signalStrength={d.signal_strength} />
+          )}
         </div>
         <div className="decision-text">
           <p className="rationale">{d.rationale}</p>
@@ -144,7 +146,7 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
           <DetailLine label="Already owned">
             {d.position_qty === 0 ? "None" : formatUsd(d.position_value)}
           </DetailLine>
-          <DetailLine label="Also used">{contextSentence(d)}</DetailLine>
+          <TimestralInputs decision={d} />
           {d.risk_reason !== null && d.verdict !== "no_order" && (
             <DetailLine label="Risk check">{riskNote(d)}</DetailLine>
           )}
@@ -168,21 +170,28 @@ function riskNote(d: DecisionView): string {
 }
 
 function sizing(d: DecisionView): string {
-  if (d.forecast === null) return "No forecast.";
-  const strength = d.signal_strength === null ? NOT_AVAILABLE : formatPercent(d.signal_strength);
-  const range = `Range ${formatPercentOne(rangeWidth(d.forecast))} · signal strength ${strength}`;
-  return d.action === "buy" ? `${range} → asks for ${formatPercent(d.size_fraction)} of the maximum position` : range;
+  if (d.action === "hold") return "No order";
+  const asked = `LLM asks ${formatPercent(d.size_fraction)} of the ${d.action === "buy" ? "maximum " : ""}position`;
+  const amount = d.order?.notional ?? null;
+  return amount === null ? asked : `${asked} → order ${formatUsd(amount)}`;
 }
 
-function contextSentence(d: DecisionView): string {
-  const drivers = Object.entries(d.macro).map(([name, value]) => formatMacro(name, value));
-  const parts = [
-    ...(drivers.length === 0 ? [] : [`Besides the price, Timestral also used: ${drivers.join(", ")}.`]),
-    ...(d.next_event === null
-      ? []
-      : [`Next scheduled event (Fed decision or inflation report): ${formatDateTime(d.next_event)}.`]),
-  ];
-  return parts.length === 0 ? "No macro data was recorded for this decision." : parts.join(" ");
+function TimestralInputs({ decision: d }: { decision: DecisionView }) {
+  const market = Object.entries(d.macro).map(([name, value]) => formatMacro(name, value));
+  if (d.forecast === null || (market.length === 0 && d.next_event === null)) return null;
+  const upcoming = d.next_event === null ? "" : formatDateTime(d.next_event);
+  return (
+    <>
+      <DetailLine label="Market data">
+        {market.map(({ label, value }) => `${label} ${value}`).join(" · ")}
+        <span className="input-note"> Latest daily values given to Timestral, the same for every symbol.</span>
+      </DetailLine>
+      <DetailLine label={`Release in ${d.forecast.median.length}h`}>
+        {d.event_in_horizon ? `Yes, ${upcoming}` : `No${upcoming === "" ? "" : `, next one ${upcoming}`}`}
+        <span className="input-note"> Timestral is told in advance of Fed rate decisions (FOMC) and inflation reports (CPI).</span>
+      </DetailLine>
+    </>
+  );
 }
 
 function Expected({ decision: d }: { decision: DecisionView }) {
@@ -197,7 +206,7 @@ function Result({ decision: d }: { decision: DecisionView }) {
     const filled = qty !== null && qty > 0 && fill !== null;
     const label = !filled ? "Pending" : side === "buy" ? "Bought" : "Sold";
     const detail = filled
-      ? `${formatUsd(qty * fill)} · ${formatShares(qty)} sh @ ${formatUsd(fill)}`
+      ? `${formatShares(qty)} ${qty === 1 ? "share" : "shares"} at ${formatUsd(fill)} → ${formatUsd(qty * fill)}`
       : `order ${status}`;
     return (
       <span className="result">

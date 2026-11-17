@@ -1,6 +1,7 @@
-import { formatSignedPercent, formatUsd } from "../format";
+import { formatPercent, formatSignedPercent, formatUsd } from "../format";
 import type { ForecastPath } from "../types";
 
+const NOT_AVAILABLE = "n/a";
 const VIEW_WIDTH = 400;
 const VIEW_HEIGHT = 110;
 const PADDING_RATIO = 0.1;
@@ -12,10 +13,11 @@ const toPath = (xs: number[], ys: number[]): string =>
 interface Props {
   forecast: ForecastPath;
   price: number;
+  signalStrength: number | null;
 }
 
 /** Median and 10%-90% band, anchored at the price known when the forecast was made. */
-export function FanChart({ forecast, price }: Props) {
+export function FanChart({ forecast, price, signalStrength }: Props) {
   const median = [price, ...forecast.median];
   const lower = [price, ...forecast.lower];
   const upper = [price, ...forecast.upper];
@@ -27,26 +29,46 @@ export function FanChart({ forecast, price }: Props) {
   const band = `${toPath(xs, upper.map(y))} ${backwards} Z`;
   const last = median.length - 1;
   const change = (value: number | undefined): number => (value ?? price) / price - 1;
+  const medianClass = change(median[last]) < 0 ? "down" : "up";
+  const endLabels = [
+    { label: "High", series: upper, className: "" },
+    { label: "Median", series: median, className: `fan-end-median ${medianClass}` },
+    { label: "Low", series: lower, className: "" },
+  ];
   return (
     <figure className="fan">
       <figcaption className="fan-title">
-        Timestral forecast. Blue line: median. Shaded area: 80% range. The AI reads the +{last * BAR_HOURS}h end point.
+        Timestral forecast for the next {last * BAR_HOURS}h. The shaded area covers 80% of likely prices.
+        <br />
+        Only the values on the right are used for the decision.
       </figcaption>
-      <svg
-        viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Forecast fan chart: median and 10% to 90% band"
-      >
-        <line x1={0} x2={VIEW_WIDTH} y1={y(price)} y2={y(price)} className="fan-price" />
-        <path d={band} className="fan-band" />
-        <path d={toPath(xs, median.map(y))} className="fan-median" />
-      </svg>
+      <div className="fan-plot">
+        <svg
+          viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label="Forecast fan chart: median and 10% to 90% band"
+        >
+          <line x1={0} x2={VIEW_WIDTH} y1={y(price)} y2={y(price)} className="fan-price" />
+          <path d={band} className="fan-band" />
+          <path d={toPath(xs, median.map(y))} className="fan-median" />
+        </svg>
+        {endLabels.map(({ label, series, className }) => (
+          <span
+            key={label}
+            className={`fan-end ${className}`}
+            style={{ top: `${(y(series[last] ?? price) / VIEW_HEIGHT) * 100}%` }}
+          >
+            {label} {formatSignedPercent(change(series[last]))}
+          </span>
+        ))}
+      </div>
       <figcaption className="fan-caption">
-        <span>Now {formatUsd(price)}</span>
-        <span>
-          At +{last * BAR_HOURS}h: median {formatSignedPercent(change(median[last]))}, likely between{" "}
-          {formatSignedPercent(change(lower[last]))} and {formatSignedPercent(change(upper[last]))}
+        <span className="fan-now">
+          <span>Now {formatUsd(price)}</span>
+          <strong>
+            Signal strength {signalStrength === null ? NOT_AVAILABLE : formatPercent(signalStrength)}
+          </strong>
         </span>
       </figcaption>
     </figure>

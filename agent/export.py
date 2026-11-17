@@ -96,6 +96,7 @@ class DecisionView(BaseModel):
     forecast: ForecastPath | None
     macro: dict[str, float]
     next_event: datetime | None
+    event_in_horizon: bool
     verdict: VerdictStatus
     risk_reason: str | None
     order: TradeView | None
@@ -356,6 +357,7 @@ def _decision_view(
         forecast=path,
         macro=forecast.macro if forecast else {},
         next_event=forecast.next_event if forecast else None,
+        event_in_horizon=forecast.event_in_horizon if forecast else False,
         verdict=_verdict_status(decision.action, verdict),
         risk_reason=verdict.reason if verdict else None,
         order=order,
