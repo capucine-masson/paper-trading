@@ -98,6 +98,7 @@ class BacktestConfig(StrictModel):
     history_days: int = Field(ge=30, le=730)
     stride_bars: int = Field(ge=1, le=100)
     start: AwareDatetime
+    compare_models: list[str]
     rule_signal_threshold: float = Field(gt=0, le=1)
     cost_bps: float = Field(ge=0, le=100)
 

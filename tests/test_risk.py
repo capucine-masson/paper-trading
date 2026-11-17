@@ -32,9 +32,7 @@ RISK = RiskConfig(
 SYMBOLS = ["SPY", "QQQ"]
 
 
-def forecast(
-    symbol: str = "SPY", uncertainty: float = 0.0, strength: float = 1.0
-) -> PriceForecast:
+def forecast(symbol: str = "SPY", uncertainty: float = 0.0, strength: float = 1.0) -> PriceForecast:
     return PriceForecast(
         symbol=symbol,
         model="m",

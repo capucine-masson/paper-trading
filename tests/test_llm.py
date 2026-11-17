@@ -30,9 +30,7 @@ CONFIG = LlmConfig(
     retry_delay_s=0.001,
 )
 SYMBOLS = ["SPY", "QQQ"]
-GOOD = Decision(
-    action="buy", size_fraction=0.5, rationale="The expected move is positive."
-)
+GOOD = Decision(action="buy", size_fraction=0.5, rationale="The expected move is positive.")
 
 
 def forecast(symbol: str) -> PriceForecast:

@@ -10,6 +10,7 @@ import {
   formatUsd,
 } from "../format";
 import { ALL_SYMBOLS, type DecisionView, type Metrics, type Period, type PortfolioData, type PositionView, type Status } from "../types";
+import { Cat } from "./Cat";
 import { EquityChart, type OrderMark } from "./EquityChart";
 import { Outlook } from "./Outlook";
 
@@ -44,6 +45,7 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
         <Positions positions={portfolio.positions} symbols={status.symbols} />
       </aside>
       <section className="card chart-card">
+        <Cat />
         <div className="card-head">
           <h2>{isAll ? "Portfolio value" : `${symbol} price`}</h2>
           <span className="legend">

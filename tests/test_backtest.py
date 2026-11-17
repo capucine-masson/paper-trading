@@ -259,3 +259,20 @@ def test_backtest_without_any_forecast_fails_with_a_clear_error(
     monkeypatch.setattr(bt, "load_model", lambda _: None)
     with pytest.raises(BacktestError):
         run_backtest(config, [], MacroData(series={}), None)
+
+
+def test_compared_model_is_forecast_on_the_same_points_under_its_own_name(
+    config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    points = build_points(make_bars(), config)
+    loaded: list[str] = []
+    monkeypatch.setattr(bt, "load_model", lambda c: loaded.append(c.model))
+    monkeypatch.setattr(
+        bt,
+        "run_forecasts",
+        lambda pts, _, __, ___: [make_record(i, 100.0, 100.0) for i, _ in enumerate(pts)],
+    )
+    result = bt.compare_model("other/model", points, config, MacroData(series={}))
+    assert loaded == ["other/model"]
+    assert result.model == "other/model"
+    assert result.overall.n == len(points)

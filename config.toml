@@ -100,6 +100,8 @@ stride_bars = 3
 # First evaluation time (UTC): forecast quality and decisions are both replayed from here, after
 # the release of Timestral (2026-10-15).
 start = 2026-10-16T00:00:00Z
+# Other Timestral models whose forecast quality is compared with the main model (no decisions).
+compare_models = ["mistralai/Timestral-209M"]
 # Timestral-only rule: act when the expected return exceeds this share of the interval width
 # (75th percentile of the absolute signal before the decision window).
 rule_signal_threshold = 0.047

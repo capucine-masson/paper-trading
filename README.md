@@ -111,19 +111,28 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 
 | Forecast quality | Result |
 | --- | --- |
-| Error vs "price stays" forecast | 0.992 (no real gain) |
-| Right direction | 53.0% (50% is chance) |
-| 10-90% interval coverage | 74.0% (target 80%): the intervals are somewhat too narrow, and calibrated would not mean profitable |
+| Error vs "price stays" forecast | 0.999 (no real gain) |
+| Right direction | 51.2% (50% is chance) |
+| 10-90% interval coverage | 72.5% (target 80%): the intervals are somewhat too narrow, and calibrated would not mean profitable |
 
 | From 2026-10-16, same rules for all, 5 bps cost per order | Return | Max drawdown | Average exposure |
 | --- | --- | --- | --- |
-| Equal-weight buy and hold (full exposure cap) | -1.97% | 2.82% | 78.7% |
-| Buy and hold (same exposure as agent) | -1.66% | 2.38% | 66.3% |
-| Timestral-only rule (no LLM) | -0.55% | 4.13% | 70.3% |
-| **Timestral + LLM (the agent)** | **-1.75%** | 4.80% | 67.4% |
+| Equal-weight buy and hold (full exposure cap) | -2.44% | 2.82% | 78.3% |
+| Buy and hold (same exposure as agent) | -1.94% | 2.24% | 62.3% |
+| Timestral-only rule (no LLM) | -2.90% | 4.90% | 66.6% |
+| **Timestral + LLM (the agent)** | **-1.79%** | 3.52% | 63.6% |
 
-At the same exposure, the agent (-1.75%) does the same as buy and hold (-1.66%) and is below the Timestral-only rule: no measurable edge, and these few weeks are noise, not skill. The dashboard's
+At the same exposure, the agent (-1.79%) does the same as buy and hold (-1.94%) and the Timestral-only rule (-2.90%): no measurable edge, and these few weeks are noise, not skill. The dashboard's
 live "Buy & hold" line holds the same average exposure as the agent, so it is not flattered by cash.
+
+**Why Timestral-28M?** It is the cheap choice: 111 MB, 0.18 s per forecast on CPU, light to cache on GitHub Actions. We compared it with the biggest model, 209M (837 MB), on the same 436 forecasts:
+
+| Model | Error vs "price stays" | Right direction | 10-90% coverage | Seconds per forecast |
+| --- | --- | --- | --- | --- |
+| **28M (used)** | 0.999 | 51.2% | 72.5% | 0.18 |
+| 209M | 1.010 | 50.2% | 76.8% | 1.51 |
+
+The 209M is not more accurate, only a bit better calibrated, and about 8x slower, so we keep the 28M. The 5M and 123M were not tested.
 
 ## Limits
 

@@ -209,6 +209,19 @@ def evaluate_model(model: str, records: list[ForecastRecord]) -> ModelResult:
     )
 
 
+def compare_model(
+    model: str, points: list[EvalPoint], config: Config, macro: MacroData
+) -> ModelResult:
+    """Forecast quality of another model on the same points; it takes no decision."""
+    other = config.model_copy(
+        update={"forecast": config.forecast.model_copy(update={"model": model})}
+    )
+    records = run_forecasts(points, load_model(other.forecast), other, macro)
+    if not records:
+        raise BacktestError(f"{model}: no forecast could be produced")
+    return evaluate_model(model, records)
+
+
 def forecast_points(records: list[ForecastRecord]) -> list[ForecastPoint]:
     """Each point keeps its decision time; the actual price is observed one horizon later."""
     return sorted((r.sample for r in records), key=lambda p: (p.symbol, p.t))
@@ -512,6 +525,9 @@ def run_backtest(
     if not records:
         raise BacktestError("no forecast could be produced: nothing to evaluate")
     models = [evaluate_model(config.forecast.model, records)]
+    models += [
+        compare_model(model, points, config, macro) for model in config.backtest.compare_models
+    ]
     stamps = [b.timestamp for b in bars]
     window_start = min(r.point.time for r in records)
     strategies: list[StrategyResult] = []
