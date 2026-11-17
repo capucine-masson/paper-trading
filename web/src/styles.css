@@ -1122,13 +1122,13 @@ select:hover {
 }
 
 .verdict-reduced {
-  background: var(--warn-soft);
-  color: var(--warn);
+  background: var(--up-soft);
+  color: var(--up);
 }
 
 .verdict-blocked {
-  background: var(--down-soft);
-  color: var(--down);
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 /* Forecast quality */

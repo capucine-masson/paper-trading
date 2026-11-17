@@ -64,16 +64,16 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
     <div className="page-section quality-page">
       <div className="section-head">
         <h2>Forecast quality</h2>
-        <span className="muted">
-          Backtest run on {formatDate(backtest.generated_at)}: {model.overall.n.toLocaleString("en-US")} forecasts
-          made between {formatDate(backtest.decision_start)} and {formatDate(backtest.history_end)} (after the model's
-          release, to avoid look-ahead), each {backtest.horizon_bars} {BAR_UNIT} ahead using only past data. Model:{" "}
-          {model.model}.
-        </span>
       </div>
       <div className="quality-body">
         <div className="quality-side">
           <section className="card quality-summary">
+            <p className="muted">
+              Backtest run on {formatDate(backtest.generated_at)}: {model.overall.n.toLocaleString("en-US")} forecasts
+              made between {formatDate(backtest.decision_start)} and {formatDate(backtest.history_end)} (after the
+              model's release, to avoid look-ahead), each {backtest.horizon_bars} {BAR_UNIT} ahead using only past
+              data. Model: {model.model}.
+            </p>
             <p className={`summary-line ${hitRateTone(coverage) === "up" ? "flat" : "down"}`}>
               The price stayed inside the forecast range {formatPercentOne(coverage)} of the time. It should be 80%
               {hitRateTone(coverage) === "up"
