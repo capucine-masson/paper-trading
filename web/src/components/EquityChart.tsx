@@ -27,6 +27,8 @@ export interface OrderMark {
 
 interface Props {
   points: EquityPoint[];
+  /** Every point, whatever the period: the vertical scale is fitted to it so it does not move between periods. */
+  scalePoints: EquityPoint[];
   symbol: string;
   startValue: number;
   capitalFloor: number;
@@ -119,6 +121,7 @@ function markLabel(mark: OrderMark, withQuantity: boolean): string {
  */
 export function EquityChart({
   points,
+  scalePoints,
   symbol,
   startValue,
   capitalFloor,
@@ -137,13 +140,13 @@ export function EquityChart({
   const referenced = series.flatMap((s, i) =>
     s.reference === null ? [] : [i],
   );
-  const lowest = Math.min(...series.map((s) => s.value));
+  const scaleSeries = [...series, ...buildSeries(scalePoints, symbol)];
+  const lowest = Math.min(...scaleSeries.map((s) => s.value));
   const floorIsNear =
     isAll &&
     lowest - capitalFloor <= FLOOR_PROXIMITY * (startValue - capitalFloor);
   const values = [
-    ...series.map((s) => s.value),
-    ...referenced.map((i) => series[i]?.reference ?? startValue),
+    ...scaleSeries.flatMap((s) => (s.reference === null ? [s.value] : [s.value, s.reference])),
     ...(isAll ? [startValue] : []),
     ...(floorIsNear ? [capitalFloor] : []),
   ];

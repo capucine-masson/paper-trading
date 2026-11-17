@@ -89,6 +89,7 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
         </div>
         <EquityChart
           points={points}
+          scalePoints={portfolio.points}
           symbol={symbol}
           startValue={status.allocated_capital}
           capitalFloor={status.capital_floor}
@@ -155,7 +156,7 @@ function Performance({ metrics }: { metrics: Metrics }) {
       <Kpi
         label="Est. costs"
         value={costs === null ? NOT_AVAILABLE : formatUsd(costs)}
-        sub="Simulated fees"
+        hint="Simulated fees"
       />
     </div>
   );
@@ -194,15 +195,16 @@ interface KpiProps {
   label: string;
   value: string;
   sub?: string | undefined;
+  hint?: string;
   tone?: Tone;
 }
 
-function Kpi({ label, value, sub, tone: valueTone }: KpiProps) {
+function Kpi({ label, value, sub, hint, tone: valueTone }: KpiProps) {
   return (
-    <div className="kpi">
+    <div className="kpi" title={hint}>
       <span className="kpi-label">{label}</span>
       <span className={`kpi-value ${valueTone ?? ""}`}>{value}</span>
-      <span className="kpi-sub">{sub}</span>
+      {sub !== undefined && <span className="kpi-sub">{sub}</span>}
     </div>
   );
 }
