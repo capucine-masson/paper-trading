@@ -14,6 +14,20 @@ const FAN_FORECASTS = 120;
 const FAN_DEFAULT_SYMBOL = "SPY";
 const PERCENT_SCALE = 100;
 const AGENT_NAME_MARKER = "the agent";
+const COLUMN_HINTS = {
+  strategy: "A way of deciding what to buy or sell, replayed on the same past period.",
+  return: "How much money the strategy made or lost over the period.",
+  drawdown: "The worst drop from a previous high point. Smaller is safer.",
+  exposure: "Share of the portfolio invested on average. The rest stayed in cash.",
+} as const;
+
+const STRATEGY_HINTS: Record<string, string> = {
+  "Equal-weight buy and hold": "Buys every symbol in equal parts at the start and never trades again.",
+  "Timestral-only rule": "Follows the Timestral forecast alone: buys when it expects a rise, sells otherwise.",
+  "Buy and hold (same exposure as agent)": "Holds the same amount of risk as the agent, without any forecast.",
+  "Timestral + LLM (the agent)": "Our agent: the forecast, then the AI decision, then the risk rules.",
+};
+
 type Tone = "up" | "flat" | "down";
 type Comparison = "better" | "same" | "worse";
 
@@ -21,6 +35,15 @@ const COMPARISON_TONE: Record<Comparison, Tone> = { better: "up", same: "flat", 
 
 const hitRateTone = (coverage: number): Tone =>
   Math.abs(coverage - TARGET_COVERAGE) <= COVERAGE_TOLERANCE ? "up" : "down";
+
+const ERROR_VERDICT: Record<Comparison, string> = {
+  better: "Better than no-move",
+  same: "Same as no-move",
+  worse: "Worse than no-move",
+};
+
+const coverageVerdict = (coverage: number): string =>
+  hitRateTone(coverage) === "up" ? "Well sized" : coverage < TARGET_COVERAGE ? "Overconfident" : "Underconfident";
 
 const errorChange = (ratio: number): number => ratio - NAIVE_RATIO;
 
@@ -64,36 +87,61 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
     <div className="page-section quality-page">
       <div className="quality-body">
         <div className="quality-side">
+          <div className="quality-intro">
+            <h3>Can we trust the forecasts?</h3>
+            <p>
+              We replayed the past: the model forecast prices using only earlier data, and we compared each forecast
+              with what really happened.
+            </p>
+            <p className="muted quality-meta">
+              {model.overall.n.toLocaleString("en-US")} forecasts, each {backtest.horizon_bars} {BAR_UNIT} ahead
+              <br />
+              {formatDate(backtest.decision_start)} to {formatDate(backtest.history_end)}, after the model's release
+              (no look-ahead)
+              <br />
+              {model.model} · run on {formatDate(backtest.generated_at)}
+            </p>
+          </div>
           <section className="card quality-summary">
-            <p className="muted">
-              Backtest run on {formatDate(backtest.generated_at)}: {model.overall.n.toLocaleString("en-US")} forecasts
-              made between {formatDate(backtest.decision_start)} and {formatDate(backtest.history_end)} (after the
-              model's release, to avoid look-ahead), each {backtest.horizon_bars} {BAR_UNIT} ahead using only past
-              data. Model: {model.model}.
-            </p>
-            <p className={`summary-line ${hitRateTone(coverage) === "up" ? "flat" : "down"}`}>
-              The price stayed inside the forecast range {formatPercentOne(coverage)} of the time. It should be 80%
-              {hitRateTone(coverage) === "up"
-                ? ", so the range is well sized."
-                : coverage < TARGET_COVERAGE
-                  ? ", so the model is slightly overconfident."
-                  : ", so the model is slightly underconfident."}
-            </p>
-            <AccuracySentence ratio={ratio} />
+            <Metric
+              value={formatPercentOne(coverage)}
+              label="Price inside forecast range"
+              verdict={`${coverageVerdict(coverage)} (target ${TARGET_COVERAGE * PERCENT_SCALE}%)`}
+              tone={hitRateTone(coverage) === "up" ? "flat" : "down"}
+            />
+            {ratio !== null && (
+              <Metric
+                value={formatChange(ratio)}
+                label="Error vs a no-move guess"
+                verdict={ERROR_VERDICT[compare(ratio)]}
+                tone={COMPARISON_TONE[compare(ratio)]}
+              />
+            )}
             {direction !== null && (
-              <p className="summary-line flat">
-                It guessed the direction right {formatPercentOne(direction)} of the time (almost random).
-              </p>
+              <Metric
+                value={formatPercentOne(direction)}
+                label="Direction guessed right"
+                verdict="Almost random"
+                tone="flat"
+              />
             )}
           </section>
           <section className="card quality-details">
             <table className="quality-table">
               <thead>
                 <tr>
-                  <th scope="col">Strategy</th>
-                  <th scope="col">Return</th>
-                  <th scope="col">Max drawdown</th>
-                  <th scope="col">Avg exposure</th>
+                  <th scope="col" title={COLUMN_HINTS.strategy}>
+                    Strategy
+                  </th>
+                  <th scope="col" title={COLUMN_HINTS.return}>
+                    Return
+                  </th>
+                  <th scope="col" title={COLUMN_HINTS.drawdown}>
+                    Max drawdown
+                  </th>
+                  <th scope="col" title={COLUMN_HINTS.exposure}>
+                    Avg exposure
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -136,7 +184,9 @@ function StrategyRow({ strategy }: { strategy: StrategyResult }) {
   const value = strategy.return_pct / PERCENT_SCALE;
   return (
     <tr className={isAgent ? "total-row" : undefined}>
-      <th scope="row">{strategy.name}</th>
+      <th scope="row" title={STRATEGY_HINTS[strategy.name]}>
+        {strategy.name}
+      </th>
       <td className={returnTone(value) === "flat" ? undefined : returnTone(value)}>{formatSignedPercentTwo(value)}</td>
       <td>{formatPercentTwo(strategy.max_drawdown_pct / PERCENT_SCALE)}</td>
       <td>{formatPercentOne(strategy.average_exposure_pct / PERCENT_SCALE)}</td>
@@ -155,18 +205,19 @@ function SymbolStats({ symbol, coverage }: { symbol: string; coverage: number })
   );
 }
 
-function AccuracySentence({ ratio }: { ratio: number | null }) {
-  if (ratio === null) return <p className="summary-line">Accuracy vs assuming the price won't move is not available.</p>;
-  const comparison = compare(ratio);
-  const wording: Record<Comparison, string> = {
-    better: "less than",
-    same: "about the same amount as",
-    worse: "more than",
-  };
+interface MetricProps {
+  value: string;
+  label: string;
+  verdict: string;
+  tone: Tone;
+}
+
+function Metric({ value, label, verdict, tone }: MetricProps) {
   return (
-    <p className={`summary-line ${COMPARISON_TONE[comparison]}`}>
-      On average, the forecast missed the real price by {wording[comparison]} simply assuming the price won't move (
-      {formatChange(ratio)}).
-    </p>
+    <div className="metric">
+      <span className={`metric-value ${tone}`}>{value}</span>
+      <span className="metric-label">{label}</span>
+      <span className={`metric-verdict ${tone}`}>{verdict}</span>
+    </div>
   );
 }
