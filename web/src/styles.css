@@ -964,6 +964,7 @@ select:hover {
 /* Decisions */
 
 .decision-list {
+  --decision-columns: 150px 72px 110px minmax(0, 1fr) 20px;
   padding: 0;
   overflow: hidden;
 }
@@ -971,7 +972,7 @@ select:hover {
 .decision-columns,
 .decision-summary {
   display: grid;
-  grid-template-columns: 150px 72px 110px minmax(0, 1fr) 20px;
+  grid-template-columns: var(--decision-columns);
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
@@ -1023,18 +1024,18 @@ select:hover {
 
 .cycle-summary {
   display: grid;
-  grid-template-columns: 150px 260px minmax(0, 1fr) 20px;
+  grid-template-columns: var(--decision-columns);
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   cursor: pointer;
   list-style: none;
   font-weight: 600;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--border) 25%, var(--bg));
 }
 
 .cycle-summary:hover {
-  background: color-mix(in srgb, var(--border) 45%, var(--bg));
+  background: color-mix(in srgb, var(--border) 50%, var(--bg));
 }
 
 .day-label {
@@ -1062,7 +1063,7 @@ select:hover {
 }
 
 .cycle-summary::after {
-  grid-column: 4;
+  grid-column: 5;
 }
 
 .cycle-group[open] > .cycle-summary .cycle-pills {
@@ -1073,13 +1074,13 @@ select:hover {
   transform: rotate(-135deg);
 }
 
-.cycle-summary .muted {
-  grid-column: 2;
+.cycle-count {
+  grid-column: 2 / 4;
   font-weight: 400;
 }
 
 .cycle-pills {
-  grid-column: 3;
+  grid-column: 4;
   display: flex;
   flex-wrap: wrap;
   gap: 4px 3px;
@@ -1098,6 +1099,7 @@ select:hover {
 
 .decision-row {
   border-top: 1px solid var(--border);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .decision-summary {
@@ -1649,7 +1651,8 @@ select:hover {
     grid-template-columns: minmax(0, 1fr) 20px;
   }
 
-  .cycle-summary > * {
+  .cycle-summary > *,
+  .cycle-summary .cycle-count {
     grid-column: 1;
   }
 

@@ -97,6 +97,11 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+function cycleCount(orders: number, blocked: number): string {
+  if (orders === 0 && blocked === 0) return "Hold";
+  return [plural(orders, "order"), ...(blocked > 0 ? [`${blocked} blocked`] : [])].join(" · ");
+}
+
 /** A blocked decision is only a proposal: it gets an orange pill instead of the green or red one. */
 const pillClass = (d: DecisionView): string => `pill pill-${d.verdict === "blocked" ? "blocked" : d.action}`;
 
@@ -124,9 +129,7 @@ function CycleGroup({ decisions, open, onToggle }: CycleGroupProps) {
     <details className="cycle-group" open={open} onToggle={(e) => onToggle(e.currentTarget.open)}>
       <summary className="cycle-summary">
         <time dateTime={decisions[0].t}>{formatTime(decisions[0].t)}</time>
-        <span className="muted">
-          {orders === 0 && blocked === 0 ? "Hold" : `${plural(orders, "order")} · ${blocked} blocked`}
-        </span>
+        <span className="muted cycle-count">{cycleCount(orders, blocked)}</span>
         <span className="cycle-pills">
           {events.map((d) => (
             <span key={d.symbol} className={pillClass(d)} title={`${d.symbol} ${d.action}${d.verdict === "blocked" ? " blocked" : ""}`}>
