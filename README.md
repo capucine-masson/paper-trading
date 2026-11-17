@@ -46,18 +46,18 @@ flowchart TD
     C -- no --> X([Stop])
     C -- yes --> H{Account above $8,000?}
     H -- no --> HX([Halted])
-    H -- yes --> D["<b>1. DATA</b><br/>Prices and macro"]
-    D --> T["<b>2. FORECAST</b><br/>Next 6 hours"]
+    H -- yes --> D["<b>1. DATA</b><br/>Prices and macro<br/>(Alpaca, FRED)"]
+    D --> T["<b>2. FORECAST</b><br/>Next 6 hours<br/>(Timestral)"]
     T -->|broken forecast| N([Skip this ETF])
-    T --> L["<b>3. LLM</b><br/>Buy, sell or hold"]
-    L --> R{"<b>4. RISK CHECK</b><br/>Allowed?"}
+    T --> L["<b>3. LLM</b><br/>Buy, sell or hold<br/>(Mistral)"]
+    L --> R{"<b>4. RISK CHECK</b><br/>Allowed?<br/>(code)"}
     R -->|hold| V([No order])
     R -->|sell| SO[Sell]
-    R -->|buy| G{Forecast<br/>supports it?}
+    R -->|buy| G{Expected return > 0<br/>and signal strong enough?}
     G -- no --> V
-    G -- yes --> Z[Size the buy]
+    G -- yes --> Z["Size the buy<br/>(smaller if uncertain,<br/>capped by limits)"]
     SO --> O
-    Z --> O["<b>5. ORDER</b><br/>Alpaca paper"]
+    Z --> O["<b>5. ORDER</b><br/>Paper trading<br/>(Alpaca)"]
     O --> J[(Journal)]
     V --> J
 ```
