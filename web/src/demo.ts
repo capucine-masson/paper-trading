@@ -228,7 +228,6 @@ export function buildDemoData(): DashboardData {
         status: "success",
         detail: "",
         started_at: iso(CYCLES - 1),
-        finished_at: iso(CYCLES - 1),
       },
       allocated_capital: ALLOCATED,
       symbols: SYMBOLS,

@@ -66,11 +66,11 @@ class FakeChat:
         self.calls = calls
         self.parses = 0
 
-    def complete(self, **_: Any) -> SimpleNamespace:
+    def complete(self, **_: object) -> SimpleNamespace:
         message = SimpleNamespace(content="", tool_calls=self.calls)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
-    def parse(self, **_: Any) -> SimpleNamespace:
+    def parse(self, **_: object) -> SimpleNamespace:
         outcome = self.outcomes[self.parses]
         self.parses += 1
         if isinstance(outcome, Exception):

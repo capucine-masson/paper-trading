@@ -107,7 +107,6 @@ class CycleView(BaseModel):
     status: str | None
     detail: str | None
     started_at: datetime
-    finished_at: datetime | None
 
 
 class Metrics(BaseModel):
@@ -193,7 +192,6 @@ def _cycle_view(cycle: CycleRow) -> CycleView:
         status=cycle.status,
         detail=cycle.detail,
         started_at=cycle.started_at,
-        finished_at=cycle.finished_at,
     )
 
 

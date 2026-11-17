@@ -6,7 +6,6 @@ interface CycleView {
   status: string | null;
   detail: string | null;
   started_at: string;
-  finished_at: string | null;
 }
 
 export interface Metrics {
