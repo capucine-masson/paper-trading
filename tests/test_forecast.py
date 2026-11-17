@@ -148,7 +148,7 @@ class FlakyLoader:
 
 @pytest.fixture
 def no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("agent.forecast.time.sleep", lambda seconds: None)
+    monkeypatch.setattr("agent.retry.time.sleep", lambda seconds: None)
 
 
 def patch_loader(monkeypatch: pytest.MonkeyPatch, loader: FlakyLoader) -> None:

@@ -1,4 +1,5 @@
 import { useState, type MouseEvent } from "react";
+import { linePath, niceTicks } from "../chart";
 import { formatAxisTime, formatDateTime, formatUsd, formatUsdRounded } from "../format";
 import { ALL_SYMBOLS, type EquityPoint } from "../types";
 import { Empty } from "./Feedback";
@@ -10,8 +11,6 @@ const AXIS_LABEL_GAP = 0.12;
 const MIN_POINTS = 2;
 const PADDING_RATIO = 0.08;
 const TOOLTIP_FLIP_AT = 0.6;
-const TARGET_TICKS = 4;
-const NICE_STEPS = [1, 2, 5, 10];
 /** The capital floor is drawn once the lowest value is within this share of the gap between start and floor. */
 const FLOOR_PROXIMITY = 0.25;
 /** Height of the bar for the largest trade in view, and the floor that keeps the smallest one visible. */
@@ -81,24 +80,6 @@ export function buildSeries(
       reference: (capital * price) / entry.price,
     }));
 }
-
-/** Evenly spaced round values (1, 2 or 5 times a power of ten) that cover [bottom, top]. */
-export function niceTicks(bottom: number, top: number): { values: number[]; step: number } {
-  const raw = (top - bottom) / TARGET_TICKS;
-  const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const step = (NICE_STEPS.find((n) => n * magnitude >= raw) ?? 10) * magnitude;
-  const first = Math.ceil(bottom / step);
-  const count = Math.floor(top / step) - first + 1;
-  return { values: Array.from({ length: Math.max(count, 0) }, (_, i) => (first + i) * step), step };
-}
-
-const linePath = (xs: number[], ys: number[]): string =>
-  xs
-    .map(
-      (x, i) =>
-        `${i === 0 ? "M" : "L"}${x.toFixed(1)},${(ys[i] ?? 0).toFixed(1)}`,
-    )
-    .join(" ");
 
 const volumeOf = (marks: OrderMark[], action: "buy" | "sell"): number =>
   marks.reduce(

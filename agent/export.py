@@ -16,7 +16,7 @@ from agent.config import BPS_PER_UNIT, EXPORT_DIR, JOURNAL_PATH, REPORTS_DIR, Co
 from agent.forecast import PriceForecast
 from agent.llm import Decisions, SymbolDecision
 from agent.metrics import buy_and_hold_curve, max_drawdown
-from agent.risk import PortfolioSnapshot, Verdict
+from agent.risk import QTY_DECIMALS, PortfolioSnapshot, Verdict
 from agent.store import (
     ACCOUNT_EQUITY_KEY,
     HALTED_KEY,
@@ -43,7 +43,6 @@ CSV_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 FORMULA_PREFIXES = ("=", "+", "-", "@")
 USD_DECIMALS = 2
 PRICE_DECIMALS = 4
-QTY_DECIMALS = 6
 RATIO_DECIMALS = 3
 
 

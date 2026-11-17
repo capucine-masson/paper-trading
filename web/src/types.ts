@@ -58,7 +58,6 @@ export interface TradeView {
   cycle_id: string;
   symbol: string;
   side: string;
-  ordered_qty: number | null;
   notional: number | null;
   qty: number | null;
   fill_price: number | null;
@@ -124,7 +123,6 @@ export interface BacktestReport {
   generated_at: string;
   symbols: string[];
   horizon_bars: number;
-  history_start: string;
   history_end: string;
   decision_start: string;
   strategies: StrategyResult[];

@@ -57,9 +57,6 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-_parse = datetime.fromisoformat
-
-
 def is_simulation(cycle_id: str) -> bool:
     """Simulated cycles send no order and are never shown on the dashboard."""
     return cycle_id.startswith(SIMULATION_PREFIX)
@@ -103,7 +100,7 @@ class Store:
             " ORDER BY created_at, cycle_id, symbol",
             (name,),
         ).fetchall()
-        return [StepRow(r[0], r[1], r[2], _parse(r[3])) for r in rows]
+        return [StepRow(r[0], r[1], r[2], datetime.fromisoformat(r[3])) for r in rows]
 
     def list_cycles(self) -> list[CycleRow]:
         rows = self._db.execute(
@@ -111,7 +108,13 @@ class Store:
             " ORDER BY started_at"
         ).fetchall()
         return [
-            CycleRow(r[0], _parse(r[1]), None if r[2] is None else _parse(r[2]), r[3], r[4])
+            CycleRow(
+                r[0],
+                datetime.fromisoformat(r[1]),
+                None if r[2] is None else datetime.fromisoformat(r[2]),
+                r[3],
+                r[4],
+            )
             for r in rows
         ]
 

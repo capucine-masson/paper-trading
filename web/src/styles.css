@@ -780,14 +780,6 @@ select:hover {
   pointer-events: none;
 }
 
-.axis-top {
-  top: 0;
-}
-
-.axis-bottom {
-  bottom: 0;
-}
-
 .crosshair {
   position: absolute;
   top: 0;
@@ -973,6 +965,10 @@ select:hover {
 
   .chart-card {
     height: 420px;
+  }
+
+  .side > .positions-card {
+    flex: none;
   }
 }
 
@@ -1368,26 +1364,6 @@ select:hover {
   font-weight: 400;
 }
 
-.input-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.input-list li {
-  display: flex;
-  flex-direction: column;
-}
-
-.input-name {
-  color: var(--muted);
-  font-size: 0.75rem;
-}
-
 .outcome-label {
   white-space: nowrap;
   color: var(--muted);
@@ -1752,6 +1728,40 @@ select:hover {
 
   .brand {
     display: none;
+  }
+
+  .tabs {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tab {
+    padding: 0 var(--space-3);
+  }
+
+  .topbar-right {
+    flex: none;
+  }
+
+  .cat {
+    right: 50px;
+  }
+
+  .signpost {
+    top: -4px;
+    bottom: auto;
+  }
+
+  .quality-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .quality-side {
+    min-width: 0;
+  }
+
+  .metric {
+    flex-wrap: wrap;
   }
 
   .decision-columns {

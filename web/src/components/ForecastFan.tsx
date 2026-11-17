@@ -1,6 +1,6 @@
+import { linePath, niceTicks } from "../chart";
 import { formatDay, formatUsd, formatUsdRounded } from "../format";
 import type { ForecastPoint } from "../types";
-import { niceTicks } from "./EquityChart";
 import { Empty } from "./Feedback";
 
 const VIEW_WIDTH = 1000;
@@ -17,9 +17,6 @@ interface Props {
 }
 
 const isOutside = (point: ForecastPoint): boolean => point.actual < point.lower || point.actual > point.upper;
-
-const linePath = (xs: number[], ys: number[]): string =>
-  xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${(ys[i] ?? 0).toFixed(1)}`).join(" ");
 
 /** Each forecast is drawn where it was meant to land: its decision time plus the horizon. */
 export function ForecastFan({ symbol, forecasts, horizonBars }: Props) {

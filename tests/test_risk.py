@@ -105,12 +105,6 @@ def test_weak_signal_blocks_a_buy_but_not_a_sell() -> None:
     assert run(dec=decision("sell"), fc=weak, pf=held).approved
 
 
-def test_unknown_signal_strength_blocks_a_buy() -> None:
-    unknown = forecast().model_copy(update={"signal_strength": None})
-    verdict = run(fc=unknown)
-    assert not verdict.approved and "unavailable" in verdict.reason
-
-
 def test_max_orders_per_cycle() -> None:
     assert run(approved=1).approved
     assert not run(approved=2).approved

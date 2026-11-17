@@ -11,6 +11,7 @@ from pydantic import (
     Field,
     SecretStr,
     StringConstraints,
+    ValidationError,
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,6 +22,9 @@ ENV_PATH = ROOT / ".env"
 JOURNAL_PATH = ROOT / "journal.db"
 EXPORT_DIR = ROOT / "web" / "public" / "data"
 REPORTS_DIR = ROOT / "reports"
+
+# Raised while reading config.toml and .env: retrying cannot help.
+CONFIG_ERRORS = (ValidationError, tomllib.TOMLDecodeError, OSError, RuntimeError)
 
 PERCENT = 100.0
 BPS_PER_UNIT = 10_000.0

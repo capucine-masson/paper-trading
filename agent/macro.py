@@ -1,7 +1,5 @@
 """Daily macro drivers from FRED, aligned on hourly bars without look-ahead."""
 
-import logging
-import time
 from bisect import bisect_right
 from datetime import UTC, date, datetime, timedelta
 
@@ -11,14 +9,11 @@ from numpy.typing import NDArray
 from pydantic import BaseModel
 
 from agent.config import MacroConfig
-
-logger = logging.getLogger(__name__)
+from agent.retry import is_transient_status, retry
 
 FRED_URL = "https://api.stlouisfed.org/fred/series/observations"
 FRED_MISSING_VALUE = "."
 PUBLICATION_LAG = timedelta(days=1)
-HTTP_TOO_MANY_REQUESTS = 429
-HTTP_SERVER_ERROR = 500
 
 
 class MacroError(Exception):
@@ -83,25 +78,32 @@ def _get_with_retries(
     client: httpx.Client, config: MacroConfig, name: str, params: dict[str, str]
 ) -> bytes:
     """Retry only transient errors (network, 429, 5xx); the key never reaches the logs."""
-    delay = config.retry_delay_s
-    attempt = 1
-    while True:
-        try:
-            response = client.get(FRED_URL, params=params)
-            response.raise_for_status()
-            return response.content
-        except httpx.HTTPStatusError as error:
-            status = error.response.status_code
-            transient = status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR
-            reason = f"HTTP {status}"
-        except httpx.TransportError as error:
-            transient, reason = True, type(error).__name__
-        if not transient or attempt >= config.max_attempts:
-            raise MacroError(f"{name}: FRED request failed ({reason})")
-        logger.warning("transient FRED error on %s (%s), retrying in %.1fs", name, reason, delay)
-        time.sleep(delay)
-        delay *= 2
-        attempt += 1
+
+    def request() -> bytes:
+        response = client.get(FRED_URL, params=params)
+        response.raise_for_status()
+        return response.content
+
+    try:
+        return retry(
+            request,
+            (httpx.HTTPStatusError, httpx.TransportError),
+            _is_transient,
+            config.max_attempts,
+            config.retry_delay_s,
+        )
+    except httpx.HTTPStatusError as error:
+        raise MacroError(
+            f"{name}: FRED request failed (HTTP {error.response.status_code})"
+        ) from None
+    except httpx.TransportError as error:
+        raise MacroError(f"{name}: FRED request failed ({type(error).__name__})") from None
+
+
+def _is_transient(error: Exception) -> bool:
+    if isinstance(error, httpx.HTTPStatusError):
+        return is_transient_status(error.response.status_code)
+    return True
 
 
 def macro_covariates(data: MacroData, bar_starts: list[datetime]) -> NDArray[np.float64]:

@@ -4,7 +4,6 @@ position) per symbol. It never gives a quantity or a price."""
 
 import json
 import logging
-import time
 from collections.abc import Callable
 from typing import Literal, NamedTuple
 
@@ -24,12 +23,11 @@ from pydantic import BaseModel, Field, ValidationError
 
 from agent.config import LlmConfig, Secrets
 from agent.forecast import PriceForecast
+from agent.retry import is_transient_status, retry
 
 logger = logging.getLogger(__name__)
 
 MAX_VALIDATION_ATTEMPTS = 2
-HTTP_TOO_MANY_REQUESTS = 429
-HTTP_SERVER_ERROR = 500
 MAX_RATIONALE_LENGTH = 500
 MS_PER_SECOND = 1000
 
@@ -135,7 +133,6 @@ def build_portfolio_data(
 
 def build_forecast_data(forecast: PriceForecast) -> str:
     last = forecast.last_price
-    strength = "n/a" if forecast.signal_strength is None else f"{forecast.signal_strength:.2f}"
     return (
         f"Symbol: {forecast.symbol}\n"
         f"Forecast horizon: {len(forecast.median)} hourly steps\n"
@@ -144,7 +141,7 @@ def build_forecast_data(forecast: PriceForecast) -> str:
         f"expected_return_lower_10pct: {forecast.lower[-1] / last - 1:+.4%}\n"
         f"expected_return_upper_90pct: {forecast.upper[-1] / last - 1:+.4%}\n"
         f"uncertainty_interval_width_over_median: {forecast.uncertainty:.4%}\n"
-        f"signal_strength_0_to_1: {strength}\n"
+        f"signal_strength_0_to_1: {forecast.signal_strength:.2f}\n"
         "</forecast_data>"
     )
 
@@ -260,18 +257,16 @@ def _answer(
 
 def _retrying[R](config: LlmConfig, request: Callable[[], R]) -> R:
     """Run an LLM request, retrying only transient errors with an increasing delay."""
-    delay = config.retry_delay_s
-    attempt = 1
-    while True:
-        try:
-            return request()
-        except (httpx.TransportError, MistralError) as error:
-            if not _is_transient(error) or attempt >= config.max_attempts:
-                raise LlmError(f"LLM call failed: {type(error).__name__}") from error
-            logger.warning("transient LLM error %s, retrying in %.1fs", type(error).__name__, delay)
-            time.sleep(delay)
-            delay *= 2
-            attempt += 1
+    try:
+        return retry(
+            request,
+            (httpx.TransportError, MistralError),
+            _is_transient,
+            config.max_attempts,
+            config.retry_delay_s,
+        )
+    except (httpx.TransportError, MistralError) as error:
+        raise LlmError(f"LLM call failed: {type(error).__name__}") from error
 
 
 def _ask_decisions(
@@ -300,5 +295,5 @@ def _ask_decisions(
 
 def _is_transient(error: Exception) -> bool:
     if isinstance(error, MistralError):
-        return error.status_code == HTTP_TOO_MANY_REQUESTS or error.status_code >= HTTP_SERVER_ERROR
+        return is_transient_status(error.status_code)
     return True

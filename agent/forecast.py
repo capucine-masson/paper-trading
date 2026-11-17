@@ -1,7 +1,6 @@
 """Timestral forecasting with strict validation of the output."""
 
 import logging
-import time
 from datetime import datetime
 
 import numpy as np
@@ -14,11 +13,10 @@ from timestral import TimestralForecaster
 from agent.config import ForecastConfig
 from agent.data import BAR_PERIOD, PriceSeries, future_bar_starts
 from agent.macro import MacroData, macro_covariates
+from agent.retry import is_transient_status, retry
 
 logger = logging.getLogger(__name__)
 
-HTTP_TOO_MANY_REQUESTS = 429
-HTTP_SERVER_ERROR = 500
 LOWER_LEVEL = 0.1
 UPPER_LEVEL = 0.9
 
@@ -36,9 +34,9 @@ class PriceForecast(BaseModel):
     lower: list[float]
     upper: list[float]
     uncertainty: float
+    signal_strength: float
     macro: dict[str, float] = {}
     next_event: datetime | None = None
-    signal_strength: float | None = None  # unset in forecasts journaled before this field
 
     @property
     def expected_return(self) -> float:
@@ -61,33 +59,24 @@ class PriceForecast(BaseModel):
 
 def load_model(config: ForecastConfig) -> TimestralForecaster:
     """Load the weights, retrying only transient Hugging Face errors with an increasing delay."""
-    delay = config.retry_delay_s
-    attempt = 1
-    while True:
-        try:
-            return TimestralForecaster.from_pretrained(config.model)
-        except OSError as error:
-            logger.warning(
-                "cannot load %s (attempt %d/%d): %r",
-                config.model,
-                attempt,
-                config.max_attempts,
-                error,
-            )
-            if not _is_transient(error) or attempt >= config.max_attempts:
-                raise ForecastError(
-                    f"Timestral weights {config.model} unavailable ({type(error).__name__})"
-                ) from error
-        time.sleep(delay)
-        delay *= 2
-        attempt += 1
+    try:
+        return retry(
+            lambda: TimestralForecaster.from_pretrained(config.model),
+            (OSError,),
+            _is_transient,
+            config.max_attempts,
+            config.retry_delay_s,
+        )
+    except OSError as error:
+        raise ForecastError(
+            f"Timestral weights {config.model} unavailable ({type(error).__name__})"
+        ) from error
 
 
-def _is_transient(error: OSError) -> bool:
+def _is_transient(error: Exception) -> bool:
     """Network failure, timeout (a missing cache while offline included), 429 or 5xx."""
     if isinstance(error, HfHubHTTPError):
-        status = error.response.status_code
-        return status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR
+        return is_transient_status(error.response.status_code)
     return isinstance(error, ConnectionError | TimeoutError | LocalEntryNotFoundError)
 
 
@@ -113,7 +102,6 @@ def forecast_symbol(
         update={
             "macro": latest_macro(macro, drivers),
             "next_event": next_event(series.last_bar_start, config.event_times),
-            "signal_strength": min(1.0, abs(forecast.signal) / config.signal_strong),
         }
     )
 
@@ -164,6 +152,8 @@ def validate_forecast(
         raise ForecastError(f"{symbol}: forecast lower bound is not positive")
     if upper[-1] <= lower[-1]:
         raise ForecastError(f"{symbol}: forecast interval has no width")
+    uncertainty = float((upper[-1] - lower[-1]) / median[-1])
+    expected_return = float(median[-1] / series.last_price - 1)
     return PriceForecast(
         symbol=symbol,
         model=config.model,
@@ -172,5 +162,6 @@ def validate_forecast(
         median=median.tolist(),
         lower=lower.tolist(),
         upper=upper.tolist(),
-        uncertainty=float((upper[-1] - lower[-1]) / median[-1]),
+        uncertainty=uncertainty,
+        signal_strength=min(1.0, abs(expected_return / uncertainty) / config.signal_strong),
     )

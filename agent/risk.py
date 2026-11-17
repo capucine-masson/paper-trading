@@ -126,8 +126,6 @@ def _forecast_objection(forecast: PriceForecast, risk: RiskConfig) -> str | None
             "no buy against the forecast"
         )
     strength = forecast.signal_strength
-    if strength is None:
-        return "signal strength unavailable: no buy"
     if strength < risk.min_signal_strength:
         return f"signal strength {strength:.0%} below {risk.min_signal_strength:.0%}: no buy"
     return None
@@ -190,7 +188,7 @@ def evaluate_ranked(
     before the next one, so later decisions see the exposure and the order count it leaves."""
     approved = 0
     for symbol, decision, forecast in sorted(
-        candidates, key=lambda candidate: candidate.forecast.signal_strength or 0.0, reverse=True
+        candidates, key=lambda candidate: candidate.forecast.signal_strength, reverse=True
     ):
         verdict = assess(decision, forecast, approved)
         if verdict.order is not None:

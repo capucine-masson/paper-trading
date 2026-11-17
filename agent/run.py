@@ -4,13 +4,10 @@ import argparse
 import logging
 import sys
 import time
-import tomllib
 from datetime import UTC, datetime
 
-from pydantic import ValidationError
-
 from agent.broker import Broker, BrokerError
-from agent.config import JOURNAL_PATH, load_config, load_secrets
+from agent.config import CONFIG_ERRORS, JOURNAL_PATH, load_config, load_secrets
 from agent.cycle import STATUS_ERROR, STATUS_SKIPPED, Cycle, CycleReport, SymbolOutcome
 from agent.llm import make_client
 from agent.store import HALTED_KEY, SIMULATION_PREFIX, Store, is_simulation
@@ -18,7 +15,7 @@ from agent.store import HALTED_KEY, SIMULATION_PREFIX, Store, is_simulation
 CYCLE_ID_FORMAT = "%Y%m%dT%H"
 EXIT_STARTUP_ERROR = 1  # configuration or credentials: retrying cannot help
 EXIT_CYCLE_ERROR = 2  # the cycle ran and failed: the workflow may resume it
-STARTUP_ERRORS = (ValidationError, tomllib.TOMLDecodeError, OSError, RuntimeError, BrokerError)
+STARTUP_ERRORS = (*CONFIG_ERRORS, BrokerError)
 logger = logging.getLogger(__name__)
 
 
@@ -126,9 +123,8 @@ def _format(symbol: str, outcome: SymbolOutcome) -> str:
     if decision is None:
         lines.append(f"  no decision ({outcome.error})")
         return "\n".join(lines)
-    strength = "n/a" if forecast.signal_strength is None else f"{forecast.signal_strength:.0%}"
     lines.append(
-        f"  LLM: {decision.action.upper()} (signal strength {strength}, "
+        f"  LLM: {decision.action.upper()} (signal strength {forecast.signal_strength:.0%}, "
         f"size {decision.size_fraction:.0%}): {decision.rationale}"
     )
     verdict = outcome.verdict

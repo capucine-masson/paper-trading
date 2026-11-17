@@ -1,7 +1,6 @@
 """The only module talking to Alpaca (paper account only)."""
 
 import logging
-import time
 from collections.abc import Callable
 from datetime import datetime
 
@@ -22,6 +21,7 @@ from requests.adapters import HTTPAdapter
 
 from agent.config import BrokerConfig, Secrets
 from agent.data import Bar
+from agent.retry import is_transient_status, retry
 from agent.risk import OrderSpec, Position
 
 logger = logging.getLogger(__name__)
@@ -29,8 +29,6 @@ logger = logging.getLogger(__name__)
 PAPER_URL = "https://paper-api.alpaca.markets"
 PAPER_ACCOUNT_PREFIX = "PA"
 HTTP_NOT_FOUND = 404
-HTTP_TOO_MANY_REQUESTS = 429
-HTTP_SERVER_ERROR = 500
 
 
 class BrokerError(Exception):
@@ -60,7 +58,7 @@ def _expect[T](response: object, kind: type[T]) -> T:
 def _is_transient(error: Exception) -> bool:
     if isinstance(error, APIError):
         status: int = error.status_code
-        return status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR
+        return is_transient_status(status)
     return True
 
 
@@ -103,18 +101,16 @@ class Broker:
 
     def _retry[T](self, action: Callable[[], T]) -> T:
         """Retry only transient errors (network, 429, 5xx), with an increasing delay."""
-        delay = self._config.retry_delay_s
-        attempt = 1
-        while True:
-            try:
-                return action()
-            except (APIError, OSError) as error:
-                if not _is_transient(error) or attempt >= self._config.max_attempts:
-                    raise BrokerError(f"Alpaca request failed: {error}") from error
-                logger.warning("transient Alpaca error, retrying in %.1fs: %s", delay, error)
-                time.sleep(delay)
-                delay *= 2
-                attempt += 1
+        try:
+            return retry(
+                action,
+                (APIError, OSError),
+                _is_transient,
+                self._config.max_attempts,
+                self._config.retry_delay_s,
+            )
+        except (APIError, OSError) as error:
+            raise BrokerError(f"Alpaca request failed: {error}") from error
 
     def _check_paper_account(self) -> None:
         account = _expect(self._retry(self._trading.get_account), TradeAccount)

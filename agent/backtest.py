@@ -17,9 +17,10 @@ from mistralai.client import Mistral
 from pydantic import BaseModel
 from timestral import TimestralForecaster
 
-from agent.broker import Broker
+from agent.broker import Broker, BrokerError
 from agent.config import (
     BPS_PER_UNIT,
+    CONFIG_ERRORS,
     PERCENT,
     REPORTS_DIR,
     Config,
@@ -50,15 +51,15 @@ from agent.risk import (
     evaluate_ranked,
     halt_reason,
 )
-from agent.run import STARTUP_ERRORS
 from agent.store import CYCLE_SCOPE, STEP_DECISIONS, Store
 
 logger = logging.getLogger(__name__)
 
 LLM_CACHE_PATH = REPORTS_DIR / "llm_cache.db"
+BUY_AND_HOLD_NAME = "Equal-weight buy and hold"
+RULE_NAME = "Timestral-only rule"
 AGENT_NAME = "Timestral + LLM (the agent)"
 SAME_EXPOSURE_NAME = "Buy and hold (same exposure as agent)"
-SAME_EXPOSURE_POSITION = 2  # right after the full-exposure buy and hold in the report
 PROGRESS_EVERY = 100
 HASH_LENGTH = 8
 
@@ -505,15 +506,43 @@ def named_strategies(config: Config, llm: LlmStrategy) -> list[NamedStrategy]:
     backtest = config.backtest
     return [
         NamedStrategy(
-            "Equal-weight buy and hold",
+            BUY_AND_HOLD_NAME,
             equal_weight_buy_and_hold(config, config.risk.max_total_exposure_pct),
             False,
         ),
-        NamedStrategy(
-            "Timestral-only rule", per_symbol(timestral_rule(backtest.rule_signal_threshold)), True
-        ),
+        NamedStrategy(RULE_NAME, per_symbol(timestral_rule(backtest.rule_signal_threshold)), True),
         NamedStrategy(AGENT_NAME, llm, True),
     ]
+
+
+def run_strategies(
+    config: Config, records: list[ForecastRecord], llm_client: Mistral
+) -> tuple[list[StrategyResult], int]:
+    """The strategies in report order, and the number of LLM failures."""
+    LLM_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    cache = Store(LLM_CACHE_PATH)
+    try:
+        llm = LlmStrategy(llm_client, config, cache)
+        results = {
+            item.name: simulate(item.name, item.strategy, records, config, item.uses_forecast)
+            for item in named_strategies(config, llm)
+        }
+        same_exposure = simulate(
+            SAME_EXPOSURE_NAME,
+            equal_weight_buy_and_hold(config, results[AGENT_NAME].average_exposure_pct),
+            records,
+            config,
+            uses_forecast=False,
+        )
+        ordered = [
+            results[BUY_AND_HOLD_NAME],
+            results[RULE_NAME],
+            same_exposure,
+            results[AGENT_NAME],
+        ]
+        return ordered, llm.failures
+    finally:
+        cache.close()
 
 
 def run_backtest(
@@ -533,28 +562,7 @@ def run_backtest(
     strategies: list[StrategyResult] = []
     llm_failures = 0
     if llm_client is not None:
-        LLM_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        cache = Store(LLM_CACHE_PATH)
-        try:
-            llm = LlmStrategy(llm_client, config, cache)
-            strategies = [
-                simulate(item.name, item.strategy, records, config, item.uses_forecast)
-                for item in named_strategies(config, llm)
-            ]
-            agent = next(s for s in strategies if s.name == AGENT_NAME)
-            strategies.insert(
-                SAME_EXPOSURE_POSITION,
-                simulate(
-                    SAME_EXPOSURE_NAME,
-                    equal_weight_buy_and_hold(config, agent.average_exposure_pct),
-                    records,
-                    config,
-                    uses_forecast=False,
-                ),
-            )
-            llm_failures = llm.failures
-        finally:
-            cache.close()
+        strategies, llm_failures = run_strategies(config, records, llm_client)
     return BacktestReport(
         generated_at=datetime.now(UTC),
         symbols=config.market.symbols,
@@ -593,7 +601,7 @@ def main() -> int:
         )
         llm_client = None if args.no_llm else make_client(secrets, config.llm)
         report = run_backtest(config, bars, macro, llm_client)
-    except (*STARTUP_ERRORS, MacroError, BacktestError) as error:
+    except (*CONFIG_ERRORS, BrokerError, MacroError, BacktestError) as error:
         print(f"Backtest failed: {error}", file=sys.stderr)
         return 1
     write_report(report, REPORTS_DIR)
