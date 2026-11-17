@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-17T20:07:35.896455Z",
+  "generated_at": "2026-11-17T22:50:52.384343Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
-    "cycle_id": "20261117T20",
-    "status": "success",
-    "detail": "",
-    "started_at": "2026-11-17T20:07:21.277888Z"
+    "cycle_id": "20261117T22",
+    "status": "skipped",
+    "detail": "market closed",
+    "started_at": "2026-11-17T22:50:50.524191Z"
   },
   "allocated_capital": 10000.0,
   "symbols": [
@@ -29,6 +29,6 @@
     "max_drawdown": 0.005947316058652851,
     "exposure": 3437.576479,
     "cash": 6504.093520999999,
-    "estimated_costs": 2.5728572785505857
+    "estimated_costs": 3.134760958859091
   }
 }
