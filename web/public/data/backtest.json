@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-17T05:50:09.817181Z",
+  "generated_at": "2026-11-17T18:05:07.856939Z",
   "symbols": [
     "SPY",
     "QQQ",
@@ -12,102 +12,198 @@
   ],
   "horizon_bars": 6,
   "stride_bars": 3,
-  "history_start": "2026-05-21T12:00:00Z",
-  "history_end": "2026-11-16T21:00:00Z",
+  "history_start": "2026-05-21T18:00:00Z",
+  "history_end": "2026-11-17T17:00:00Z",
   "models": [
     {
       "model": "mistralai/Timestral-28M",
-      "seconds_per_forecast": 0.34046518896690553,
+      "seconds_per_forecast": 0.17856366857730116,
       "overall": {
-        "n": 426,
-        "mae_model": 2.786225481704928,
-        "mae_naive": 2.8104460093896737,
-        "mae_ratio": 0.991381963003799,
-        "direction_n": 424,
-        "direction_hit_rate": 0.5235849056603774,
-        "coverage": 0.7276995305164319,
-        "mean_width": 0.025604104346309987
+        "n": 436,
+        "mae_model": 2.813395079866463,
+        "mae_naive": 2.817190366972479,
+        "mae_ratio": 0.9986528112723547,
+        "direction_n": 434,
+        "direction_hit_rate": 0.511520737327189,
+        "coverage": 0.7247706422018348,
+        "mean_width": 0.02574492055329124
       },
       "per_symbol": {
         "EEM": {
-          "n": 59,
-          "mae_model": 0.7844540896658168,
-          "mae_naive": 0.7769491525423727,
-          "mae_ratio": 1.0096594958613263,
-          "direction_n": 58,
-          "direction_hit_rate": 0.4482758620689655,
-          "coverage": 0.6779661016949152,
-          "mean_width": 0.03308796876619199
+          "n": 61,
+          "mae_model": 0.7970938935827032,
+          "mae_naive": 0.7847540983606555,
+          "mae_ratio": 1.01572441003854,
+          "direction_n": 60,
+          "direction_hit_rate": 0.43333333333333335,
+          "coverage": 0.6721311475409836,
+          "mean_width": 0.03343486121414627
         },
         "GLD": {
-          "n": 50,
-          "mae_model": 3.8045395996093783,
-          "mae_naive": 3.759400000000003,
-          "mae_ratio": 1.0120071286932424,
-          "direction_n": 50,
-          "direction_hit_rate": 0.4,
-          "coverage": 0.74,
-          "mean_width": 0.03080837473503344
+          "n": 51,
+          "mae_model": 3.7342507036994514,
+          "mae_naive": 3.6858823529411793,
+          "mae_ratio": 1.0131225975565055,
+          "direction_n": 51,
+          "direction_hit_rate": 0.39215686274509803,
+          "coverage": 0.7450980392156863,
+          "mean_width": 0.030969586892662243
         },
         "QQQ": {
-          "n": 62,
-          "mae_model": 8.599282620337707,
-          "mae_naive": 8.570161290322591,
-          "mae_ratio": 1.00339799089289,
-          "direction_n": 62,
-          "direction_hit_rate": 0.532258064516129,
-          "coverage": 0.6451612903225806,
-          "mean_width": 0.030985435481932194
+          "n": 63,
+          "mae_model": 8.667279343377983,
+          "mae_naive": 8.613650793650805,
+          "mae_ratio": 1.0062259953429629,
+          "direction_n": 63,
+          "direction_hit_rate": 0.5238095238095238,
+          "coverage": 0.6507936507936508,
+          "mean_width": 0.031214213267467057
         },
         "SPY": {
-          "n": 62,
-          "mae_model": 5.269654856035787,
-          "mae_naive": 5.523709677419357,
-          "mae_ratio": 0.9540064854562988,
-          "direction_n": 62,
-          "direction_hit_rate": 0.5967741935483871,
-          "coverage": 0.7096774193548387,
-          "mean_width": 0.018723672334008002
+          "n": 64,
+          "mae_model": 5.4584413909912115,
+          "mae_naive": 5.604609375000003,
+          "mae_ratio": 0.973920040768445,
+          "direction_n": 64,
+          "direction_hit_rate": 0.578125,
+          "coverage": 0.6875,
+          "mean_width": 0.019000426798454
         },
         "TLT": {
-          "n": 62,
-          "mae_model": 0.3361541501937369,
-          "mae_naive": 0.3411290322580644,
-          "mae_ratio": 0.9854164213717114,
-          "direction_n": 62,
-          "direction_hit_rate": 0.5806451612903226,
-          "coverage": 0.8387096774193549,
-          "mean_width": 0.01547758508252062
+          "n": 63,
+          "mae_model": 0.3343195791093124,
+          "mae_naive": 0.3381746031746031,
+          "mae_ratio": 0.98860049208574,
+          "direction_n": 63,
+          "direction_hit_rate": 0.5714285714285714,
+          "coverage": 0.8412698412698413,
+          "mean_width": 0.015494366060549698
         },
         "XLE": {
-          "n": 43,
-          "mae_model": 0.9251335640840744,
-          "mae_naive": 0.8917441860465111,
-          "mae_ratio": 1.0374427762580578,
-          "direction_n": 43,
-          "direction_hit_rate": 0.46511627906976744,
-          "coverage": 0.6511627906976745,
-          "mean_width": 0.034550854434546384
+          "n": 44,
+          "mae_model": 0.9116850592873306,
+          "mae_naive": 0.8777272727272724,
+          "mae_ratio": 1.0386883119793517,
+          "direction_n": 44,
+          "direction_hit_rate": 0.45454545454545453,
+          "coverage": 0.6590909090909091,
+          "mean_width": 0.034524774543819796
         },
         "XLF": {
-          "n": 45,
-          "mae_model": 0.41428186035156217,
-          "mae_naive": 0.4194444444444441,
-          "mae_ratio": 0.9876918524937913,
-          "direction_n": 44,
-          "direction_hit_rate": 0.5454545454545454,
-          "coverage": 0.7555555555555555,
-          "mean_width": 0.021201698331644557
+          "n": 46,
+          "mae_model": 0.4239892876666522,
+          "mae_naive": 0.4284782608695649,
+          "mae_ratio": 0.9895234516827,
+          "direction_n": 45,
+          "direction_hit_rate": 0.5333333333333333,
+          "coverage": 0.7391304347826086,
+          "mean_width": 0.02119590889762608
         },
         "XLU": {
-          "n": 43,
-          "mae_model": 0.26239944458007813,
-          "mae_naive": 0.2616279069767442,
-          "mae_ratio": 1.002948988172743,
-          "direction_n": 43,
-          "direction_hit_rate": 0.6046511627906976,
-          "coverage": 0.813953488372093,
-          "mean_width": 0.021707010052488013
+          "n": 44,
+          "mae_model": 0.2616388737071644,
+          "mae_naive": 0.26034090909090907,
+          "mae_ratio": 1.0049856344928183,
+          "direction_n": 44,
+          "direction_hit_rate": 0.5909090909090909,
+          "coverage": 0.8181818181818182,
+          "mean_width": 0.021660004401393203
+        }
+      }
+    },
+    {
+      "model": "mistralai/Timestral-209M",
+      "seconds_per_forecast": 1.5057291483966881,
+      "overall": {
+        "n": 436,
+        "mae_model": 2.8442521845966318,
+        "mae_naive": 2.817190366972479,
+        "mae_ratio": 1.0096059598745664,
+        "direction_n": 434,
+        "direction_hit_rate": 0.5023041474654378,
+        "coverage": 0.768348623853211,
+        "mean_width": 0.027016072589890625
+      },
+      "per_symbol": {
+        "EEM": {
+          "n": 61,
+          "mae_model": 0.7900328614281822,
+          "mae_naive": 0.7847540983606555,
+          "mae_ratio": 1.0067266460647406,
+          "direction_n": 60,
+          "direction_hit_rate": 0.4166666666666667,
+          "coverage": 0.7868852459016393,
+          "mean_width": 0.037246193887109036
+        },
+        "GLD": {
+          "n": 51,
+          "mae_model": 3.83054850260417,
+          "mae_naive": 3.6858823529411793,
+          "mae_ratio": 1.0392487159953854,
+          "direction_n": 51,
+          "direction_hit_rate": 0.43137254901960786,
+          "coverage": 0.803921568627451,
+          "mean_width": 0.03199803813271543
+        },
+        "QQQ": {
+          "n": 63,
+          "mae_model": 8.751546921502982,
+          "mae_naive": 8.613650793650805,
+          "mae_ratio": 1.0160090223246363,
+          "direction_n": 63,
+          "direction_hit_rate": 0.49206349206349204,
+          "coverage": 0.6825396825396826,
+          "mean_width": 0.03181051101453043
+        },
+        "SPY": {
+          "n": 64,
+          "mae_model": 5.506814613342286,
+          "mae_naive": 5.604609375000003,
+          "mae_ratio": 0.9825510120127299,
+          "direction_n": 64,
+          "direction_hit_rate": 0.59375,
+          "coverage": 0.6875,
+          "mean_width": 0.018650043812921006
+        },
+        "TLT": {
+          "n": 63,
+          "mae_model": 0.3446178230406742,
+          "mae_naive": 0.3381746031746031,
+          "mae_ratio": 1.0190529383507383,
+          "direction_n": 63,
+          "direction_hit_rate": 0.5238095238095238,
+          "coverage": 0.8571428571428571,
+          "mean_width": 0.016044133863531148
+        },
+        "XLE": {
+          "n": 44,
+          "mae_model": 0.9140874515880231,
+          "mae_naive": 0.8777272727272724,
+          "mae_ratio": 1.0414253720837139,
+          "direction_n": 44,
+          "direction_hit_rate": 0.38636363636363635,
+          "coverage": 0.7272727272727273,
+          "mean_width": 0.03743223417774914
+        },
+        "XLF": {
+          "n": 46,
+          "mae_model": 0.4220338638969088,
+          "mae_naive": 0.4284782608695649,
+          "mae_ratio": 0.9849598041226696,
+          "direction_n": 45,
+          "direction_hit_rate": 0.6222222222222222,
+          "coverage": 0.7608695652173914,
+          "mean_width": 0.022055938690487855
+        },
+        "XLU": {
+          "n": 44,
+          "mae_model": 0.25945578488436605,
+          "mae_naive": 0.26034090909090907,
+          "mae_ratio": 0.9966001339949461,
+          "direction_n": 44,
+          "direction_hit_rate": 0.5454545454545454,
+          "coverage": 0.8636363636363636,
+          "mean_width": 0.022842112781407905
         }
       }
     }
@@ -645,6 +741,24 @@
       "symbol": "EEM"
     },
     {
+      "last": 59.435,
+      "median": 59.53925323486328,
+      "lower": 58.472373962402344,
+      "upper": 60.93877410888672,
+      "actual": 58.52,
+      "t": "2026-11-16T17:00:00Z",
+      "symbol": "EEM"
+    },
+    {
+      "last": 59.135,
+      "median": 59.34068298339844,
+      "lower": 58.10588836669922,
+      "upper": 60.81657409667969,
+      "actual": 58.02,
+      "t": "2026-11-16T20:00:00Z",
+      "symbol": "EEM"
+    },
+    {
       "last": 382.73,
       "median": 382.5022277832031,
       "lower": 376.9713134765625,
@@ -1092,6 +1206,15 @@
       "upper": 363.70965576171875,
       "actual": 354.01,
       "t": "2026-11-13T20:00:00Z",
+      "symbol": "GLD"
+    },
+    {
+      "last": 354.06,
+      "median": 354.2698059082031,
+      "lower": 348.128662109375,
+      "upper": 361.94769287109375,
+      "actual": 354.05,
+      "t": "2026-11-16T20:00:00Z",
       "symbol": "GLD"
     },
     {
@@ -1653,6 +1776,15 @@
       "symbol": "QQQ"
     },
     {
+      "last": 664.08,
+      "median": 665.653076171875,
+      "lower": 650.2169799804688,
+      "upper": 680.3651733398438,
+      "actual": 652.77,
+      "t": "2026-11-16T20:00:00Z",
+      "symbol": "QQQ"
+    },
+    {
       "last": 773.14,
       "median": 773.2396240234375,
       "lower": 768.5225830078125,
@@ -2208,6 +2340,24 @@
       "upper": 757.85791015625,
       "actual": 740.665,
       "t": "2026-11-16T14:00:00Z",
+      "symbol": "SPY"
+    },
+    {
+      "last": 745.44,
+      "median": 747.8170166015625,
+      "lower": 739.132080078125,
+      "upper": 757.6917724609375,
+      "actual": 738.8,
+      "t": "2026-11-16T17:00:00Z",
+      "symbol": "SPY"
+    },
+    {
+      "last": 740.665,
+      "median": 744.6846313476562,
+      "lower": 734.1691284179688,
+      "upper": 756.5831298828125,
+      "actual": 731.08,
+      "t": "2026-11-16T20:00:00Z",
       "symbol": "SPY"
     },
     {
@@ -2769,6 +2919,15 @@
       "symbol": "TLT"
     },
     {
+      "last": 79.475,
+      "median": 79.409423828125,
+      "lower": 78.750244140625,
+      "upper": 80.06434631347656,
+      "actual": 79.63,
+      "t": "2026-11-16T20:00:00Z",
+      "symbol": "TLT"
+    },
+    {
       "last": 68.11,
       "median": 68.19479370117188,
       "lower": 67.23484802246094,
@@ -3153,6 +3312,15 @@
       "upper": 65.70885467529297,
       "actual": 64.01,
       "t": "2026-11-13T20:00:00Z",
+      "symbol": "XLE"
+    },
+    {
+      "last": 63.84,
+      "median": 63.898399353027344,
+      "lower": 62.84416198730469,
+      "upper": 64.97663116455078,
+      "actual": 63.565,
+      "t": "2026-11-16T20:00:00Z",
       "symbol": "XLE"
     },
     {
@@ -3561,6 +3729,15 @@
       "symbol": "XLF"
     },
     {
+      "last": 58.08,
+      "median": 58.1058235168457,
+      "lower": 57.4937744140625,
+      "upper": 58.70970153808594,
+      "actual": 57.245,
+      "t": "2026-11-16T20:00:00Z",
+      "symbol": "XLF"
+    },
+    {
       "last": 42.18,
       "median": 42.207027435302734,
       "lower": 41.726280212402344,
@@ -3946,43 +4123,52 @@
       "actual": 44.01,
       "t": "2026-11-13T20:00:00Z",
       "symbol": "XLU"
+    },
+    {
+      "last": 44.04,
+      "median": 44.063934326171875,
+      "lower": 43.60966110229492,
+      "upper": 44.474552154541016,
+      "actual": 43.835,
+      "t": "2026-11-16T20:00:00Z",
+      "symbol": "XLU"
     }
   ],
   "decision_start": "2026-10-16T13:00:00Z",
-  "decision_times": 63,
-  "llm_failures": 1,
+  "decision_times": 65,
+  "llm_failures": 0,
   "strategies": [
     {
       "name": "Equal-weight buy and hold",
-      "final_equity": 9796.23147514529,
-      "return_pct": -2.037685248547094,
+      "final_equity": 9756.31202332837,
+      "return_pct": -2.4368797667163045,
       "max_drawdown_pct": 2.8180923516794576,
       "trades": 8,
-      "average_exposure_pct": 78.28578488734892
+      "average_exposure_pct": 78.27067437987576
     },
     {
       "name": "Timestral-only rule",
-      "final_equity": 9778.417780524085,
-      "return_pct": -2.2158221947591428,
+      "final_equity": 9709.82841734049,
+      "return_pct": -2.901715826595097,
       "max_drawdown_pct": 4.896154254766972,
-      "trades": 31,
-      "average_exposure_pct": 66.22665552947787
+      "trades": 33,
+      "average_exposure_pct": 66.64225962919024
     },
     {
       "name": "Buy and hold (same exposure as agent)",
-      "final_equity": 9831.36116883024,
-      "return_pct": -1.6863883116975953,
-      "max_drawdown_pct": 2.332974125334802,
+      "final_equity": 9806.15352519702,
+      "return_pct": -1.9384647480298,
+      "max_drawdown_pct": 2.2425300145014546,
       "trades": 8,
-      "average_exposure_pct": 64.78931557276994
+      "average_exposure_pct": 62.26197334895976
     },
     {
       "name": "Timestral + LLM (the agent)",
-      "final_equity": 9748.175922364204,
-      "return_pct": -2.5182407763579606,
-      "max_drawdown_pct": 5.31060855784291,
-      "trades": 49,
-      "average_exposure_pct": 66.2083153516731
+      "final_equity": 9821.156619453262,
+      "return_pct": -1.788433805467371,
+      "max_drawdown_pct": 3.51512860119554,
+      "trades": 78,
+      "average_exposure_pct": 63.6374444652423
     }
   ]
 }
