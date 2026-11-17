@@ -2,6 +2,7 @@ import { formatDate, formatPercentOne, formatPercentTwo, formatSignedPercentTwo 
 import { forSymbol } from "../filters";
 import type { BacktestReport, StrategyResult } from "../types";
 import { Empty } from "./Feedback";
+import { Flower } from "./Flower";
 import { ForecastFan } from "./ForecastFan";
 
 const TARGET_COVERAGE = 0.8;
@@ -47,7 +48,6 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
   if (backtest === null || model === undefined) {
     return (
       <div className="page-section">
-        <h2>Forecast quality</h2>
         <Empty message="No backtest report yet. Run the backtest, then export." />
       </div>
     );
@@ -62,9 +62,6 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
   const symbolForecasts = forSymbol(backtest.forecasts, fanSymbol).sort((a, b) => a.t.localeCompare(b.t));
   return (
     <div className="page-section quality-page">
-      <div className="section-head">
-        <h2>Forecast quality</h2>
-      </div>
       <div className="quality-body">
         <div className="quality-side">
           <section className="card quality-summary">
@@ -111,6 +108,7 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
           </section>
         </div>
         <section className="card quality-chart">
+          <Flower />
           <div className="section-head">
             <h3>Forecast vs real price</h3>
             <select value={fanSymbol} onChange={(e) => onSymbol(e.target.value)} aria-label="Symbol">

@@ -59,8 +59,7 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
             <i className="dot dot-sell" /> Sell
           </span>
           <label className="field">
-            Symbol
-            <select value={symbol} onChange={(e) => onSymbol(e.target.value)}>
+            <select aria-label="Symbol" value={symbol} onChange={(e) => onSymbol(e.target.value)}>
               <option value={ALL_SYMBOLS}>All symbols</option>
               {status.symbols.map((name) => (
                 <option key={name} value={name}>

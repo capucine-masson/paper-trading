@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { forSymbol } from "../filters";
 import { expectedMove, formatMacro, rangeWidth } from "../forecast";
 import {
@@ -27,14 +27,13 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   const shown = forSymbol(decisions, symbol);
   const cycles = groupByCycle([...shown].reverse());
   const latest = cycles.slice(0, MAX_CARDS);
-  const horizon = decisions.find((d) => d.forecast !== null)?.forecast?.median.length ?? 0;
+  const [chosenCycle, setChosenCycle] = useState<string | null | undefined>(undefined);
+  const openCycle = chosenCycle === undefined ? latest[0]?.[0].cycle_id : chosenCycle;
   return (
     <div className="page-section">
       <div className="section-head">
-        <h2>Decisions</h2>
         <label className="field">
-          Symbol
-          <select value={symbol} onChange={(e) => onSymbol(e.target.value)}>
+          <select aria-label="Symbol" value={symbol} onChange={(e) => onSymbol(e.target.value)}>
             <option value={ALL_SYMBOLS}>All symbols</option>
             {symbols.map((name) => (
               <option key={name} value={name}>
@@ -52,19 +51,20 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
             <div className="decision-columns" aria-hidden="true">
               <span title="The ETF the decision is about.">Symbol</span>
               <span title="What the AI proposes: buy, sell or hold.">Action</span>
-              <span title="Median price change expected by Timestral.">
-                Expected move ({horizon}h)
-              </span>
-              <span className="col-range" title="Width of the likely prices (80%): wider means less certain.">
-                Range (80%)
-              </span>
               <span title="Price when the decision was made.">Price</span>
               <span title="What happened: an order was placed, blocked by a rule, or nothing was done.">
                 Result
               </span>
             </div>
-            {latest.map((cycle, index) => (
-              <CycleGroup key={cycle[0].cycle_id} decisions={cycle} defaultOpen={index === 0} />
+            {latest.map((cycle) => (
+              <CycleGroup
+                key={cycle[0].cycle_id}
+                decisions={cycle}
+                open={cycle[0].cycle_id === openCycle}
+                onToggle={(isOpen) =>
+                  setChosenCycle((current) => (isOpen ? cycle[0].cycle_id : current === cycle[0].cycle_id ? null : current))
+                }
+              />
             ))}
           </div>
           {cycles.length > MAX_CARDS && (
@@ -95,11 +95,28 @@ function plural(count: number, noun: string): string {
 /** A blocked decision is only a proposal: it gets an orange pill instead of the green or red one. */
 const pillClass = (d: DecisionView): string => `pill pill-${d.verdict === "blocked" ? "blocked" : d.action}`;
 
-function CycleGroup({ decisions, defaultOpen }: { decisions: DecisionView[]; defaultOpen: boolean }) {
+interface CycleGroupProps {
+  decisions: DecisionView[];
+  open: boolean;
+  onToggle: (isOpen: boolean) => void;
+}
+
+function CycleGroup({ decisions, open, onToggle }: CycleGroupProps) {
+  const [openSymbol, setOpenSymbol] = useState<string | null>(null);
+  const events = decisions.filter(hasEvent);
+  const quiet = decisions.filter((d) => !hasEvent(d));
   const orders = decisions.filter((d) => d.order !== null).length;
   const blocked = decisions.filter((d) => d.verdict === "blocked").length;
+  const renderRow = (d: DecisionView): ReactNode => (
+    <DecisionRow
+      key={d.symbol}
+      decision={d}
+      open={d.symbol === openSymbol}
+      onToggle={(isOpen) => setOpenSymbol((current) => (isOpen ? d.symbol : current === d.symbol ? null : current))}
+    />
+  );
   return (
-    <details className="cycle-group" open={defaultOpen}>
+    <details className="cycle-group" open={open} onToggle={(e) => onToggle(e.currentTarget.open)}>
       <summary className="cycle-summary">
         <time dateTime={decisions[0].t}>{formatDateTime(decisions[0].t)}</time>
         <span className="muted">
@@ -114,23 +131,47 @@ function CycleGroup({ decisions, defaultOpen }: { decisions: DecisionView[]; def
           ))}
         </span>
       </summary>
-      {decisions.map((d) => (
-        <DecisionRow key={d.symbol} decision={d} />
-      ))}
+      {events.map(renderRow)}
+      {quiet.length > 0 && <QuietRows decisions={quiet} openByDefault={events.length === 0} renderRow={renderRow} />}
     </details>
   );
 }
 
-function DecisionRow({ decision: d }: { decision: DecisionView }) {
+const hasEvent = (d: DecisionView): boolean => d.order !== null || d.verdict === "blocked";
+
+interface QuietRowsProps {
+  decisions: DecisionView[];
+  openByDefault: boolean;
+  renderRow: (d: DecisionView) => ReactNode;
+}
+
+function QuietRows({ decisions, openByDefault, renderRow }: QuietRowsProps) {
+  const [open, setOpen] = useState(openByDefault);
   return (
-    <details className="decision-row">
+    <details className="decision-row" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="decision-summary quiet-summary">
+        <span className="muted">{plural(decisions.length, "symbol")} with no trade</span>
+        <span className="muted quiet-symbols">{decisions.map((d) => d.symbol).join(" · ")}</span>
+      </summary>
+      {decisions.map(renderRow)}
+    </details>
+  );
+}
+
+interface DecisionRowProps {
+  decision: DecisionView;
+  open: boolean;
+  onToggle: (isOpen: boolean) => void;
+}
+
+function DecisionRow({ decision: d, open, onToggle }: DecisionRowProps) {
+  return (
+    <details className="decision-row" open={open} onToggle={(e) => onToggle(e.currentTarget.open)}>
       <summary className="decision-summary">
         <strong>{d.symbol}</strong>
         <span>
           <span className={pillClass(d)}>{d.action}</span>
         </span>
-        <Expected decision={d} />
-        <span className="col-range">{d.forecast === null ? NOT_AVAILABLE : formatPercentOne(rangeWidth(d.forecast))}</span>
         <span>{d.price === null ? NOT_AVAILABLE : formatUsd(d.price)}</span>
         <Result decision={d} />
       </summary>
@@ -142,6 +183,18 @@ function DecisionRow({ decision: d }: { decision: DecisionView }) {
         </div>
         <div className="decision-text">
           <p className="rationale">{d.rationale}</p>
+          {d.forecast !== null && (
+            <>
+              <DetailLine label={`Expected move (${d.forecast.median.length}h)`}>
+                <Expected decision={d} />
+                <span className="input-note"> Median price change expected by Timestral.</span>
+              </DetailLine>
+              <DetailLine label="Range (80%)">
+                {formatPercentOne(rangeWidth(d.forecast))}
+                <span className="input-note"> Width of the likely prices: wider means less certain.</span>
+              </DetailLine>
+            </>
+          )}
           <DetailLine label="Sizing">{sizing(d)}</DetailLine>
           <DetailLine label="Already owned">
             {d.position_qty === 0 ? "None" : formatUsd(d.position_value)}

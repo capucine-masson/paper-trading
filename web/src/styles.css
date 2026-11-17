@@ -419,6 +419,51 @@ select:hover {
   image-rendering: pixelated;
 }
 
+.quality-chart {
+  position: relative;
+}
+
+.flower {
+  position: absolute;
+  right: 115px;
+  bottom: calc(100% - 11px);
+  z-index: 11;
+  display: block;
+  height: 60px;
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.flower img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.flower-head {
+  transform-origin: 50% 52.5%;
+  animation: flower-sway 4s ease-in-out infinite;
+}
+
+@keyframes flower-sway {
+  0%,
+  57.5%,
+  100% {
+    transform: rotate(0deg);
+  }
+  37.5% {
+    transform: rotate(14deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flower-head {
+    animation: none;
+  }
+}
+
 .chart-card .card-head h2 {
   min-width: 8rem;
 }
@@ -858,7 +903,7 @@ select:hover {
 .decision-columns,
 .decision-summary {
   display: grid;
-  grid-template-columns: 150px 72px 90px 90px 110px minmax(0, 1fr) 20px;
+  grid-template-columns: 150px 72px 110px minmax(0, 1fr) 20px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
@@ -883,7 +928,7 @@ select:hover {
 
 .cycle-summary {
   display: grid;
-  grid-template-columns: 150px 72px 90px 90px 110px minmax(0, 1fr) 20px;
+  grid-template-columns: 150px 260px minmax(0, 1fr) 20px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -908,7 +953,7 @@ select:hover {
 }
 
 .cycle-summary::after {
-  grid-column: 7;
+  grid-column: 4;
 }
 
 .cycle-group[open] > .cycle-summary .cycle-pills {
@@ -920,14 +965,16 @@ select:hover {
 }
 
 .cycle-summary .muted {
-  grid-column: 2 / 6;
+  grid-column: 2;
   font-weight: 400;
 }
 
 .cycle-pills {
-  grid-column: 6;
+  grid-column: 3;
   display: flex;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 4px 3px;
+  min-width: 0;
 }
 
 .cycle-pills .pill {
@@ -963,6 +1010,19 @@ select:hover {
 
 .decision-row[open] > .decision-summary::after {
   transform: rotate(-135deg);
+}
+
+.quiet-summary > :first-child {
+  grid-column: 1 / 4;
+}
+
+.quiet-symbols {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .decision-summary:hover,
@@ -1175,6 +1235,8 @@ select:hover {
 }
 
 .verdict {
+  display: inline-block;
+  line-height: 1.3;
   border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
   border-radius: var(--radius-sm);
   padding: 1px var(--space-2);
@@ -1301,8 +1363,7 @@ select:hover {
     gap: var(--space-3);
   }
 
-  .quality-page > .card,
-  .quality-page > .section-head {
+  .quality-page > .card {
     margin: 0;
   }
 
@@ -1344,7 +1405,7 @@ select:hover {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .quality-chart .forecast-fan {
@@ -1433,7 +1494,7 @@ select:hover {
     grid-row: 1;
   }
 
-  .decision-summary .col-range {
+  .quiet-symbols {
     display: none;
   }
 
