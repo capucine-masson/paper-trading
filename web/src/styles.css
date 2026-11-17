@@ -1475,11 +1475,21 @@ select:hover {
 .symbol-stats {
   margin-left: auto;
   font-size: 0.72rem;
+  text-align: right;
+}
+
+.symbol-stats > span {
+  display: block;
 }
 
 .forecast-fan .plot {
   height: 300px;
   flex: none;
+}
+
+.forecast-fan .y-axis {
+  min-width: 0;
+  width: 2.25rem;
 }
 
 .quality-body {
@@ -1504,8 +1514,10 @@ select:hover {
 }
 
 .x-ticks {
+  grid-column: 2;
   position: relative;
   height: 1.2rem;
+  margin-top: var(--space-1);
   color: var(--muted);
   font-size: 0.75rem;
 }
@@ -1603,6 +1615,8 @@ select:hover {
 }
 
 .swatch-band {
+  width: 14px;
+  height: 10px;
   background: var(--accent-soft);
   border: 1px solid var(--accent);
 }
@@ -1623,7 +1637,14 @@ select:hover {
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 @media (max-width: 600px) {

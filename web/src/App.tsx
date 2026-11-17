@@ -6,7 +6,7 @@ import { Header } from "./components/Header";
 import { Overview } from "./components/Overview";
 import { Quality } from "./components/Quality";
 import { useTheme, useViewState } from "./hooks";
-import type { DashboardData } from "./types";
+import { ALL_SYMBOLS, type DashboardData } from "./types";
 
 type Load = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; data: DashboardData };
 
@@ -36,7 +36,7 @@ export function App() {
         tab={view.tab}
         state={data?.status.state ?? null}
         theme={theme}
-        onTab={(tab) => updateView({ tab })}
+        onTab={(tab) => updateView({ tab, symbol: ALL_SYMBOLS })}
         onToggleTheme={toggleTheme}
       />
       <main className={fitScreen ? "content content-fit" : "content"}>

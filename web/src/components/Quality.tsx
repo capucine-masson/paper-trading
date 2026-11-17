@@ -110,7 +110,7 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
         <section className="card quality-chart">
           <Flower />
           <div className="section-head">
-            <h3>Forecast vs real price</h3>
+            <h3>Timestral forecast vs real price</h3>
             <select value={fanSymbol} onChange={(e) => onSymbol(e.target.value)} aria-label="Symbol">
               {backtest.symbols.map((name) => (
                 <option key={name} value={name}>
@@ -147,7 +147,10 @@ function StrategyRow({ strategy }: { strategy: StrategyResult }) {
 function SymbolStats({ symbol, coverage }: { symbol: string; coverage: number }) {
   return (
     <span className="symbol-stats muted">
-      For {symbol}, the real price stayed inside the range <strong>{formatPercentOne(coverage)}</strong> of the time (should be 80%).
+      <span>For {symbol}, the real price stayed inside the range</span>
+      <span>
+        <strong>{formatPercentOne(coverage)}</strong> of the time (should be 80%).
+      </span>
     </span>
   );
 }

@@ -83,7 +83,7 @@ export function buildSeries(
 }
 
 /** Evenly spaced round values (1, 2 or 5 times a power of ten) that cover [bottom, top]. */
-function niceTicks(bottom: number, top: number): { values: number[]; step: number } {
+export function niceTicks(bottom: number, top: number): { values: number[]; step: number } {
   const raw = (top - bottom) / TARGET_TICKS;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
   const step = (NICE_STEPS.find((n) => n * magnitude >= raw) ?? 10) * magnitude;
