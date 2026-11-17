@@ -25,10 +25,12 @@ This installs Timestral and the CPU build of `torch`. The first forecast downloa
 ## 2. Add the keys
 
 ```bash
-cp .env.example .env
+cp .env.example .env        # PowerShell: copy .env.example .env
 ```
 
-Fill the four keys listed above in `.env` (the file is git-ignored). `HF_TOKEN` is optional (a [Hugging Face token](https://huggingface.co/settings/tokens) only speeds up the weights download).
+Fill the four required keys in `.env` (the file is git-ignored): `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`,
+`MISTRAL_API_KEY` and `FRED_API_KEY`. `HF_TOKEN` is optional (a
+[Hugging Face token](https://huggingface.co/settings/tokens) only speeds up the weights download).
 
 ## 3. Run one cycle
 
@@ -41,7 +43,8 @@ uv run python -m agent.run --execute
 ```
 
 The console prints, for each symbol, the Timestral forecast, the LLM decision and rationale, the risk verdict
-and the order. Every step is stored in `journal.db`. Simulated cycles are marked `sim-` and never appear on the
+and the order. Every step is stored in `journal.db` (committed on purpose: it is the agent's memory between
+runs, including on GitHub Actions). Simulated cycles are marked `sim-` and never appear on the
 dashboard.
 
 ## 4. See the results
@@ -71,7 +74,7 @@ Friday. Do the steps below in order, in your own copy of the repository.
 ### A. Set up the workflow
 
 1. Push the repository to GitHub.
-2. Add the secrets `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `MISTRAL_API_KEY` and `FRED_API_KEY` in
+2. Add the secrets `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `MISTRAL_API_KEY` and `FRED_API_KEY` (and optionally `HF_TOKEN`) in
    Settings > Secrets and variables > Actions
    (`https://github.com/<owner>/<repo>/settings/secrets/actions`).
 3. Pages source: **GitHub Actions** (`https://github.com/<owner>/<repo>/settings/pages`). Workflow permissions:
@@ -129,8 +132,9 @@ no second order. The steps below use [cron-job.org](https://cron-job.org) (free 
 | 422 | Body or `Content-Type` header is wrong |
 
 Renew the token before its expiration date ([your tokens](https://github.com/settings/personal-access-tokens) >
-the token > Regenerate token, then paste the new value in the `Authorization` header). Market open or closed is always decided by the Alpaca clock in code, never by the
-trigger.
+the token > Regenerate token, then paste the new value in the `Authorization` header).
+
+Market open or closed is always decided by the Alpaca clock in code, never by the trigger.
 
 ### C. Resume a failed cycle
 

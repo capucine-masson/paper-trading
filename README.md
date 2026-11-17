@@ -19,30 +19,80 @@ Live dashboard: <https://capucine-masson.github.io/paper-trading/>
 
 See **[GETTING_STARTED.md](GETTING_STARTED.md)**.
 
-## How it works
+## Features
+
+| Feature | How it works |
+| --- | --- |
+| Probabilistic forecasts | Mistral calls `forecast(symbol)` as a tool and gets a median, a 10-90% interval and a signal strength. Its size is a share of the maximum position, shrunk by the interval width. |
+| Explained decisions | Every decision stores the LLM rationale, the forecast, the risk verdict and the order. The dashboard shows them. |
+| Autonomous and scheduled | GitHub Actions runs a cycle every hour of the US session on an Alpaca paper account and publishes the dashboard to GitHub Pages. |
+| No look-ahead | Completed bars only, walk-forward backtest that starts after both models were released ([details](#how-do-we-know-the-decisions-are-sound)). |
+| Baselines | Equal-weight and same-exposure buy and hold, plus a Timestral-only rule with no LLM, all with the same costs. |
+| Uncertainty-aware sizing | A wider interval means a smaller buy; too wide or too weak a signal means no buy. |
+| Risk and costs | Hard limits in code, 5 bps simulated cost, a veto the LLM cannot bypass. |
+| Future covariates | Scheduled FOMC/CPI dates are a known-future covariate for Timestral. News (GDELT) is not used ([why](#limits)). |
+
+## Deep dive: how one decision is made
 
 ```mermaid
-flowchart LR
-    A[Alpaca hourly bars] --> T
-    F[FRED macro drivers + FOMC/CPI dates] --> T
-    T{{Timestral<br/>median + 10-90% interval<br/>+ signal strength}} -->|tool call| L[Mistral LLM<br/>action, size, rationale]
-    L -->|proposal| R[risk.py<br/>veto, dollar sizing, limits]
-    R -->|approved| O[Alpaca paper order]
-    T & L & R & O --> J[(journal + dashboard)]
+flowchart TD
+    S([Hourly cycle]) --> C{Alpaca clock:<br/>market open?}
+    C -- no --> X([Skip, no decision])
+    C -- yes --> H{Equity above<br/>$8,000 floor?}
+    H -- no --> HX([Halted: no buy, manual resume])
+    H -- yes --> D[Data: Alpaca hourly bars, completed only<br/>+ FRED drivers + FOMC/CPI dates<br/>freshness and gap checks]
+    D --> T[[Timestral tool call per symbol<br/>6h median + 10-90% interval<br/>validated, signal strength 0-1]]
+    T -->|invalid forecast| N([No decision for that symbol])
+    T --> L[Mistral LLM reads forecasts + portfolio<br/>buy / sell / hold, size share, rationale]
+    L --> R{risk.py, strongest signal first}
+    R -->|hold, or sell with no position| V([No order, reason journaled])
+    R -->|sell| SO[Sell the share asked, long only]
+    R -->|buy| G{Forecast supports it?<br/>return above 0, strength 50% or more,<br/>interval width 8% or less, daily loss ok}
+    G -- no --> V
+    G -- yes --> Z[Dollars = 30% cap x min LLM share, 1 - width/8%<br/>cut to position and exposure room<br/>skip below $100]
+    SO --> O
+    Z --> O[Alpaca paper order<br/>client_order_id = cycle-symbol-side]
+    O --> J[(Journal + dashboard)]
+    V --> J
 ```
 
-Every hour of the US session:
+**1. Data.** Hourly bars from Alpaca (free IEX feed), 400 bars of context. A bar is used only once completed; a gap stays `NaN`,
+never filled; stale data (older than 2.5 h) is rejected. Six FRED drivers (Brent, 10y, 2y, dollar index, VIX, high-yield spread) are
+past covariates, visible only from the next day 00:00 UTC. FOMC and CPI release dates are a known-future covariate (1 on the
+hour of a release, else 0).
 
-1. **Timestral** forecasts the next 6 hours of each ETF (its own prices plus Brent, 10y and 2y yields, dollar
-   index, VIX, high-yield spread and scheduled FOMC/CPI dates). We use 6 hours because over 1 hour an ETF's move is
-   almost pure noise, so there is a little more signal over 6 (the horizon was not tuned). These drivers are the same for every symbol: the
-   daily values are past covariates, the release dates a known-future covariate (1 on the hour of a release, else 0).
-   The code adds a signal strength (0 to 1).
-2. **The LLM** calls Timestral as a tool, reads the forecast (expected return, interval, signal strength) and the
-   portfolio, and gives each symbol an action (`buy / sell / hold`), a size (share of the maximum position) and a
-   short rationale. It does not see the macro drivers: Timestral already used them, so the LLM would count them twice.
-3. **`risk.py`** may veto a buy, then converts the size to dollars (reduced when the interval is wide) within the limits.
-4. **Approved orders** go to Alpaca. Everything is journaled and shown on the dashboard.
+**2. Forecast.** Timestral 28M runs on CPU, loaded once, and forecasts the next 6 hours. Over 1 hour an ETF's move is almost pure
+noise, so there is a little more signal over 6 (the horizon was not tuned). A forecast with non-finite values or crossing
+quantiles is rejected. The code then computes:
+
+- **expected return**: median over last price;
+- **uncertainty**: interval width over median;
+- **signal strength** (0 to 1): expected return over interval width, divided by a strong past signal (`signal_strong`), capped at 1.
+
+**3. LLM.** One conversation for all symbols. The LLM decides which forecasts to request, reads them with the portfolio, and
+returns a structured answer per symbol (validated, 1 retry, then rejected): `buy / sell / hold`, a share of the maximum position and a
+short rationale. It never outputs an amount or a price. It does not see the macro drivers, because Timestral already used them.
+
+**4. Risk (`risk.py`, pure code).** Verdicts are computed strongest signal first, and each approved order is applied to the portfolio
+before the next, so exposure limits hold inside a cycle. Limits: 30% max per position, 80% max exposure, 10% max daily loss,
+5 orders per cycle, 1% minimum order, emergency stop.
+
+**5. Execution.** Alpaca paper only (the URL is a constant), and no order without `--execute`. Each step (data, forecast, LLM, verdict,
+order) is journaled once per `(cycle, symbol, step)`, so a re-run reads it back instead of redoing it. The LLM output is recorded,
+not recomputed. The `client_order_id` is deterministic, so a re-run or a duplicate trigger never places a second order. A failing
+symbol does not stop the others.
+
+### Why these choices
+
+| Choice | Why |
+| --- | --- |
+| The LLM proposes a share, the code computes dollars | LLMs are unreliable at arithmetic and can be wrong with confidence; sizes and limits must be exact and testable. |
+| Signal strength from the code, not LLM confidence | An LLM's stated confidence is not calibrated; a number computed from the forecast is reproducible. |
+| Wide interval, small buy | Timestral's interval is the only uncertainty we have; using it to size is the most direct way to act on it. |
+| Long only, no short | Fewer ways to lose more than invested; simpler to explain to a client. |
+| 6-hour horizon, hourly cycle | Less noise than 1 hour, and the forecast stays fresh. |
+| Mistral Small 4 | Cheap and fast for a structured task; the decision is constrained by the code anyway. |
+| Static dashboard, SQLite journal committed by the workflow | No server to run or secure; the journal survives the ephemeral CI machine. |
 
 ## How do we know the decisions are sound?
 
@@ -54,7 +104,7 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | Look-ahead? | Only completed bars are used; a daily macro value is visible from the next day 00:00 UTC; the backtest is walk-forward. Tests: `test_data`, `test_macro`, `test_backtest`. |
 | Who decides? | The LLM calls Timestral as a tool, then picks `buy / sell / hold`, a size and writes the rationale. The code never decides for it: it computes the numbers and can veto a decision (below). |
 | Uncertainty? | The wider the forecast interval, the smaller the buy; no buy above 8% width or against the forecast. The code also computes a **signal strength** (0 to 1: the expected return over the interval width, against a strong past signal, `signal_strong` in `config.toml`); a buy needs at least 0.5. It is a measure of how strong the forecast is, not a probability, and not asked of the LLM, whose own confidence is not reliable. |
-| Risk? | Hard limits in code (our own choices, not from the brief): 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
+| Risk? | Hard limits in code: 30% max per position, 80% max exposure, 10% max daily loss, $8,000 capital floor, 1% minimum order ($100), emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
 | Explanations? | Each decision stores its rationale, the forecast, the market data given to Timestral and whether a FOMC/CPI release falls in the forecast window (recorded by the code, not written by the LLM, and not shown to the LLM), the risk verdict and the order, visible in the dashboard. |
 
 **Backtest** (`uv run python -m agent.backtest`, walk-forward from 2026-10-16, the day after Timestral's release on 2026-10-15; details in `reports/backtest.md`):
@@ -82,7 +132,7 @@ live "Buy & hold" line holds the same average exposure as the agent, so it is no
   Timestral's training data is not published, which is why nothing before its release is evaluated.
 - **Short evidence:** about 4 weeks of decisions, one market regime.
 - **Context length:** 400 hourly bars. We compared 200, 400 and 800 on the same 470 forecasts: 400 was the best on error and direction and faster than 800, but the gaps are within the noise. It is a reasonable choice, not a proven optimum.
-- **No news covariates:** the optional news bonus (GDELT) is not done. Timestral already gets FRED drivers as past
+- **No news covariates:** news (GDELT) is not used. Timestral already gets FRED drivers as past
   covariates and scheduled FOMC/CPI dates as known-future covariates; news has no known future value.
 - **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross and "Est. costs" applies the same 5 bps to the filled amounts.
 - **Data:** free IEX feed; the dollar driver is the Fed broad index `DTWEXBGS` (free substitute for DXY).
