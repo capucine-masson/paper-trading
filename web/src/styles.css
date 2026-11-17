@@ -517,10 +517,10 @@ select:hover {
 .dot {
   display: inline-block;
   vertical-align: middle;
-  width: 8px;
-  height: 8px;
+  width: 3.5px;
+  height: 6px;
   margin-left: var(--space-2);
-  border-radius: 50%;
+  border-radius: 1.5px;
 }
 
 .dot-buy {
@@ -622,25 +622,27 @@ select:hover {
   color: var(--down);
 }
 
-.mark {
+.volume-group {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--surface);
+  display: flex;
+  align-items: center;
   transform: translate(-50%, -50%);
 }
 
-.mark-buy {
+.volume-bar {
+  width: 3.5px;
+  border-radius: 1.5px;
+  border: solid var(--surface);
+  border-width: 1px 0;
+  box-sizing: content-box;
+}
+
+.volume-buy {
   background: var(--up);
 }
 
-.mark-sell {
+.volume-sell {
   background: var(--down);
-}
-
-.mark-mixed {
-  background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%);
 }
 
 .overview-footer {

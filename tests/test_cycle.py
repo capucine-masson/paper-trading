@@ -18,9 +18,11 @@ START_EQUITY = 100_000.0
 
 
 class FakeBroker:
-    def __init__(self, equity: float = START_EQUITY) -> None:
+    def __init__(self, equity: float = START_EQUITY, reads_before_fill: int = 1) -> None:
         self.equity = equity
         self.submitted: list[str] = []
+        self.reads_before_fill = reads_before_fill
+        self.reads = 0
 
     def is_market_open(self) -> bool:
         return True
@@ -32,6 +34,9 @@ class FakeBroker:
         return {}
 
     def refresh_order(self, record: OrderRecord) -> OrderRecord:
+        self.reads += 1
+        if self.reads < self.reads_before_fill:
+            return record.model_copy(update={"status": "new"})
         return record.model_copy(
             update={"status": "filled", "filled_qty": 1.0, "filled_avg_price": 100.5}
         )
@@ -142,6 +147,28 @@ def test_fill_is_recorded_after_the_order_and_only_when_executing(
     assert len(stored) == 1
     record = OrderRecord.model_validate_json(stored[0].result)
     assert record.status == "filled" and record.filled_avg_price == 100.5
+
+
+def test_fill_check_waits_until_the_order_is_filled(
+    config: Config, tmp_path: Path, llm_calls: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr(cycle_module, "sleep", sleeps.append)
+    broker = FakeBroker(reads_before_fill=3)
+    make_cycle(config, tmp_path, broker, True).run()
+    record = OrderRecord.model_validate_json(Store(tmp_path / "j.db").list_steps("order")[0].result)
+    assert record.status == "filled" and broker.reads == 3
+    assert sleeps == [config.broker.fill_check_interval_s] * 2
+
+
+def test_fill_check_gives_up_after_the_configured_attempts(
+    config: Config, tmp_path: Path, llm_calls: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cycle_module, "sleep", lambda seconds: None)
+    broker = FakeBroker(reads_before_fill=1000)
+    make_cycle(config, tmp_path, broker, True).run()
+    record = OrderRecord.model_validate_json(Store(tmp_path / "j.db").list_steps("order")[0].result)
+    assert record.status == "new" and broker.reads == config.broker.fill_check_attempts
 
 
 def test_a_symbol_without_forecast_does_not_stop_the_others(

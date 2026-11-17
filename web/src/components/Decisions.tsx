@@ -219,6 +219,9 @@ function DecisionRow({ decision: d, open, onToggle }: DecisionRowProps) {
   );
 }
 
+const PENDING_HINT = "The order was sent to the broker but is not filled yet. It is updated at the next cycle.";
+const FAILED_ORDERS: Readonly<Record<string, string>> = { canceled: "Canceled", expired: "Expired", rejected: "Rejected" };
+
 const HINTS = {
   expectedMove: "How much Timestral thinks the price will move over this period.",
   signal: "How clear the forecast is, from 0% (nothing clear) to 100% (very clear). Computed by our code from the Timestral forecast.",
@@ -286,13 +289,19 @@ function Result({ decision: d }: { decision: DecisionView }) {
   if (d.order !== null) {
     const { side, qty, fill_price: fill, status } = d.order;
     const filled = qty !== null && qty > 0 && fill !== null;
-    const label = !filled ? "Pending" : side === "buy" ? "Bought" : "Sold";
+    const failure = FAILED_ORDERS[status];
+    const waiting = !filled && failure === undefined;
+    const label = filled ? (side === "buy" ? "Bought" : "Sold") : (failure ?? "Pending");
     const detail = filled
       ? `${formatShares(qty)} ${qty === 1 ? "share" : "shares"} at ${formatUsd(fill)} → ${formatUsd(qty * fill)}`
-      : `order ${status}`;
+      : waiting
+        ? "Waiting to be filled"
+        : "The order was not executed";
+    const verdict = failure === undefined ? d.verdict : "blocked";
+    const title = waiting ? PENDING_HINT : d.risk_reason;
     return (
       <span className="result">
-        <span className={`verdict verdict-${d.verdict}`} title={d.risk_reason ?? undefined}>
+        <span className={`verdict verdict-${verdict}`} title={title ?? undefined}>
           {label}
         </span>{" "}
         {detail}

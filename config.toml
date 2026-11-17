@@ -91,6 +91,10 @@ timeout_s = 20
 max_attempts = 3
 # Delay in seconds before the first retry (doubles each time).
 retry_delay_s = 2.0
+# Times an order is read back at the end of a cycle to record its fill.
+fill_check_attempts = 5
+# Seconds between two of these reads.
+fill_check_interval_s = 2.0
 
 [backtest]
 # Calendar days of hourly history replayed by the backtest.

@@ -92,6 +92,8 @@ class BrokerConfig(StrictModel):
     timeout_s: int = Field(ge=1, le=300)
     max_attempts: int = Field(ge=1, le=10)
     retry_delay_s: float = Field(gt=0, le=60)
+    fill_check_attempts: int = Field(ge=1, le=20)
+    fill_check_interval_s: float = Field(gt=0, le=30)
 
 
 class BacktestConfig(StrictModel):

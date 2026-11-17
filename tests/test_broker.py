@@ -62,7 +62,13 @@ class FakeTrading:
 
 def make_broker(trading: FakeTrading, attempts: int = 3) -> Broker:
     broker = Broker.__new__(Broker)
-    broker._config = BrokerConfig(timeout_s=5, max_attempts=attempts, retry_delay_s=0.001)
+    broker._config = BrokerConfig(
+        timeout_s=5,
+        max_attempts=attempts,
+        retry_delay_s=0.001,
+        fill_check_attempts=1,
+        fill_check_interval_s=0.001,
+    )
     broker._trading = trading  # type: ignore[assignment]
     return broker
 

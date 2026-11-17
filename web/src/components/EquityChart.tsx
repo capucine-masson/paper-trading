@@ -13,6 +13,9 @@ const TOOLTIP_FLIP_AT = 0.6;
 const GRID_FRACTIONS = [0.25, 0.5, 0.75];
 /** The capital floor is drawn once the lowest value is within this share of the gap between start and floor. */
 const FLOOR_PROXIMITY = 0.25;
+/** Height of the bar for the largest trade in view, and the floor that keeps the smallest one visible. */
+const MAX_BAR_PX = 28;
+const MIN_BAR_PX = 2;
 
 export interface OrderMark {
   symbol: string;
@@ -62,11 +65,8 @@ export function buildSeries(points: EquityPoint[], symbol: string): SeriesPoint[
 const linePath = (xs: number[], ys: number[]): string =>
   xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${(ys[i] ?? 0).toFixed(1)}`).join(" ");
 
-function markClass(marks: OrderMark[]): string {
-  const actions = new Set(marks.map((m) => m.action));
-  if (actions.size > 1) return "mark mark-mixed";
-  return actions.has("buy") ? "mark mark-buy" : "mark mark-sell";
-}
+const volumeOf = (marks: OrderMark[], action: "buy" | "sell"): number =>
+  marks.reduce((sum, m) => (m.action === action && m.price !== null && m.qty !== null ? sum + m.price * m.qty : sum), 0);
 
 function markLabel(mark: OrderMark, withQuantity: boolean): string {
   const quantity = withQuantity && mark.qty !== null ? ` ${mark.qty}` : "";
@@ -105,6 +105,13 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
   const y = (v: number) => yFraction(v) * VIEW_HEIGHT;
   const nearStart = (v: number) => isAll && Math.abs(yFraction(v) - yFraction(startValue)) < AXIS_LABEL_GAP;
   const xs = series.map((_, i) => xFraction(i) * VIEW_WIDTH);
+  const maxVolume = Math.max(
+    ...series.flatMap((s) => {
+      const marks = orders.get(s.point.cycle_id) ?? [];
+      return [volumeOf(marks, "buy"), volumeOf(marks, "sell")];
+    }),
+    1e-9,
+  );
 
   const onMove = (event: MouseEvent<HTMLDivElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -170,10 +177,21 @@ export function EquityChart({ points, symbol, startValue, capitalFloor, orders }
           return (
             <span
               key={s.point.cycle_id}
-              className={markClass(marks)}
+              className="volume-group"
               style={{ left: `${xFraction(i) * 100}%`, top: `${yFraction(s.value) * 100}%` }}
               title={marks.map((m) => markLabel(m, !isAll)).join(", ")}
-            />
+            >
+              {(["buy", "sell"] as const).map((action) => {
+                const volume = volumeOf(marks, action);
+                return volume > 0 ? (
+                  <span
+                    key={action}
+                    className={`volume-bar volume-${action}`}
+                    style={{ height: `${Math.max((volume / maxVolume) * MAX_BAR_PX, MIN_BAR_PX)}px` }}
+                  />
+                ) : null;
+              })}
+            </span>
           );
         })}
         {active !== null && (

@@ -4,6 +4,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from time import sleep
 from typing import Literal
 
 from mistralai.client import Mistral
@@ -36,6 +37,7 @@ from agent.store import (
     STEP_ORDER,
     STEP_PORTFOLIO,
     STEP_VERDICT,
+    StepRow,
     Store,
 )
 
@@ -51,6 +53,10 @@ DAY_START_KEY = "day_start_equity:"
 FINAL_ORDER_STATUSES = {"filled", "canceled", "expired", "rejected"}
 ERROR_STEP = "error"
 RECOVERABLE_ERRORS = (DataError, ForecastError, BrokerError, MacroError)
+
+
+def is_final(record: OrderRecord) -> bool:
+    return record.status in FINAL_ORDER_STATUSES
 
 
 class SymbolOutcome(BaseModel):
@@ -123,17 +129,28 @@ class Cycle:
         return CycleReport(status=status, detail=detail, halted_reason=halted, outcomes=outcomes)
 
     def _refresh_fills(self) -> None:
-        """Record the fill of orders that were not final when they were journaled."""
-        for row in self.store.list_steps(STEP_ORDER):
-            record = OrderRecord.model_validate_json(row.result)
-            if record.status in FINAL_ORDER_STATUSES:
-                continue
-            try:
-                latest = self.broker.refresh_order(record)
-            except BrokerError as error:
-                logger.warning("cycle %s: %s: %s", self.cycle_id, row.symbol, error)
-                continue
-            self.store.update_step(row.cycle_id, row.symbol, STEP_ORDER, latest.model_dump_json())
+        """Record the fill of orders that were not final, waiting a bounded time for them."""
+        pending = [
+            (row, OrderRecord.model_validate_json(row.result))
+            for row in self.store.list_steps(STEP_ORDER)
+        ]
+        pending = [(row, record) for row, record in pending if not is_final(record)]
+        for attempt in range(self.config.broker.fill_check_attempts):
+            if not pending:
+                return
+            if attempt > 0:
+                sleep(self.config.broker.fill_check_interval_s)
+            pending = [item for item in map(self._refresh_order, pending) if not is_final(item[1])]
+
+    def _refresh_order(self, item: tuple[StepRow, OrderRecord]) -> tuple[StepRow, OrderRecord]:
+        row, record = item
+        try:
+            latest = self.broker.refresh_order(record)
+        except BrokerError as error:
+            logger.warning("cycle %s: %s: %s", self.cycle_id, row.symbol, error)
+            return item
+        self.store.update_step(row.cycle_id, row.symbol, STEP_ORDER, latest.model_dump_json())
+        return row, latest
 
     def _step[T: BaseModel](
         self, symbol: str, name: str, model: type[T], action: Callable[[], T]
