@@ -27,7 +27,7 @@ from agent.config import (
     load_config,
     load_secrets,
 )
-from agent.data import BAR_PERIOD, Bar, DataError, PriceSeries, build_series
+from agent.data import BAR_PERIOD, Bar, DataError, PriceSeries, build_series, future_bar_starts
 from agent.forecast import ForecastError, PriceForecast, forecast_symbol, load_model
 from agent.llm import (
     Decision,
@@ -146,6 +146,7 @@ def build_points(bars: list[Bar], config: Config) -> list[EvalPoint]:
     by_symbol = {
         s: sorted((b for b in bars if b.symbol == s), key=lambda b: b.timestamp) for s in symbols
     }
+    closes = {s: {b.timestamp: b.close for b in history} for s, history in by_symbol.items()}
     horizon = config.forecast.horizon
     context = config.forecast.context_length
     points: list[EvalPoint] = []
@@ -155,7 +156,7 @@ def build_points(bars: list[Bar], config: Config) -> list[EvalPoint]:
             index = next(
                 (i for i, b in enumerate(history) if b.timestamp == ref_bar.timestamp), None
             )
-            if index is None or index + horizon >= len(history):
+            if index is None or index + 1 >= len(history):
                 continue
             now = ref_bar.timestamp + BAR_PERIOD
             try:
@@ -163,14 +164,13 @@ def build_points(bars: list[Bar], config: Config) -> list[EvalPoint]:
             except DataError as error:
                 logger.warning("skipped %s at %s: %s", symbol, now, error)
                 continue
-            points.append(
-                EvalPoint(
-                    time=now,
-                    series=series,
-                    actual=history[index + horizon].close,
-                    fill_price=history[index + 1].close,
-                )
-            )
+            target = future_bar_starts(series, horizon)[-1]
+            actual = closes[symbol].get(target)
+            if actual is None:
+                logger.warning("skipped %s at %s: no bar at target %s", symbol, now, target)
+                continue
+            fill_price = history[index + 1].close
+            points.append(EvalPoint(time=now, series=series, actual=actual, fill_price=fill_price))
     return points
 
 
@@ -221,21 +221,6 @@ def _decision(
     action: Literal["buy", "sell", "hold"], rationale: str, size_fraction: float = 1.0
 ) -> Decision:
     return Decision(action=action, size_fraction=size_fraction, rationale=rationale)
-
-
-def cash_rule(_: ForecastRecord) -> Decision:
-    return _decision("hold", "Stay in cash.")
-
-
-def momentum_rule(bars: int) -> Rule:
-    def rule(record: ForecastRecord) -> Decision:
-        values = record.point.series.values
-        past = values[-1 - bars]
-        if not np.isfinite(past):
-            return _decision("hold", "Past price missing.")
-        return _decision("buy" if values[-1] > past else "sell", "Follow the recent move.")
-
-    return rule
 
 
 def timestral_rule(threshold: float) -> Rule:
@@ -506,13 +491,11 @@ class NamedStrategy(NamedTuple):
 def named_strategies(config: Config, llm: LlmStrategy) -> list[NamedStrategy]:
     backtest = config.backtest
     return [
-        NamedStrategy("Cash (never trade)", per_symbol(cash_rule), False),
         NamedStrategy(
             "Equal-weight buy and hold",
             equal_weight_buy_and_hold(config, config.risk.max_total_exposure_pct),
             False,
         ),
-        NamedStrategy("Momentum rule", per_symbol(momentum_rule(backtest.momentum_bars)), False),
         NamedStrategy(
             "Timestral-only rule", per_symbol(timestral_rule(backtest.rule_signal_threshold)), True
         ),

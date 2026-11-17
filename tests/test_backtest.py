@@ -14,7 +14,6 @@ from agent.backtest import (
     LlmStrategy,
     Strategy,
     build_points,
-    cash_rule,
     equal_weight_buy_and_hold,
     evaluate_model,
     forecast_points,
@@ -76,6 +75,17 @@ def test_targets_come_from_the_future_only(config: Config) -> None:
     assert point.actual == pytest.approx(last + config.forecast.horizon)
 
 
+def test_point_is_skipped_when_the_target_bar_is_missing(config: Config) -> None:
+    full = build_points(make_bars(), config)
+    target_hour = 64 + config.forecast.horizon - 1
+    gapped = [b for b in make_bars() if b.timestamp != START + timedelta(hours=target_hour)]
+    kept = build_points(gapped, config)
+    first = START + timedelta(hours=64)
+    assert first in [p.time for p in full] and first not in [p.time for p in kept]
+    horizon = config.forecast.horizon
+    assert all(p.actual == pytest.approx(p.series.last_price + horizon) for p in kept)
+
+
 def make_record(
     index: int, price: float, fill: float, median: float | None = None, uncertainty: float = 0.02
 ) -> ForecastRecord:
@@ -123,12 +133,6 @@ def test_exported_points_give_the_same_hit_rate_as_the_table() -> None:
     outside = sum(p.actual < p.lower or p.actual > p.upper for p in points)
     assert outside == 3
     assert evaluate_model("m", records).overall.coverage == 1 - outside / len(points)
-
-
-def test_cash_never_trades(config: Config) -> None:
-    records = [make_record(i, 100.0, 100.0) for i in range(5)]
-    result = simulate("cash", per_symbol(cash_rule), records, config)
-    assert result.trades == 0 and result.return_pct == 0 and result.average_exposure_pct == 0
 
 
 def full_buy_and_hold(config: Config) -> Strategy:

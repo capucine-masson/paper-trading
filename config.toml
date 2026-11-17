@@ -103,7 +103,5 @@ start = 2026-10-16T00:00:00Z
 # Timestral-only rule: act when the expected return exceeds this share of the interval width
 # (75th percentile of the absolute signal before the decision window).
 rule_signal_threshold = 0.047
-# Number of past bars used by the momentum baseline.
-momentum_bars = 6
 # Simulated cost per order in basis points of the traded amount (spread and slippage).
 cost_bps = 5

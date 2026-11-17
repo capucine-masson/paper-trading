@@ -12,9 +12,7 @@ Window starts 2026-10-16, 63 decision times, 0 LLM failures (no order at that ti
 
 | Strategy | Return | Max drawdown | Trades | Average exposure | Final equity |
 | --- | --- | --- | --- | --- | --- |
-| Cash (never trade) | +0.00% | 0.00% | 0 | 0.0% | $10,000.00 |
 | Equal-weight buy and hold | -1.97% | 2.82% | 8 | 78.7% | $9,802.62 |
 | Buy and hold (same exposure as agent) | -1.66% | 2.38% | 8 | 66.3% | $9,833.66 |
-| Momentum rule | -4.43% | 4.58% | 217 | 63.0% | $9,556.94 |
 | Timestral-only rule | -0.55% | 4.13% | 31 | 70.3% | $9,944.62 |
 | Timestral + LLM (the agent) | -1.75% | 4.80% | 62 | 67.4% | $9,824.60 |

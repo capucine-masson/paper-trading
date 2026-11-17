@@ -17,8 +17,6 @@ type Tone = "up" | "flat" | "down";
 type Comparison = "better" | "same" | "worse";
 
 const COMPARISON_TONE: Record<Comparison, Tone> = { better: "up", same: "flat", worse: "down" };
-const PILL_CLASS: Record<Comparison, string> = { better: "pill pill-buy", same: "pill", worse: "pill pill-sell" };
-const PILL_LABEL: Record<Comparison, string> = { better: "Yes", same: "About equal", worse: "No" };
 
 const hitRateTone = (coverage: number): Tone =>
   Math.abs(coverage - TARGET_COVERAGE) <= COVERAGE_TOLERANCE ? "up" : "down";
@@ -67,21 +65,28 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
       <div className="section-head">
         <h2>Forecast quality</h2>
         <span className="muted">
-          {model.overall.n.toLocaleString("en-US")} past forecasts ({formatDate(backtest.history_start)} to{" "}
-          {formatDate(backtest.history_end)}), {backtest.horizon_bars} {BAR_UNIT} ahead, each using only the data
-          available at that moment. Model: {model.model}.
+          Backtest run on {formatDate(backtest.generated_at)}: {model.overall.n.toLocaleString("en-US")} forecasts
+          made between {formatDate(backtest.decision_start)} and {formatDate(backtest.history_end)} (after the model's
+          release, to avoid look-ahead), each {backtest.horizon_bars} {BAR_UNIT} ahead using only past data. Model:{" "}
+          {model.model}.
         </span>
       </div>
       <div className="quality-body">
         <div className="quality-side">
           <section className="card quality-summary">
             <p className={`summary-line ${hitRateTone(coverage) === "up" ? "flat" : "down"}`}>
-              The 80% range held the real price {formatPercentOne(coverage)} of the time (target 80%)
-              {hitRateTone(coverage) === "up" ? ": well calibrated." : ": poorly calibrated."}
+              The price stayed inside the forecast range {formatPercentOne(coverage)} of the time. It should be 80%
+              {hitRateTone(coverage) === "up"
+                ? ", so the range is well sized."
+                : coverage < TARGET_COVERAGE
+                  ? ", so the model is slightly overconfident."
+                  : ", so the model is slightly underconfident."}
             </p>
             <AccuracySentence ratio={ratio} />
             {direction !== null && (
-              <p className="summary-line flat">The direction was right {formatPercentOne(direction)} of the time (50% is chance): calibrated is not the same as profitable.</p>
+              <p className="summary-line flat">
+                It guessed the direction right {formatPercentOne(direction)} of the time (almost random).
+              </p>
             )}
           </section>
           <section className="card quality-details">
@@ -101,14 +106,13 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
               </tbody>
             </table>
             <p className="muted quality-note">
-              From {formatDate(backtest.decision_start)} to {formatDate(backtest.history_end)}, same rules and simulated
-              costs for all: differences are noise, not skill.
+              Same rules and simulated costs for all: differences are noise, not skill.
             </p>
           </section>
         </div>
         <section className="card quality-chart">
           <div className="section-head">
-            <h3>Chart</h3>
+            <h3>Forecast vs real price</h3>
             <select value={fanSymbol} onChange={(e) => onSymbol(e.target.value)} aria-label="Symbol">
               {backtest.symbols.map((name) => (
                 <option key={name} value={name}>
@@ -116,7 +120,7 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
                 </option>
               ))}
             </select>
-            {symbolMetrics !== undefined && <SymbolStats coverage={symbolMetrics.coverage} ratio={symbolMetrics.mae_ratio} />}
+            {symbolMetrics !== undefined && <SymbolStats symbol={fanSymbol} coverage={symbolMetrics.coverage} />}
           </div>
           <ForecastFan
             symbol={fanSymbol}
@@ -142,34 +146,26 @@ function StrategyRow({ strategy }: { strategy: StrategyResult }) {
   );
 }
 
-function SymbolStats({ coverage, ratio }: { coverage: number; ratio: number | null }) {
+function SymbolStats({ symbol, coverage }: { symbol: string; coverage: number }) {
   return (
     <span className="symbol-stats muted">
-      Range held {formatPercentOne(coverage)}{" "}
-      <span className={hitRateTone(coverage) === "up" ? "status-ok" : "status-warn"}>
-        {hitRateTone(coverage) === "up" ? "✓" : "▲"}
-      </span>
-      {ratio !== null && (
-        <>
-          {" "}
-          · Beats "no change": <span className={PILL_CLASS[compare(ratio)]}>{PILL_LABEL[compare(ratio)]}</span>
-        </>
-      )}
+      For {symbol}, the real price stayed inside the range <strong>{formatPercentOne(coverage)}</strong> of the time (should be 80%).
     </span>
   );
 }
 
 function AccuracySentence({ ratio }: { ratio: number | null }) {
-  if (ratio === null) return <p className="summary-line">Accuracy vs "nothing changes" is not available.</p>;
+  if (ratio === null) return <p className="summary-line">Accuracy vs assuming the price won't move is not available.</p>;
   const comparison = compare(ratio);
   const wording: Record<Comparison, string> = {
-    better: "Accuracy: better than",
-    same: "Accuracy: about the same as",
-    worse: "Accuracy: worse than",
+    better: "less than",
+    same: "about the same amount as",
+    worse: "more than",
   };
   return (
     <p className={`summary-line ${COMPARISON_TONE[comparison]}`}>
-      {wording[comparison]} "nothing changes" (error differs by {formatChange(ratio)}).
+      On average, the forecast missed the real price by {wording[comparison]} simply assuming the price won't move (
+      {formatChange(ratio)}).
     </p>
   );
 }

@@ -122,6 +122,7 @@ export interface StrategyResult {
 }
 
 export interface BacktestReport {
+  generated_at: string;
   symbols: string[];
   horizon_bars: number;
   history_start: string;

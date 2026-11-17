@@ -4304,14 +4304,6 @@
   "llm_failures": 0,
   "strategies": [
     {
-      "name": "Cash (never trade)",
-      "final_equity": 10000.0,
-      "return_pct": 0.0,
-      "max_drawdown_pct": 0.0,
-      "trades": 0,
-      "average_exposure_pct": 0.0
-    },
-    {
       "name": "Equal-weight buy and hold",
       "final_equity": 9802.61641672584,
       "return_pct": -1.9738358327416106,
@@ -4326,14 +4318,6 @@
       "max_drawdown_pct": 2.3783630162850242,
       "trades": 8,
       "average_exposure_pct": 66.28949165650013
-    },
-    {
-      "name": "Momentum rule",
-      "final_equity": 9556.94436349201,
-      "return_pct": -4.430556365079896,
-      "max_drawdown_pct": 4.5803601539589875,
-      "trades": 217,
-      "average_exposure_pct": 62.979410259191404
     },
     {
       "name": "Timestral-only rule",

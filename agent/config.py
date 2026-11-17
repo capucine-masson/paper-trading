@@ -99,7 +99,6 @@ class BacktestConfig(StrictModel):
     stride_bars: int = Field(ge=1, le=100)
     start: AwareDatetime
     rule_signal_threshold: float = Field(gt=0, le=1)
-    momentum_bars: int = Field(ge=1, le=100)
     cost_bps: float = Field(ge=0, le=100)
 
 

@@ -34,7 +34,8 @@ flowchart LR
 Every hour of the US session:
 
 1. **Timestral** forecasts the next 6 hours of each ETF (its own prices plus Brent, 10y and 2y yields, dollar
-   index, VIX, high-yield spread and scheduled FOMC/CPI dates). These drivers are the same for every symbol: the
+   index, VIX, high-yield spread and scheduled FOMC/CPI dates). We use 6 hours because over 1 hour an ETF's move is
+   almost pure noise, so there is a little more signal over 6 (the horizon was not tuned). These drivers are the same for every symbol: the
    daily values are past covariates, the release dates a known-future covariate (1 on the hour of a release, else 0).
    The code adds a signal strength (0 to 1).
 2. **The LLM** calls Timestral as a tool, reads the forecast (expected return, interval, signal strength) and the
@@ -66,14 +67,12 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 
 | From 2026-10-16, same rules for all, 5 bps cost per order | Return | Max drawdown | Average exposure |
 | --- | --- | --- | --- |
-| Cash | +0.00% | 0.00% | 0.0% |
 | Equal-weight buy and hold (full exposure cap) | -1.97% | 2.82% | 78.7% |
 | Buy and hold (same exposure as agent) | -1.66% | 2.38% | 66.3% |
-| Momentum rule | -4.43% | 4.58% | 63.0% |
 | Timestral-only rule (no LLM) | -0.55% | 4.13% | 70.3% |
 | **Timestral + LLM (the agent)** | **-1.75%** | 4.80% | 67.4% |
 
-At the same exposure, the agent (-1.75%) does the same as buy and hold (-1.66%) and is below cash and the Timestral-only rule: no measurable edge, and these few weeks are noise, not skill. The dashboard's
+At the same exposure, the agent (-1.75%) does the same as buy and hold (-1.66%) and is below the Timestral-only rule: no measurable edge, and these few weeks are noise, not skill. The dashboard's
 live "Buy & hold" line holds the same average exposure as the agent, so it is not flattered by cash.
 
 ## Limits

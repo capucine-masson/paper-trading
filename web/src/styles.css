@@ -1174,11 +1174,6 @@ select:hover {
   font-weight: 700;
 }
 
-.quality-table .pill {
-  text-transform: none;
-  font-size: 0.8rem;
-}
-
 .quality-note {
   margin: var(--space-2) 0 0;
   font-size: 0.75rem;
@@ -1186,17 +1181,7 @@ select:hover {
 
 .symbol-stats {
   margin-left: auto;
-  font-size: 0.8rem;
-}
-
-.status-ok {
-  color: var(--up);
-  font-weight: 700;
-}
-
-.status-warn {
-  color: var(--warn);
-  font-weight: 700;
+  font-size: 0.72rem;
 }
 
 .forecast-fan .plot {
@@ -1256,25 +1241,29 @@ select:hover {
     flex: 1;
     min-height: 0;
     grid-template-columns: minmax(420px, 1fr) 1.4fr;
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .quality-side {
     min-height: 0;
+    overflow: hidden;
   }
 
   .quality-details {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
   }
 
   .quality-details .quality-table {
     flex: 1;
+    min-height: 0;
   }
 
   .quality-table tbody th,
   .quality-table tbody td {
-    height: clamp(38px, 8vh, 68px);
+    height: clamp(28px, 6vh, 56px);
   }
 
   .quality-summary {
@@ -1286,6 +1275,7 @@ select:hover {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
   }
 
   .quality-chart .forecast-fan {

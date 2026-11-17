@@ -101,12 +101,11 @@ const BACKTEST: BacktestReport = {
   horizon_bars: HORIZON,
   history_start: "2026-05-20T12:00:00Z",
   history_end: "2026-11-13T21:00:00Z",
+  generated_at: "2026-11-14T01:00:00Z",
   decision_start: "2026-10-16T14:00:00Z",
   strategies: [
-    { name: "Cash (never trade)", return_pct: 0, max_drawdown_pct: 0, average_exposure_pct: 0 },
     { name: "Equal-weight buy and hold", return_pct: -1.13, max_drawdown_pct: 3.18, average_exposure_pct: 88.9 },
     { name: "Buy and hold (same exposure as agent)", return_pct: -1.75, max_drawdown_pct: 2.5, average_exposure_pct: 69.7 },
-    { name: "Momentum rule", return_pct: -4.29, max_drawdown_pct: 4.5, average_exposure_pct: 68.2 },
     { name: "Timestral-only rule", return_pct: -0.78, max_drawdown_pct: 4.26, average_exposure_pct: 79.7 },
     { name: "Timestral + LLM (the agent)", return_pct: -0.23, max_drawdown_pct: 4.85, average_exposure_pct: 81.7 },
   ],
