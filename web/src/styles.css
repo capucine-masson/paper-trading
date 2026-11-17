@@ -978,6 +978,57 @@ select:hover {
 
 /* Decisions */
 
+.decision-wrap {
+  position: relative;
+}
+
+.signpost {
+  position: absolute;
+  right: 130px;
+  bottom: calc(100% - 3px);
+  z-index: 11;
+  display: block;
+  height: 50px;
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.signpost img {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.signpost-base {
+  top: 40%;
+  height: 60%;
+}
+
+.signpost-board {
+  top: 0;
+  height: 40%;
+  transform-origin: 50% 50%;
+  animation: signpost-turn 4s ease-in-out infinite;
+}
+
+@keyframes signpost-turn {
+  0%,
+  47.5%,
+  100% {
+    transform: scaleX(1);
+  }
+  82.5% {
+    transform: scaleX(-1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signpost-board {
+    animation: none;
+  }
+}
+
 .decision-list {
   --decision-columns: 150px 72px 110px minmax(0, 1fr) 20px;
   padding: 0;
@@ -1473,11 +1524,6 @@ select:hover {
 
 .quality-table tbody th {
   font-weight: 400;
-}
-
-.total-row th,
-.total-row td {
-  font-weight: 700;
 }
 
 .quality-note {

@@ -13,7 +13,6 @@ const BAR_UNIT = "hours";
 const FAN_FORECASTS = 120;
 const FAN_DEFAULT_SYMBOL = "SPY";
 const PERCENT_SCALE = 100;
-const AGENT_NAME_MARKER = "the agent";
 const COLUMN_HINTS = {
   strategy: "A way of deciding what to buy or sell, replayed on the same past period.",
   return: "How much money the strategy made or lost over the period.",
@@ -151,7 +150,9 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
               </tbody>
             </table>
             <p className="muted quality-note">
-              Same rules and simulated costs for all: differences are noise, not skill.
+              All strategies follow the same rules and costs. The gaps are too small to prove anything.
+              <br />
+              The Overview chart shows live paper trading, a different and shorter period.
             </p>
           </section>
         </div>
@@ -180,10 +181,9 @@ export function Quality({ backtest, symbol, onSymbol }: Props) {
 }
 
 function StrategyRow({ strategy }: { strategy: StrategyResult }) {
-  const isAgent = strategy.name.includes(AGENT_NAME_MARKER);
   const value = strategy.return_pct / PERCENT_SCALE;
   return (
-    <tr className={isAgent ? "total-row" : undefined}>
+    <tr>
       <th scope="row" title={STRATEGY_HINTS[strategy.name]}>
         {strategy.name}
       </th>

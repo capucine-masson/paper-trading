@@ -14,6 +14,7 @@ import {
 import { ALL_SYMBOLS, type DecisionView } from "../types";
 import { Empty } from "./Feedback";
 import { FanChart } from "./FanChart";
+import { Signpost } from "./Signpost";
 
 const MAX_CARDS = 30;
 const NOT_AVAILABLE = "n/a";
@@ -32,6 +33,8 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
   const [openCycle, setOpenCycle] = useState<string | null>(null);
   return (
     <div className="page-section">
+      <div className="decision-wrap">
+      <Signpost />
       <div className="card decision-list">
         <div className={`decision-columns${openCycle === null ? " is-collapsed" : ""}`}>
           <select
@@ -73,6 +76,7 @@ export function Decisions({ decisions, symbols, symbol, onSymbol }: Props) {
             ))}
           </>
         )}
+      </div>
       </div>
       {cycles.length > MAX_CARDS && (
         <p className="muted">
