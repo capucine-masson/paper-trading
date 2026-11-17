@@ -384,6 +384,8 @@ select:hover {
 
 .chart-card .field select {
   width: 9rem;
+  font-size: 0.8rem;
+  padding: 4px var(--space-3);
 }
 
 .legend {
@@ -436,10 +438,6 @@ select:hover {
 
 .dot-buy {
   background: var(--up);
-}
-
-.dot-mixed {
-  background: linear-gradient(90deg, var(--up) 50%, var(--down) 50%);
 }
 
 .dot-sell {

@@ -41,7 +41,7 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
       <aside className="side">
         <Performance metrics={status.metrics} />
         <Allocation metrics={status.metrics} />
-        <Positions positions={portfolio.positions} />
+        <Positions positions={portfolio.positions} symbols={status.symbols} />
       </aside>
       <section className="card chart-card">
         <div className="card-head">
@@ -55,11 +55,6 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
             )}
             <i className="dot dot-buy" /> Buy
             <i className="dot dot-sell" /> Sell
-            {isAll && (
-              <>
-                <i className="dot dot-mixed" /> Buy and sell
-              </>
-            )}
           </span>
           <label className="field">
             Symbol
@@ -205,18 +200,20 @@ function Kpi({ label, value, sub, tone: valueTone }: KpiProps) {
   );
 }
 
-function Positions({ positions }: { positions: PositionView[] }) {
-  const rows = positions.filter((p) => p.qty > 0);
+function Positions({ positions, symbols }: { positions: PositionView[]; symbols: string[] }) {
+  const rows = symbols.map(
+    (symbol) =>
+      positions.find((p) => p.symbol === symbol) ?? { symbol, qty: 0, market_value: 0, weight: 0 },
+  );
   return (
     <section className="card positions-card">
       <div className="card-head">
         <h2>Positions</h2>
       </div>
-      {rows.length === 0 && <p className="muted">No open position.</p>}
       <ul className="positions">
         {rows.map((p) => (
           <li key={p.symbol}>
-            <div className="position-row">
+            <div className={p.qty === 0 ? "position-row position-flat" : "position-row"}>
               <strong>{p.symbol}</strong>
               <span className="num">{formatUsd(p.market_value)}</span>
               <span className="num muted">{formatPercent(p.weight)}</span>
