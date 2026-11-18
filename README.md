@@ -3,15 +3,17 @@
 An autonomous agent that trades 8 ETFs (`SPY, QQQ, XLE, XLF, XLU, TLT, GLD, EEM`) on an **Alpaca paper account**.
 A **Mistral LLM** calls **Timestral** as a tool to forecast prices, then proposes `buy / sell / hold` and a size.
 **The LLM proposes, the code decides**: risk rules and dollar amounts are plain code. Paper trading only, not
-investment advice.
+investment advice. The agent manages a $10,000 budget of the paper account, and all its limits are computed on it.
 
 Live dashboard: <https://capucine-masson.github.io/paper-trading/>
 
 ## Three things to know
 
-1. **Honest calibration:** the forecast has no measurable edge at this horizon, and we say so. Its 10-90% interval
-   covers 72.5% of outcomes instead of 80%, so it is somewhat too narrow ([backtest](#how-do-we-know-the-decisions-are-sound)).
-2. **Uncertainty drives the size:** a wider forecast interval means a smaller buy, and a weak signal means no buy.
+1. **Honest calibration:** the forecast has no measurable edge at this horizon, and the backtest confirms it: the
+   direction is right 51.2% of the time, barely better than a coin flip. Its 10-90% interval covers 72.5% of outcomes
+   instead of 80%, so it is somewhat too narrow ([backtest](#how-do-we-know-the-decisions-are-sound)).
+2. **Uncertainty drives the size:** a wider forecast interval means a smaller buy, and a weak signal means no buy
+   (see step 4 of the [deep dive](#deep-dive-how-one-decision-is-made), implemented in `agent/risk.py`).
 3. **Guardrails live in code:** the LLM proposes an action and a share of the maximum position, never an amount or a
    price. The code can veto it and enforces hard limits that nothing can bypass.
 
@@ -44,18 +46,18 @@ The numbered blocks match the numbered steps below.
 flowchart TD
     S([Every hour]) --> C{Market open?}
     C -- no --> X([Stop])
-    C -- yes --> H{Account above $8,000?}
+    C -- yes --> H{Lost less than $2,000?<br/>since the 1st cycle}
     H -- no --> HX([Halted])
     H -- yes --> D["<b>1. DATA</b><br/>Prices and macro<br/>(Alpaca, FRED)"]
-    D --> T["<b>2. FORECAST</b><br/>Next 6 hours<br/>(Timestral)"]
+    D --> T["<b>2. FORECAST</b><br/>Next 6 hours<br/>(Timestral, on the LLM's request)"]
     T -->|broken forecast| N([Skip this ETF])
-    T --> L["<b>3. LLM</b><br/>Buy, sell or hold<br/>(Mistral)"]
-    L --> R{"<b>4. RISK CHECK</b><br/>Allowed?<br/>(code)"}
+    T --> L["<b>3. LLM</b> (Mistral)<br/>per ETF:<br/>- symbol<br/>- decision: buy, sell or hold<br/>- size: share of max position<br/>- rationale: short justification"]
+    L --> R{"<b>4. RISK CHECK</b> (code)<br/>Allowed? Examples:<br/>- trading not disabled<br/>- ETF on the allowed list<br/>- max 5 orders per cycle<br/>- no sell without a position"}
     R -->|hold| V([No order])
     R -->|sell| SO[Sell]
-    R -->|buy| G{Expected return > 0<br/>and signal strong enough?}
+    R -->|buy| G{Expected return > 0,<br/>signal strong enough<br/>and uncertainty low enough?}
     G -- no --> V
-    G -- yes --> Z["Size the buy<br/>(smaller if uncertain,<br/>capped by limits)"]
+    G -- yes --> Z["Size the buy<br/>(smaller if uncertain,<br/>capped at 30% per position<br/>and 80% total exposure,<br/>at least $100)"]
     SO --> O
     Z --> O["<b>5. ORDER</b><br/>Paper trading<br/>(Alpaca)"]
     O --> J[(Journal)]
@@ -116,7 +118,7 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | Question | Answer |
 | --- | --- |
 | Look-ahead? | Only completed bars are used; a daily macro value is visible from the next day 00:00 UTC; the backtest is walk-forward. Tests: `test_data`, `test_macro`, `test_backtest`. |
-| Who decides? | The LLM calls Timestral as a tool, then picks `buy / sell / hold`, a size and writes the rationale. The code never decides for it: it computes the numbers and can veto a decision (below). |
+| Who decides? | The LLM calls Timestral as a tool, then picks `buy / sell / hold`, a size and writes the rationale. The code computes the numbers and can veto or reduce its decision (below). |
 | Uncertainty? | Sized by the interval width, gated by the signal strength (steps 2 and 4 above). Signal strength measures how strong the forecast is, not a probability, and is not asked of the LLM, whose own confidence is not reliable. |
 | Risk? | Hard limits in code (step 4 above), a $8,000 capital floor and an emergency stop (`enabled = false`). Paper URL is a constant; no order without `--execute`. |
 | Explanations? | Each decision stores its rationale, the forecast, the market data given to Timestral and whether a FOMC/CPI release falls in the forecast window (recorded by the code, not written by the LLM, and not shown to the LLM), the risk verdict and the order, visible in the dashboard. |
@@ -136,7 +138,7 @@ decides on honest inputs, uses the uncertainty, stays inside hard limits and exp
 | Timestral-only rule (no LLM) | -2.90% | 4.90% | 66.6% |
 | **Timestral + LLM (the agent)** | **-1.79%** | 3.52% | 63.6% |
 
-At the same exposure, the agent (-1.79%) does the same as buy and hold (-1.94%) and the Timestral-only rule (-2.90%): no measurable edge, and these few weeks are noise, not skill. The dashboard's
+At the same exposure, the agent (-1.79%) does the same as buy and hold (-1.94%) and the Timestral-only rule (-2.90%): no measurable edge, and these few weeks are noise, not skill. Its max drawdown (3.52%) is even worse than buy and hold (2.24%). The dashboard's
 live "Buy & hold" line holds the same average exposure as the agent, so it is not flattered by cash.
 
 ## Limits
@@ -145,7 +147,7 @@ live "Buy & hold" line holds the same average exposure as the agent, so it is no
   2026-10-15 (Mistral model cards). The backtest starts on 2026-10-16, after both, so neither model can have seen it.
   Timestral's training data is not published, which is why nothing before its release is evaluated.
 - **Short evidence:** about 4 weeks of decisions, one market regime.
-- **Context length:** 400 hourly bars. We compared 200, 400 and 800 on the same 470 forecasts: 400 was the best on error and direction and faster than 800, but the gaps are within the noise. It is a reasonable choice, not a proven optimum.
+- **Context length:** 400 hourly bars. In a separate run, we compared 200, 400 and 800 on the same 470 forecasts: 400 was the best on error and direction and faster than 800, but the gaps are within the noise. It is a reasonable choice, not a proven optimum.
 - **No news covariates:** news (GDELT) is not used. Timestral already gets FRED drivers as past
   covariates and scheduled FOMC/CPI dates as known-future covariates; news has no known future value.
 - **Transaction costs** are simulated in the backtest only: `cost_bps = 5` per order (spread and slippage, an assumption), applied to every strategy. Live paper fills have no such cost, so the dashboard PnL is gross and "Est. costs" applies the same 5 bps to the filled amounts.

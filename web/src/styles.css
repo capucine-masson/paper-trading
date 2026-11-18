@@ -4,15 +4,15 @@
   --text: #131722;
   --muted: #6b7280;
   --border: #dcd9cc;
-  --accent: #0883e3;
-  --accent-soft: #daeaf7;
-  --up: #089981;
-  --down: #f9490b;
-  --focus: #0883e3;
-  --down-soft: #fee6dc;
-  --up-soft: #e3f5f1;
-  --warn-soft: #fff4e0;
-  --warn: #9a5200;
+  --accent: #ef9900;
+  --up: #337cc0;
+  --down: #e94d21;
+  --focus: var(--accent);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  --up-soft: color-mix(in srgb, var(--up) 14%, var(--surface));
+  --down-soft: color-mix(in srgb, var(--down) 14%, var(--surface));
+  --warn-soft: var(--accent-soft);
+  --warn: color-mix(in srgb, var(--accent) 55%, black);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -30,39 +30,33 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0b0e14;
-    --surface: #131722;
-    --text: #d1d4dc;
-    --muted: #868993;
-    --border: #2a2e39;
-    --accent: #0883e3;
-    --accent-soft: #11283d;
-    --up: #26a69a;
-    --down: #f9490b;
-    --focus: #0883e3;
-    --down-soft: #401a10;
-    --up-soft: #12302d;
-    --warn-soft: #36270f;
-    --warn: #f5b46a;
+    --bg: #14120f;
+    --surface: #1d1a16;
+    --text: #e8e4da;
+    --muted: #9a958a;
+    --border: #33302a;
+    --up: #4a9bbb;
+    --down: #f0643a;
+    --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
+    --up-soft: color-mix(in srgb, var(--up) 20%, var(--surface));
+    --down-soft: color-mix(in srgb, var(--down) 20%, var(--surface));
+    --warn: color-mix(in srgb, var(--accent) 70%, white);
     --shadow: none;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0e14;
-  --surface: #131722;
-  --text: #d1d4dc;
-  --muted: #868993;
-  --border: #2a2e39;
-  --accent: #0883e3;
-  --accent-soft: #11283d;
-  --up: #26a69a;
-  --down: #f9490b;
-  --focus: #0883e3;
-  --down-soft: #401a10;
-  --up-soft: #12302d;
-  --warn-soft: #36270f;
-  --warn: #f5b46a;
+  --bg: #14120f;
+  --surface: #1d1a16;
+  --text: #e8e4da;
+  --muted: #9a958a;
+  --border: #33302a;
+  --up: #4a9bbb;
+  --down: #f0643a;
+  --accent-soft: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  --up-soft: color-mix(in srgb, var(--up) 20%, var(--surface));
+  --down-soft: color-mix(in srgb, var(--down) 20%, var(--surface));
+  --warn: color-mix(in srgb, var(--accent) 70%, white);
   --shadow: none;
 }
 
