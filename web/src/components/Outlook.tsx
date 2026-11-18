@@ -14,7 +14,7 @@ export function Outlook({ decisions, symbols }: { decisions: DecisionView[]; sym
         <thead>
           <tr>
             <th scope="col" className="outlook-title">
-              <h2>Forecast</h2>
+              <h2>Timestral forecast</h2>
               <span className="muted">
                 {first === undefined ? "No forecast yet" : `Next ${horizon} hours`}
               </span>
