@@ -55,9 +55,9 @@ flowchart TD
     L --> R{"<b>4. RISK CHECK</b> (code)<br/>Allowed? Examples:<br/>- trading not disabled<br/>- ETF on the allowed list<br/>- max 5 orders per cycle<br/>- no sell without a position"}
     R -->|hold| V([No order])
     R -->|sell| SO[Sell]
-    R -->|buy| G{Expected return > 0,<br/>signal strong enough<br/>and uncertainty low enough?}
+    R -->|buy| G{"Expected return > 0,<br/>signal strong enough<br/>and uncertainty low enough?<br/>(risk.py)"}
     G -- no --> V
-    G -- yes --> Z["Size the buy<br/>(smaller if uncertain,<br/>capped at 30% per position<br/>and 80% total exposure,<br/>at least $100)"]
+    G -- yes --> Z["Size the buy<br/>(smaller if uncertain,<br/>capped at 30% per position<br/>and 80% total exposure,<br/>at least $100)<br/>(risk.py)"]
     SO --> O
     Z --> O["<b>5. ORDER</b><br/>Paper trading<br/>(Alpaca)"]
     O --> J[(Journal)]
@@ -97,6 +97,8 @@ symbol does not stop the others.
 | The LLM proposes a share, the code computes dollars | LLMs are unreliable at arithmetic and can be wrong with confidence; sizes and limits must be exact and testable. |
 | Signal strength from the code, not LLM confidence | An LLM's stated confidence is not calibrated; a number computed from the forecast is reproducible. |
 | Wide interval, small buy | Timestral's interval is the only uncertainty we have; using it to size is the most direct way to act on it. |
+| Buy only if signal strength ≥ 0.5 | 1 is a strong past signal (90th percentile); half of it is a round threshold that skips the weakest half of the range. |
+| No buy if uncertainty > 8% | About 3x the average interval width (2.6%): a ceiling for abnormal forecasts, also the scale of the size cut (a buy shrinks to zero as the width nears 8%). |
 | Long only, no short | Fewer ways to lose more than invested; simpler to explain to a client. |
 | 6-hour horizon, hourly cycle | Less noise than 1 hour, and the forecast stays fresh. |
 | Timestral-28M, not the 209M | Cheap and fast (111 MB, 0.18 s per forecast). The 209M is 8x slower for no real gain (below). |
