@@ -3,6 +3,25 @@
 Paper trading only: no real money is ever used. **Part 1** runs the agent on your machine. **Part 2**
 (optional) makes it run by itself every hour on GitHub.
 
+## Just want to look? No key needed
+
+The repository ships the author's `journal.db` (all its decisions). Browse it locally without any account:
+
+```bash
+git clone https://github.com/capucine-masson/paper-trading.git
+cd paper-trading
+uv sync --frozen
+uv run python -m agent.export                       # journal.db -> web/public/data/
+cd web
+pnpm install
+pnpm dev                                            # http://localhost:3030
+```
+
+Needs [Git](https://git-scm.com/downloads), [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+[Node 22](https://nodejs.org) with [pnpm](https://pnpm.io/installation). Even lighter: open the
+[live dashboard](https://capucine-masson.github.io/paper-trading/) or read `reports/backtest.md`.
+To run the agent yourself, continue with Part 1.
+
 ## Part 1: Run locally
 
 **Prerequisites**
@@ -10,7 +29,7 @@ Paper trading only: no real money is ever used. **Part 1** runs the agent on you
 - [Git](https://git-scm.com/downloads)
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) (installs Python 3.12 for you)
 - [Node 22](https://nodejs.org) and [pnpm](https://pnpm.io/installation) (dashboard only)
-- Three free accounts, each giving keys:
+- To run the agent (not needed to look at the dashboard), three free accounts, each giving keys:
   - [Alpaca paper trading](https://app.alpaca.markets/signup): `ALPACA_API_KEY` and `ALPACA_SECRET_KEY`
     (paper keys, on the [paper dashboard](https://app.alpaca.markets/paper/dashboard/overview))
   - [Mistral AI Studio](https://console.mistral.ai/api-keys): `MISTRAL_API_KEY`
@@ -38,7 +57,8 @@ optional (a [Hugging Face token](https://huggingface.co/settings/tokens) only sp
 **3. Start with an empty journal**
 
 The repository ships the author's `journal.db`, including the starting equity used for the loss limits.
-Delete it so the agent starts from your own Alpaca account (it is recreated on the first run):
+Delete it only if you want to run your own cycles: the agent then starts from your own Alpaca account (the
+file is recreated on the first run):
 
 ```bash
 rm journal.db               # PowerShell: Remove-Item journal.db
@@ -108,7 +128,7 @@ built-in `schedule` stays as a fallback. A duplicate run is harmless: it places 
 4. Generate and copy the token (`github_pat_...`) now: it is shown once. Paste it only into cron-job.org,
    never in the repository, in `.env` or in a chat.
 
-**B2. Create the cron job** ([sign up](https://cron-job.org/en/signup/), then
+**B2. Create the cron job** ([sign up](https://console.cron-job.org/signup), then
 [console](https://console.cron-job.org) > Create cronjob)
 
 1. Common tab:
