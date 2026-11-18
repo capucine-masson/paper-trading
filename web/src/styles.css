@@ -151,13 +151,21 @@ h3 {
   border-bottom: 1px solid var(--border);
 }
 
+.brand-link {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
 .brand {
   width: auto;
   height: 36px;
   transition: transform 0.5s ease;
 }
 
-.brand:hover {
+.brand-link:hover .brand {
   transform: rotate(180deg);
 }
 

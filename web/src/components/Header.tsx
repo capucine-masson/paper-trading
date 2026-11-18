@@ -19,7 +19,9 @@ export function Header({ tab, state, theme, onTab, onToggleTheme }: Props) {
   const nextTheme = theme === "dark" ? "light" : "dark";
   return (
     <header className="topbar">
-      <img className="brand" src={`${import.meta.env.BASE_URL}sablier-light-mistral.png`} alt="Paper Trading Agent" />
+      <button type="button" className="brand-link" onClick={() => onTab("overview")} aria-label="Go to Overview">
+        <img className="brand" src={`${import.meta.env.BASE_URL}sablier-light-mistral.png`} alt="" />
+      </button>
       <nav className="tabs" role="tablist" aria-label="Sections">
         {TABS.map((item) => (
           <button
