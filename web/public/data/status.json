@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T20:07:48.122708Z",
+  "generated_at": "2026-11-18T20:36:13.263771Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
@@ -20,7 +20,7 @@
     "EEM"
   ],
   "capital_floor": 8000.0,
-  "account_size": 99944.31,
+  "account_size": 99942.1,
   "metrics": {
     "equity": 9944.309999999998,
     "pnl": -55.69000000000233,
