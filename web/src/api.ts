@@ -19,7 +19,7 @@ async function load<T>(file: string): Promise<T> {
   return data;
 }
 
-export const isDemo = (): boolean =>
+const isDemo = (): boolean =>
   import.meta.env.DEV && new URLSearchParams(window.location.search).has("demo");
 
 export async function loadDashboard(): Promise<DashboardData> {

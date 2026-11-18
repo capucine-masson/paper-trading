@@ -53,7 +53,7 @@ export interface PortfolioData {
   positions: PositionView[];
 }
 
-export interface TradeView {
+interface TradeView {
   t: string;
   cycle_id: string;
   symbol: string;
