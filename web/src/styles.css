@@ -523,6 +523,10 @@ select:hover {
   margin-left: 0;
 }
 
+.chart-card .legend > span {
+  display: inline;
+}
+
 .chart-card .legend {
   display: block;
   flex: 1;
@@ -552,7 +556,7 @@ select:hover {
   display: inline-block;
   vertical-align: middle;
   width: 3.5px;
-  height: 6px;
+  height: 14px;
   margin-left: var(--space-2);
   border-radius: 1.5px;
 }

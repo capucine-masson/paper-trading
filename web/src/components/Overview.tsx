@@ -20,6 +20,10 @@ const PERIOD_LABELS: { value: Period; label: string }[] = [
   { value: "all", label: "All" },
 ];
 const NOT_AVAILABLE = "n/a";
+const BUY_AND_HOLD_HINT_ALL =
+  "If we had bought every symbol in equal parts, invested as much money as the agent, and never sold.";
+const BUY_AND_HOLD_HINT_SYMBOL =
+  "If we had bought this symbol when the agent first did, with the same amount, and never sold.";
 
 type Tone = "up" | "down" | undefined;
 
@@ -58,7 +62,9 @@ export function Overview({ status, portfolio, decisions, symbol, period, onSymbo
             {tracksAgent && (
               <>
                 <i className="swatch swatch-equity" /> Agent
-                <i className="swatch swatch-reference" /> Buy &amp; hold{isAll ? " (same exposure)" : ""}
+                <span title={isAll ? BUY_AND_HOLD_HINT_ALL : BUY_AND_HOLD_HINT_SYMBOL}>
+                  <i className="swatch swatch-reference" /> Buy &amp; hold{isAll ? " (same exposure)" : ""}
+                </span>
               </>
             )}
             <i className="dot dot-buy" /> Buy
