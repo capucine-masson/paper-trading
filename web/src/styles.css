@@ -110,6 +110,16 @@ h3 {
   letter-spacing: -0.015em;
 }
 
+.card-head h2,
+.outlook-title h2,
+.quality-chart h3 {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -1068,7 +1078,8 @@ select:hover {
   border-bottom: 1px solid var(--accent);
   border-radius: 0;
   font-family: var(--font-mono);
-  font-size: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
   text-transform: inherit;
   letter-spacing: inherit;
 }
