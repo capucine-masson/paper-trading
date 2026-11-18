@@ -231,7 +231,9 @@ function Positions({ positions, symbols }: { positions: PositionView[]; symbols:
             <div className={p.qty === 0 ? "position-row position-flat" : "position-row"}>
               <strong>{p.symbol}</strong>
               <span className="num">{formatUsd(p.market_value)}</span>
-              <span className="num muted">{formatPercent(p.weight)}</span>
+              <span className="num muted" title="% of current equity">
+                {formatPercent(p.weight)}
+              </span>
             </div>
             <span className="meter">
               <span className="meter-fill" style={{ width: `${Math.min(p.weight, 1) * 100}%` }} />
