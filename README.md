@@ -59,7 +59,7 @@ flowchart TD
     G -- no --> V
     G -- yes --> Z["Size the buy<br/>(smaller if uncertain,<br/>capped at 30% per position<br/>and 80% total exposure,<br/>at least $100)<br/>(risk.py)"]
     SO --> O
-    Z --> O["<b>5. ORDER</b><br/>Paper trading<br/>(Alpaca)"]
+    Z --> O["<b>5. EXECUTION</b><br/>Paper trading<br/>(Alpaca)"]
     O --> J[(Journal)]
     V --> J
 ```
