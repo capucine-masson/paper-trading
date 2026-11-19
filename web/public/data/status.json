@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-19T20:07:44.373698Z",
+  "generated_at": "2026-11-19T22:38:31.326419Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
-    "cycle_id": "20261119T20",
-    "status": "success",
-    "detail": "",
-    "started_at": "2026-11-19T20:07:31.654839Z"
+    "cycle_id": "20261119T22",
+    "status": "skipped",
+    "detail": "market closed",
+    "started_at": "2026-11-19T22:38:28.905986Z"
   },
   "allocated_capital": 10000.0,
   "symbols": [
