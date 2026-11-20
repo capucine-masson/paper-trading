@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-20T19:07:43.454203Z",
+  "generated_at": "2026-11-20T20:07:35.446887Z",
   "state": "active",
   "halted_reason": null,
   "last_cycle": {
-    "cycle_id": "20261120T19",
+    "cycle_id": "20261120T20",
     "status": "success",
     "detail": "",
-    "started_at": "2026-11-20T19:07:30.780008Z"
+    "started_at": "2026-11-20T20:07:22.066446Z"
   },
   "allocated_capital": 10000.0,
   "symbols": [
@@ -20,15 +20,15 @@
     "EEM"
   ],
   "capital_floor": 8000.0,
-  "account_size": 99817.97,
+  "account_size": 99788.27,
   "metrics": {
-    "equity": 9817.970000000001,
-    "pnl": -182.02999999999884,
-    "total_return": -0.018202999999999882,
-    "buy_and_hold_return": -0.014422655983068022,
-    "max_drawdown": 0.018315893672227006,
-    "exposure": 2869.3380079999997,
-    "cash": 6948.631992000001,
+    "equity": 9788.270000000004,
+    "pnl": -211.72999999999593,
+    "total_return": -0.02117299999999959,
+    "buy_and_hold_return": -0.016100258229178377,
+    "max_drawdown": 0.02128555216150045,
+    "exposure": 2839.6376849999997,
+    "cash": 6948.632315000004,
     "estimated_costs": 3.695146946714091
   }
 }
